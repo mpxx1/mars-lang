@@ -171,3 +171,16 @@ print("and this also\tworks like println \n")
 
 //to write \ to output to need to write \\ in string
 //to wirte {} write {{}}
+
+
+// traits - bottom priority (if we would have enought time)
+
+trait Hello {
+    fn hello(&self) -> void
+}
+
+impl Hello for String {
+    fn hello(&self) -> void {
+        self.base = ['h', 'e', 'l', 'l', 'o']    
+    }
+}
