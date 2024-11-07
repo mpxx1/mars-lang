@@ -163,34 +163,35 @@ above it:
     // think about beautiful for and does we need it
 
 
-// modules (?)
-
-pub mod super {
-    pub fn super_fun() -> void
-    
-    mod second {
-        use super::super_fun
-        
-        // code
-        super_fun()
-    }
-}
-
 // output
 
 var a = 11
-println("{1 + 1}, {}", a)
+println("{2 + 2} and {a} and \u{2244}")     // last one is unicode char
+print("and this also\tworks like println \n")
 
-write(&file, buffer)
+//to write \ to output to need to write \\ in string
+//to wirte {} write {{}}
 
-std::fs::File::open
+
+
+
+
+// last priority
+
+templates
+traits
+modules (+use)
+for loop
+files
+
+
+
 
 // additional
 
 trait Iterator<T> {
     fn iter() -> Iterator<T>
 }
-
 
 
 std::alloc
@@ -205,5 +206,35 @@ std::io::{println, print, write}
 <name_of_file>::<func name>
 
 
-1) Необходимо ли реализовывать модули (несколько файлов исходного кода)?
-2) Необходимо ли нам реализовывать template classes?
+// modules
+
+pub mod super {
+    pub fn super_fun() -> void
+    
+    mod second {
+        use super::super_fun
+        
+        // code
+        super_fun()
+    }
+}
+
+/////////
+for loop
+
+
+
+// files (?) // the lowest priority
+
+use std::fs::File
+
+
+var f: File = File::open("first.txt")
+if f.is_closed() {    // f == null
+    // do smth
+}
+
+f.write("smth to write")
+
+var s: String = ""
+f.read_to_string(&s)
