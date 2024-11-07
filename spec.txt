@@ -1,0 +1,209 @@
+// Mars programming language (.mars ?)
+// C lang simple featureless clone, rust-like look
+
+// primitives
+// can all have default values:   <usize>::default() / usize.default()
+
+    // ! (never)
+    void
+    bool
+    char
+    u8
+    u16
+    u32
+    u64
+    u128    (?)
+    usize   (?)
+    i8
+    i16
+    i32
+    i64
+    i128    (?)
+    isize   (?)
+    
+    [type; size]    // array
+    
+    &_              // mut ptr
+    &i32  &MemorySth
+    
+    // think about indexes in array and memory !!
+    
+// variables
+
+    var x: i32 = 0
+    var arr: [i32; 3] = [4; 3]      // [4, 4, 4]
+    var ara: [i32; 3] = [1, 2, 3]   // [1, 2, 3]
+    var str: String = "hello"
+    
+// operations
+
+    // appropriate
+    =
+    
+    // deref
+    *
+
+    // math/ base
+    +
+    -
+    *
+    /
+    %
+    &
+    ^
+    |
+    >>
+    <<
+    
+    // additional
+    +=
+    -=
+    *=
+    /=
+    %=
+    &=
+    ^=
+    |=
+    >>=
+    <<=
+    
+    // comparison
+    ==
+    !=
+    
+
+// it would be better not to have semicolens (;) in the and of line
+
+// does not have classes and oop (too hard to implement)
+// should have template classes
+
+// structs
+
+struct RawVec<T> {
+    base: &u8,          // heap ptr
+    capacity: usize,    // last elem can have coma (,) in the end
+}
+
+pub struct Vec<T> {
+    base: RawVec<T>,
+    len: usize,         
+}
+
+impl Vec<T> {
+    pub fn new() -> { 
+        Vec<T> { 
+            base: [0; 10],  // to init array: [default value; size]
+            len: 0
+        }
+    }
+}
+
+pub struct String {
+    base: Vec<char>,
+}
+
+// allocation for heap
+
+fn alloc(size: usize) -> &u8    // null
+fn drop(start: &u8)
+
+
+// functions
+
+no typeclasses for functions
+simple types
+
+function type: fn (i32, i32) -> i32
+
+pub fn min(a: i32, b: i32) -> i32 {
+    if a < b {
+        return a
+    } else {
+        return b 
+    }
+}
+
+fn operation(a: i32, b: i32, op: &fn (i32, i32) -> i32) -> i32 {
+    return (*op)(a, b)
+}
+
+pub fn overflow_sum(start: i32) -> void {
+    overflow_sum(start + 1)
+}
+
+var fun: fn(i32) -> void = overflow_sum;
+// and than you can run fn adding it () in the and
+
+(*fun)()    // fn call
+
+
+// main()
+
+(pub) fn main() -> void {
+
+}
+
+
+// loops
+
+base: 
+    loop {
+        if x == y { break }
+        else { continue }
+    }
+    
+above it:
+    for, while
+    
+    // bool operation
+    while x > y {
+        ...
+    }
+    
+    // think about beautiful for and does we need it
+
+
+// modules (?)
+
+pub mod super {
+    pub fn super_fun() -> void
+    
+    mod second {
+        use super::super_fun
+        
+        // code
+        super_fun()
+    }
+}
+
+// output
+
+var a = 11
+println("{1 + 1}, {}", a)
+
+write(&file, buffer)
+
+std::fs::File::open
+
+// additional
+
+trait Iterator<T> {
+    fn iter() -> Iterator<T>
+}
+
+
+
+std::alloc
+std::drop
+std::String
+std::vec::Vec
+std::vec::RawVec
+std::Iterator
+std::fs::File
+std::io::{println, print, write}
+
+<name_of_file>::<func name>
+
+
+1) Необходимо ли реализовывать модули (несколько файлов исходного кода)?
+2) Необходимо ли нам реализовывать template classes?
