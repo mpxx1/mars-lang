@@ -2,5 +2,9 @@
 name = "marsc"
 version = "0.1.0"
 edition = "2021"
+license = "BSDv3"
+description = """
+Mars programming language compiler
+"""
 
 [dependencies]

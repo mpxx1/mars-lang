@@ -1,6 +1,6 @@
 [package]
 name = "marsc_lexer"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2021"
 license = "BSDv3"
 description = """
@@ -8,3 +8,4 @@ Mars lexer used by marsc
 """
 
 [dependencies]
+marsc_code_span = { path = "../marsc_code_span" }
