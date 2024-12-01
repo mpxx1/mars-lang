@@ -3,16 +3,24 @@ use marsc_span::CodeSpan;
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     // digits
-    Int64(i64), // 2, 48, -1e4
+    // ..smaller
+    Int32(i32), // 2, 48, -1e4
+    Int64(i64),
+    UInt32(u32),
+    UInt64(u64),
+    Float32(f32),
+    Float64(f64),
+    // larger
 
     // operators
-    Plus,  // '+'
-    Minus, // '-'
-    Star,  // '*'
-    Slash, // '/'
+    Assignment, // '='
+    Plus,       // '+'
+    Minus,      // '-'
+    Star,       // '*'
+    Slash,      // '/'
 
     // cmp
-    Equals,
+    Equals, // '=='
 
     // separators
     LeftBracket,        // '('
@@ -21,18 +29,19 @@ pub enum TokenKind {
     RightBrace,         // '}'
     LeftSquareBracket,  // '['
     RightSquareBracket, // ']'
-    NewLine,            // '\n', invisible
+    Whitespace,         // ' '
     Tab,                // '\t'
+    NewLine,            // '\n', invisible
 
     // other
-    Bad, // unrecognized
     Eof, // EOF
+    Bad, // unrecognized
 }
 
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
-    kind: TokenKind,
+    pub(crate) kind: TokenKind,
     span: CodeSpan,
 }
 
