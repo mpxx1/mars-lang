@@ -26,13 +26,7 @@ impl<'a> Lexer<'a> {
     pub fn tokenize(&mut self) -> Vec<Token> {
         let mut tokens = vec![];
 
-        loop {
-            let token = self.next_token();
-            if token.is_none() { continue }
-            let token = token.unwrap();
-            if token.kind == TokenKind::Eof {
-                break;
-            }
+        while let Some(token) = self.next_token() {
             tokens.push(token);
         }
 
@@ -133,9 +127,20 @@ impl<'a> Lexer<'a> {
                 ))
             }
 
-            ' ' | '\t' => {
+            ' ' => {
                 offset = 1;
-                None
+                Some(Token::new(
+                    TokenKind::Whitespace,
+                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, " ".into())
+                ))
+            }
+
+            '\t' => {
+                offset = 1;
+                Some(Token::new(
+                    TokenKind::Whitespace,
+                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "\t".into())
+                ))
             }
 
             '\n' => {
@@ -148,11 +153,12 @@ impl<'a> Lexer<'a> {
 
             // ??
             '\0' => {
-                offset = 1;
-                Some(Token::new(
-                    TokenKind::Eof,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "\0".into())
-                ))
+                None
+                // offset = 1;
+                // Some(Token::new(
+                //     TokenKind::Eof,
+                //     CodeSpan::new(self.cur_pos, self.cur_pos + 1, "\0".into())
+                // ))
             }
 
             _ => {
@@ -170,7 +176,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn consume_char(&mut self) -> char {
-        self.input.chars().nth(self.cur_pos).unwrap();
+        self.input.chars().nth(self.cur_pos).unwrap()
     }
 
     fn consume_word(&mut self) -> String {
@@ -196,14 +202,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test1() {
-        let inp = "1 + 2\0";
+    fn simple_test_1() {
+        let inp = "1 + 2";
         let mut lex = Lexer::new(inp);
         let tokens = lex.tokenize();
-        println!("{:?}", tokens);
         assert_eq!(tokens, vec![
             Token::new(TokenKind::Int32(1), CodeSpan::new(0, 1, String::from("1"))),
+            Token::new(TokenKind::Whitespace, CodeSpan::new(1, 2, String::from(" "))),
             Token::new(TokenKind::Plus, CodeSpan::new(2, 3, String::from("+"))),
+            Token::new(TokenKind::Whitespace, CodeSpan::new(3, 4, String::from(" "))),
+            Token::new(TokenKind::Int32(2), CodeSpan::new(4, 5, String::from("2"))),
+        ]);
+    }
+
+    #[test]
+    fn simple_test_2() {
+        let inp = "1 # 2";
+        let mut lex = Lexer::new(inp);
+        let tokens = lex.tokenize();
+        assert_eq!(tokens, vec![
+            Token::new(TokenKind::Int32(1), CodeSpan::new(0, 1, String::from("1"))),
+            Token::new(TokenKind::Whitespace, CodeSpan::new(1, 2, String::from(" "))),
+            Token::new(TokenKind::Bad, CodeSpan::new(2, 3, String::from("#"))),
+            Token::new(TokenKind::Whitespace, CodeSpan::new(3, 4, String::from(" "))),
             Token::new(TokenKind::Int32(2), CodeSpan::new(4, 5, String::from("2"))),
         ]);
     }
