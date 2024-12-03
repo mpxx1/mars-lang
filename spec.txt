@@ -13,7 +13,6 @@
     // temporarily refusing
     &_              // mut ptr
     &i32  &MemorySth
-    
 
 // variables
 
@@ -65,7 +64,8 @@ impl Hello {
     fun sth(
         a: i64,
         b: i64,
-        f: fun(x: i64, y: i64) -> i64) -> i64 {
+        f: fun(x: i64, y: i64) -> i64
+    ) -> i64 {
 
         return f(a, b)
     }
@@ -155,7 +155,7 @@ fun pow(base: f64, exp: f64) -> f64 {
     result = 1
     if exp < 0 {
         base = 1 / base
-        exponent = -exponent
+        exponent = -exp
     }
 
     for (var i = 0; i < exp; i = i + 1) {

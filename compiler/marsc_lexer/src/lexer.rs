@@ -255,4 +255,20 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn simple_test_4() {
+        let inp = r#"1
+        ##
+        2#"#;
+        let mut lex = Lexer::new(inp);
+        let tokens = lex.tokenize();
+        assert_eq!(
+            tokens.err().unwrap(),
+            vec![
+                LexError { span: CodeSpan::new(10, 12, String::from("##")) },
+                LexError { span: CodeSpan::new(21, 23, String::from("2#")) },
+            ]
+        );
+    }
 }
