@@ -9,8 +9,8 @@ Rust-like, C-features
 - [ ] lexer
 - [ ] parser
 - [ ] ast
-- [ ] writer
-- [ ] codegen (inkvel/llvm)
+- [ ] print
+- [ ] codegen (inkwell/llvm)
 - [ ] hir
 - [ ] lir
 - [ ] mir

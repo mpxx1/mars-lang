@@ -5,7 +5,6 @@ pub struct CodeSpan {
     literal: String,
 }
 
-
 impl CodeSpan {
     pub fn new(start: usize, end: usize, literal: String) -> Self {
         Self {
@@ -13,6 +12,14 @@ impl CodeSpan {
             end,
             literal,
         }
+    }
+
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    pub fn end(&self) -> usize {
+        self.end
     }
 
     pub fn combine(mut spans: Vec<Self>) -> Self {

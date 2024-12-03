@@ -2,32 +2,19 @@
 // C lang simple featureless clone, rust-like look
 
 // primitives
-// can all have default values:   <usize>::default() / usize.default()
-
-    // ! (never)
     void
     bool
     char
-    u8
-    u16
-    u32
-    u64
-    u128    (?)
-    usize   (?)
-    i8
-    i16
-    i32
+    f64
     i64
-    i128    (?)
-    isize   (?)
     
     [type; size]    // array
-    
+
+    // temporarily refusing
     &_              // mut ptr
     &i32  &MemorySth
     
-    // think about indexes in array and memory !!
-    
+
 // variables
 
     var x: i32 = 0
@@ -39,37 +26,23 @@
 
     // appropriate
     =
-    
-    // deref
+
+    // deref (temporarily refusing)
     *
 
-    // math/ base
+    // math
     +
     -
     *
     /
-    %
-    &
-    ^
-    |
-    >>
-    <<
-    
-    // additional
-    +=
-    -=
-    *=
-    /=
-    %=
-    &=
-    ^=
-    |=
-    >>=
-    <<=
     
     // comparison
     ==
     !=
+    <=
+    >=
+    >
+    <
     
 
 // it would be better not to have semicolens (;) in the and of line
@@ -79,33 +52,24 @@
 
 // structs
 
-struct RawVec<T> {
-    base: &u8,          // heap ptr
-    capacity: usize,    // last elem can have coma (,) in the end
+struct Hello {
+    hello: i64,
+    sth_else: f64,
 }
 
-pub struct Vec<T> {
-    base: RawVec<T>,
-    len: usize,         
-}
+impl Hello {
+    fun hello() -> void {
+        print("hello")
+    }
 
-impl Vec<T> {
-    pub fn new() -> { 
-        Vec<T> { 
-            base: [0; 10],  // to init array: [default value; size]
-            len: 0
-        }
+    fun sth(
+        a: i64,
+        b: i64,
+        f: fun(x: i64, y: i64) -> i64) -> i64 {
+
+        return f(a, b)
     }
 }
-
-pub struct String {
-    base: Vec<char>,
-}
-
-// allocation for heap
-
-fn alloc(size: usize) -> &u8    // null
-fn drop(start: &u8)
 
 
 // functions
@@ -113,9 +77,9 @@ fn drop(start: &u8)
 no typeclasses for functions
 simple types
 
-function type: fn (i32, i32) -> i32
+function type: fun (i32, i32) -> i32
 
-pub fn min(a: i32, b: i32) -> i32 {
+fun min(a: i32, b: i32) -> i32 {
     if a < b {
         return a
     } else {
@@ -123,23 +87,18 @@ pub fn min(a: i32, b: i32) -> i32 {
     }
 }
 
-fn operation(a: i32, b: i32, op: &fn (i32, i32) -> i32) -> i32 {
-    return (*op)(a, b)
-}
-
-pub fn overflow_sum(start: i32) -> void {
+fun overflow_sum(start: i32) -> void {
     overflow_sum(start + 1)
 }
 
-var fun: fn(i32) -> void = overflow_sum;
-// and than you can run fn adding it () in the and
+var func: fun(i32) -> void = overflow_sum;
 
-(*fun)()    // fn call
+
 
 
 // main()
 
-(pub) fn main() -> void {
+fun main() -> void {
 
 }
 
@@ -165,22 +124,26 @@ above it:
 
 // output
 
-var a = 11
-println("{2 + 2} and {a} and \u{2244}")     // last one is unicode char
-print("and this also\tworks like println \n")
-
-//to write \ to output to need to write \\ in string
-//to wirte {} write {{}}
+var a = 10
+var c = 'h'
+print("base string" + "digit: " + a + " and char: " + c)
 
 
-// traits - bottom priority (if we would have enought time)
+fun pow(base: f64, exp: f64) -> f64 {
+    result = 1
+    if exp < 0 {
+        base = 1 / base
+        exponent = -exponent
+    }
 
-trait Hello {
-    fn hello(&self) -> void
+    for (var i = 0; i < exp; i = i + 1) {
+        result = result * base
+    }
+
+    return result
 }
 
-impl Hello for String {
-    fn hello(&self) -> void {
-        self.base = ['h', 'e', 'l', 'l', 'o']    
-    }
+fun modulo(dividend: i64, divisor: i64) -> f64 {
+    var quotient = dividend / divisor
+    return dividend - (quotient * divisor)
 }

@@ -1,52 +1,93 @@
-use marsc_span::CodeSpan;
+use m_span::CodeSpan;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
-    // digits
-    // ..smaller
-    Int32(i32), // 2, 48, -1e4
+    // literals
     Int64(i64),
-    UInt32(u32),
-    UInt64(u64),
-    Float32(f32),
     Float64(f64),
-    // larger
+    CharLit(char),
+    StringLit(String),
+    Identifier(String),
 
-    // operators
-    Assignment, // '='
-    Plus,       // '+'
-    Minus,      // '-'
-    Star,       // '*'
-    Slash,      // '/'
+    // keywords
+    And,
+    Struct,
+    Else,
+    False,
+    Fun,
+    For,
+    If,
+    Null,
+    Or,
+    Print,
+    Return,
+    SelfType,
+    True,
+    Var,
+    While,
+    Impl,
 
-    // cmp
-    Equals, // '=='
+    // types
+    Bool,
+    String,
+    Char, // ?
+    Void,
+    I64,
+    F64,
+    Array(String, usize), // size, type ident
 
-    // separators
-    LeftBracket,        // '('
-    RightBracket,       // ')'
-    LeftBrace,          // '{'
-    RightBrace,         // '}'
-    LeftSquareBracket,  // '['
-    RightSquareBracket, // ']'
-    Whitespace,         // ' '
-    Tab,                // '\t'
-    NewLine,            // '\n', invisible
+    // single-char tokens
+    LeftParen,
+    RightParen,
+    LeftBrace,
+    RightBrace,
+    Comma,
+    Colon,
+    Dot,
+    Minus,
+    Plus,
+    Slash,
+    Star,
+    // Ampersand,
+
+    // one or two chars
+    Bang,
+    BangEqual,
+    Equal,
+    EqualEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+    Returns,    // ->
 
     // other
-    Eof, // EOF
+    NewLine,
+    Tab,
+    Eof,
     Bad, // unrecognized
 }
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub(crate) kind: TokenKind,
-    span: CodeSpan,
+    pub(crate) span: CodeSpan,
 }
 
 impl Token {
     pub fn new(kind: TokenKind, span: CodeSpan) -> Self {
         Self { kind, span }
+    }
+
+    pub fn kind(&self) -> TokenKind {
+        self.kind.clone()
+    }
+
+    pub fn span(&self) -> CodeSpan {
+        self.span.clone()
+    }
+
+    pub fn extract(self) -> (TokenKind, CodeSpan) {
+        (self.kind, self.span)
     }
 }

@@ -1,20 +1,39 @@
 use crate::token::*;
-use marsc_span::CodeSpan;
+use m_span::CodeSpan;
 
 pub struct Lexer<'a> {
     input: &'a str,
     cur_pos: usize,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct LexError {
+    span: CodeSpan,
+}
+
+impl LexError {
+    pub fn take_span(self) -> CodeSpan {
+        self.span
+    }
+}
+
+trait GetBadTokens {
+    fn get_bad_tokens(&self) -> Vec<Token>;
+}
+
+impl GetBadTokens for Vec<Token> {
+    fn get_bad_tokens(&self) -> Vec<Token> {
+        self
+            .iter()
+            .filter(|x| x.kind == TokenKind::Bad)
+            .cloned()
+            .collect()
+    }
+}
+
 enum Number {
-    // smaller
-    Int32(i32),
     Int64(i64),
-    UInt32(u32),
-    UInt64(u64),
-    Float32(f32),
     Float64(f64),
-    // larger
 }
 
 impl<'a> Lexer<'a> {
@@ -23,14 +42,28 @@ impl<'a> Lexer<'a> {
     }
 
     // only one public method for lexer struct (except new)
-    pub fn tokenize(&mut self) -> Vec<Token> {
+    pub fn tokenize(&mut self) -> Result<Vec<Token>, Vec<LexError>> {
         let mut tokens = vec![];
+        let mut errors = vec![];
 
         while let Some(token) = self.next_token() {
-            tokens.push(token);
+            match token {
+                t if t.kind == TokenKind::Bad => errors.push(LexError { span: t.span }),
+                _ => tokens.push(token),
+            }
         }
 
-        tokens
+        if !errors.is_empty() {
+            return Err(errors);
+        }
+
+        // ?
+        tokens.push(Token::new(
+            TokenKind::Eof,
+            CodeSpan::new(self.input.len(), self.input.len() + 1, "\0".into())
+        ));
+
+        Ok(tokens)
     }
 
     // this func checks char under cur_pos and matches it with possible options
@@ -43,122 +76,107 @@ impl<'a> Lexer<'a> {
             return None;
         }
 
-        let cur_char = self.consume_char();
+        let cur_char = self.peek();
         let mut offset = 1;
         let token = match cur_char {
-            c if c.is_digit(10) => {
-                // todo
-                // not working, need to implement func and impl From<Token> for Number
-                // self.consume_digit().unwrap().into()
-                // tmp
-
-                match self.consume_digit().unwrap() {
-                    Number::Int32(x) => {
-                        let word = x.to_string();
+            c if c.is_numeric() => {
+                match self.consume_digit() {
+                    Ok(Number::Int64(x)) => {
+                        let word = self.consume_word();
                         offset = word.len();
                         Some(Token::new(
-                            TokenKind::Int32(x),
-                            CodeSpan::new(self.cur_pos, self.cur_pos + word.len(), word)
+                            TokenKind::Int64(x),
+                            CodeSpan::new(self.cur_pos, self.cur_pos + word.len(), word),
                         ))
                     }
-                    _ => todo!()
+
+                    Ok(Number::Float64(x)) => {
+                        let word = self.consume_word();
+                        offset = word.len();
+                        Some(Token::new(
+                            TokenKind::Float64(x),
+                            CodeSpan::new(self.cur_pos, self.cur_pos + word.len(), word),
+                        ))
+                    }
+
+                    Err(word) => {
+                        offset = word.len();
+                        Some(Token::new(
+                            TokenKind::Bad,
+                            CodeSpan::new(self.cur_pos, self.cur_pos + word.len(), word),
+                        ))
+                    }
                 }
             }
 
             '+' => {
                 // check +=
-                offset = 1;
                 Some(Token::new(
                     TokenKind::Plus,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "+".into())
+                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "+".into()),
                 ))
             }
 
             '-' => {
                 // check -=
-                offset = 1;
                 Some(Token::new(
                     TokenKind::Minus,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "-".into())
+                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "-".into()),
                 ))
             }
 
             '*' => {
                 // check *=
-                offset = 1;
                 Some(Token::new(
                     TokenKind::Star,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "*".into())
+                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "*".into()),
                 ))
             }
 
             '/' => {
                 // check /=
                 // check // (comment) ??
-                offset = 1;
                 Some(Token::new(
                     TokenKind::Slash,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "/".into())
+                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "/".into()),
                 ))
             }
 
             '=' => {
                 // check == (equals)
-                offset = 1;
                 Some(Token::new(
                     TokenKind::Assignment,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "=".into())
+                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "=".into()),
                 ))
             }
 
-            '(' => {
-                offset = 1;
-                Some(Token::new(
-                    TokenKind::LeftBracket,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "(".into())
-                ))
-            }
+            '(' => Some(Token::new(
+                TokenKind::LeftBracket,
+                CodeSpan::new(self.cur_pos, self.cur_pos + 1, "(".into()),
+            )),
 
-            ')' => {
-                offset = 1;
-                Some(Token::new(
-                    TokenKind::RightBracket,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, ")".into())
-                ))
-            }
+            ')' => Some(Token::new(
+                TokenKind::RightBracket,
+                CodeSpan::new(self.cur_pos, self.cur_pos + 1, ")".into()),
+            )),
 
-            ' ' => {
-                offset = 1;
-                Some(Token::new(
-                    TokenKind::Whitespace,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, " ".into())
-                ))
-            }
+            ' ' => Some(Token::new(
+                TokenKind::Whitespace,
+                CodeSpan::new(self.cur_pos, self.cur_pos + 1, " ".into()),
+            )),
 
-            '\t' => {
-                offset = 1;
-                Some(Token::new(
-                    TokenKind::Whitespace,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "\t".into())
-                ))
-            }
+            '\t' => Some(Token::new(
+                TokenKind::Whitespace,
+                CodeSpan::new(self.cur_pos, self.cur_pos + 1, "\t".into()),
+            )),
 
-            '\n' => {
-                offset = 1;
-                Some(Token::new(
-                    TokenKind::NewLine,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + 1, "\n".into())
-                ))
-            }
+            '\n' => Some(Token::new(
+                TokenKind::NewLine,
+                CodeSpan::new(self.cur_pos, self.cur_pos + 1, "\n".into()),
+            )),
 
-            // ??
             '\0' => {
                 None
-                // offset = 1;
-                // Some(Token::new(
-                //     TokenKind::Eof,
-                //     CodeSpan::new(self.cur_pos, self.cur_pos + 1, "\0".into())
-                // ))
             }
 
             _ => {
@@ -166,7 +184,7 @@ impl<'a> Lexer<'a> {
                 offset = word.len();
                 Some(Token::new(
                     TokenKind::Bad,
-                    CodeSpan::new(self.cur_pos, self.cur_pos + word.len(), word)
+                    CodeSpan::new(self.cur_pos, self.cur_pos + word.len(), word),
                 ))
             }
         };
@@ -175,15 +193,16 @@ impl<'a> Lexer<'a> {
         token
     }
 
-    fn consume_char(&mut self) -> char {
+    fn peek(&mut self) -> char {
         self.input.chars().nth(self.cur_pos).unwrap()
     }
 
     fn consume_word(&mut self) -> String {
         let mut cnt = self.cur_pos;
         let breakers = [' ', '\t', '\n', '\0'];
-        while self.input.chars().nth(cnt).is_some() &&
-            !breakers.contains(&self.input.chars().nth(cnt).unwrap()) {
+        while self.input.chars().nth(cnt).is_some()
+            && !breakers.contains(&self.input.chars().nth(cnt).unwrap())
+        {
             cnt += 1;
         }
 
@@ -191,9 +210,17 @@ impl<'a> Lexer<'a> {
         out
     }
 
-    fn consume_digit(&mut self) -> Option<Number> {
-        let digit = self.consume_word().trim().parse::<i32>().unwrap();
-        Some(Number::Int32(digit))
+    fn consume_digit(&mut self) -> Result<Number, String> {
+        let binding = self.consume_word();
+        let lit = binding.trim();
+
+        if let Ok(x) = lit.parse::<i64>() {
+            Ok(Number::Int64(x))
+        } else if let Ok(x) = lit.parse::<f64>() {
+            Ok(Number::Float64(x))
+        } else {
+            Err(lit.to_owned())
+        }
     }
 }
 
@@ -205,14 +232,24 @@ mod tests {
     fn simple_test_1() {
         let inp = "1 + 2";
         let mut lex = Lexer::new(inp);
-        let tokens = lex.tokenize();
-        assert_eq!(tokens, vec![
-            Token::new(TokenKind::Int32(1), CodeSpan::new(0, 1, String::from("1"))),
-            Token::new(TokenKind::Whitespace, CodeSpan::new(1, 2, String::from(" "))),
-            Token::new(TokenKind::Plus, CodeSpan::new(2, 3, String::from("+"))),
-            Token::new(TokenKind::Whitespace, CodeSpan::new(3, 4, String::from(" "))),
-            Token::new(TokenKind::Int32(2), CodeSpan::new(4, 5, String::from("2"))),
-        ]);
+        let tokens = lex.tokenize().unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::new(TokenKind::Int64(1), CodeSpan::new(0, 1, String::from("1"))),
+                Token::new(
+                    TokenKind::Whitespace,
+                    CodeSpan::new(1, 2, String::from(" "))
+                ),
+                Token::new(TokenKind::Plus, CodeSpan::new(2, 3, String::from("+"))),
+                Token::new(
+                    TokenKind::Whitespace,
+                    CodeSpan::new(3, 4, String::from(" "))
+                ),
+                Token::new(TokenKind::Int64(2), CodeSpan::new(4, 5, String::from("2"))),
+                Token::new(TokenKind::Eof, CodeSpan::new(5, 6, String::from("\0"))),
+            ]
+        );
     }
 
     #[test]
@@ -220,12 +257,35 @@ mod tests {
         let inp = "1 # 2";
         let mut lex = Lexer::new(inp);
         let tokens = lex.tokenize();
-        assert_eq!(tokens, vec![
-            Token::new(TokenKind::Int32(1), CodeSpan::new(0, 1, String::from("1"))),
-            Token::new(TokenKind::Whitespace, CodeSpan::new(1, 2, String::from(" "))),
-            Token::new(TokenKind::Bad, CodeSpan::new(2, 3, String::from("#"))),
-            Token::new(TokenKind::Whitespace, CodeSpan::new(3, 4, String::from(" "))),
-            Token::new(TokenKind::Int32(2), CodeSpan::new(4, 5, String::from("2"))),
-        ]);
+        assert_eq!(
+            tokens.err().unwrap(),
+            vec![
+                LexError { span: CodeSpan::new(2, 3, String::from("#")) },
+            ]
+        );
+    }
+
+    #[test]
+    fn simple_test_3() {
+        let inp = "1 + 2.0";
+        let mut lex = Lexer::new(inp);
+        let tokens = lex.tokenize().unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::new(TokenKind::Int64(1), CodeSpan::new(0, 1, String::from("1"))),
+                Token::new(
+                    TokenKind::Whitespace,
+                    CodeSpan::new(1, 2, String::from(" "))
+                ),
+                Token::new(TokenKind::Plus, CodeSpan::new(2, 3, String::from("+"))),
+                Token::new(
+                    TokenKind::Whitespace,
+                    CodeSpan::new(3, 4, String::from(" "))
+                ),
+                Token::new(TokenKind::Float64(2.0), CodeSpan::new(4, 7, String::from("2.0"))),
+                Token::new(TokenKind::Eof, CodeSpan::new(7, 8, String::from("\0"))),
+            ]
+        );
     }
 }

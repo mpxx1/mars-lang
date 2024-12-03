@@ -8,7 +8,7 @@ Mars source code span compiler module used by marsc
 """
 
 [lib]
-name = "marsc_span"
+name = "m_span"
 path = "src/lib.rs"
 
 [dependencies]

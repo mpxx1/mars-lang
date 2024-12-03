@@ -1,3 +1,10 @@
-fn main() {
-    println!("Hello, world!");
+
+
+fn main() {  }
+
+
+
+#[cfg(test)]
+mod tests {
+
 }
