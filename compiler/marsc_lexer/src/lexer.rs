@@ -17,20 +17,6 @@ impl LexError {
     }
 }
 
-trait GetBadTokens {
-    fn get_bad_tokens(&self) -> Vec<Token>;
-}
-
-impl GetBadTokens for Vec<Token> {
-    fn get_bad_tokens(&self) -> Vec<Token> {
-        self
-            .iter()
-            .filter(|x| x.kind == TokenKind::Bad)
-            .cloned()
-            .collect()
-    }
-}
-
 enum Number {
     Int64(i64),
     Float64(f64),
@@ -46,9 +32,12 @@ impl<'a> Lexer<'a> {
         let mut tokens = vec![];
         let mut errors = vec![];
 
-        while let Some(token) = self.next_token() {
+        loop {
+            // Nones are tabs and whitespaces (do not ignore them in strings!!)
+            let Some(token) = self.next_token() else { continue };
             match token {
                 t if t.kind == TokenKind::Bad => errors.push(LexError { span: t.span }),
+                t if t.kind == TokenKind::Eof => break,
                 _ => tokens.push(token),
             }
         }
@@ -57,7 +46,6 @@ impl<'a> Lexer<'a> {
             return Err(errors);
         }
 
-        // ?
         tokens.push(Token::new(
             TokenKind::Eof,
             CodeSpan::new(self.input.len(), self.input.len() + 1, "\0".into())
@@ -73,7 +61,10 @@ impl<'a> Lexer<'a> {
     // it must return original string ("hello world")
     fn next_token(&mut self) -> Option<Token> {
         if self.cur_pos >= self.input.len() {
-            return None;
+            return Some(Token::new(
+                TokenKind::Eof,
+                CodeSpan::new(self.input.len(), self.input.len() + 1, "\0".into()),
+            ));
         }
 
         let cur_char = self.peek();
@@ -110,7 +101,6 @@ impl<'a> Lexer<'a> {
             }
 
             '+' => {
-                // check +=
                 Some(Token::new(
                     TokenKind::Plus,
                     CodeSpan::new(self.cur_pos, self.cur_pos + 1, "+".into()),
@@ -118,7 +108,6 @@ impl<'a> Lexer<'a> {
             }
 
             '-' => {
-                // check -=
                 Some(Token::new(
                     TokenKind::Minus,
                     CodeSpan::new(self.cur_pos, self.cur_pos + 1, "-".into()),
@@ -126,7 +115,6 @@ impl<'a> Lexer<'a> {
             }
 
             '*' => {
-                // check *=
                 Some(Token::new(
                     TokenKind::Star,
                     CodeSpan::new(self.cur_pos, self.cur_pos + 1, "*".into()),
@@ -134,8 +122,6 @@ impl<'a> Lexer<'a> {
             }
 
             '/' => {
-                // check /=
-                // check // (comment) ??
                 Some(Token::new(
                     TokenKind::Slash,
                     CodeSpan::new(self.cur_pos, self.cur_pos + 1, "/".into()),
@@ -145,39 +131,36 @@ impl<'a> Lexer<'a> {
             '=' => {
                 // check == (equals)
                 Some(Token::new(
-                    TokenKind::Assignment,
+                    TokenKind::Equal,
                     CodeSpan::new(self.cur_pos, self.cur_pos + 1, "=".into()),
                 ))
             }
 
             '(' => Some(Token::new(
-                TokenKind::LeftBracket,
+                TokenKind::LeftParen,
                 CodeSpan::new(self.cur_pos, self.cur_pos + 1, "(".into()),
             )),
 
             ')' => Some(Token::new(
-                TokenKind::RightBracket,
+                TokenKind::RightParen,
                 CodeSpan::new(self.cur_pos, self.cur_pos + 1, ")".into()),
             )),
 
-            ' ' => Some(Token::new(
-                TokenKind::Whitespace,
-                CodeSpan::new(self.cur_pos, self.cur_pos + 1, " ".into()),
-            )),
-
-            '\t' => Some(Token::new(
-                TokenKind::Whitespace,
-                CodeSpan::new(self.cur_pos, self.cur_pos + 1, "\t".into()),
-            )),
+            ' ' | '\t' => None,
 
             '\n' => Some(Token::new(
                 TokenKind::NewLine,
                 CodeSpan::new(self.cur_pos, self.cur_pos + 1, "\n".into()),
             )),
 
-            '\0' => {
-                None
-            }
+            // '\0' => {
+            //     Some(Token::new(
+            //         TokenKind::Eof,
+            //         CodeSpan::new(self.input.len(), self.input.len() + 1, "\0".into()),
+            //     ))
+            // }
+
+            // TODO: more tokens !!!
 
             _ => {
                 let word = self.consume_word();
@@ -237,15 +220,7 @@ mod tests {
             tokens,
             vec![
                 Token::new(TokenKind::Int64(1), CodeSpan::new(0, 1, String::from("1"))),
-                Token::new(
-                    TokenKind::Whitespace,
-                    CodeSpan::new(1, 2, String::from(" "))
-                ),
                 Token::new(TokenKind::Plus, CodeSpan::new(2, 3, String::from("+"))),
-                Token::new(
-                    TokenKind::Whitespace,
-                    CodeSpan::new(3, 4, String::from(" "))
-                ),
                 Token::new(TokenKind::Int64(2), CodeSpan::new(4, 5, String::from("2"))),
                 Token::new(TokenKind::Eof, CodeSpan::new(5, 6, String::from("\0"))),
             ]
@@ -274,15 +249,7 @@ mod tests {
             tokens,
             vec![
                 Token::new(TokenKind::Int64(1), CodeSpan::new(0, 1, String::from("1"))),
-                Token::new(
-                    TokenKind::Whitespace,
-                    CodeSpan::new(1, 2, String::from(" "))
-                ),
                 Token::new(TokenKind::Plus, CodeSpan::new(2, 3, String::from("+"))),
-                Token::new(
-                    TokenKind::Whitespace,
-                    CodeSpan::new(3, 4, String::from(" "))
-                ),
                 Token::new(TokenKind::Float64(2.0), CodeSpan::new(4, 7, String::from("2.0"))),
                 Token::new(TokenKind::Eof, CodeSpan::new(7, 8, String::from("\0"))),
             ]

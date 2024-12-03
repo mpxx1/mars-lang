@@ -71,6 +71,28 @@ impl Hello {
     }
 }
 
+// or
+
+var hello = Hello { hello: 0, sth_else: 0.0 }
+
+struct Hello {
+    var hello:    i64
+    var sth_else: f64
+
+    fun hello() -> void {
+        print("hello")
+    }
+
+    fun sth(
+        a: i64,
+        b: i64,
+        f: fun(x: i64, y: i64) -> i64
+    ) -> i64 {
+
+        return f(a, b)
+    }
+}
+
 
 // functions
 

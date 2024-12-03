@@ -7,7 +7,7 @@ pub enum TokenKind {
     Float64(f64),
     CharLit(char),
     StringLit(String),
-    Identifier(String),
+    Ident(String),
 
     // keywords
     And,
@@ -63,7 +63,6 @@ pub enum TokenKind {
 
     // other
     NewLine,
-    Tab,
     Eof,
     Bad, // unrecognized
 }

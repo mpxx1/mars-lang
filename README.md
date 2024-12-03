@@ -1,10 +1,9 @@
 # Mars-lang
-## Mars programming language
 
-Rust-like, C-features
+## Mars - simple programing language for educational purposes
+### Using LLVM backend for codegen (it's wrapped by rust crate - inkwell)
 
-
-### status 
+### compiler building status 
 
 - [ ] lexer
 - [ ] parser
