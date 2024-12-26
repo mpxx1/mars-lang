@@ -2,6 +2,16 @@
 name = "marsc_ast"
 version = "0.1.0"
 edition = "2021"
+license = "BSDv3"
+description = """
+Mars programming language parser and ast builder
+"""
+
+[lib]
+name = "m_ast"
+path = "src/lib.rs"
 
 [dependencies]
-marsc_lexer = { path = "../marsc_lexer" }
+pest = "2.7.14"
+pest_derive = "2.7.14"
+anyhow = "1.0.95"

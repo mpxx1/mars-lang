@@ -1,0 +1,92 @@
+program = _{ SOI ~ (stmt)* ~ EOI }
+stmt = _{ function | struct | ( ( assignment | expression | comment ) ~ NEWLINE? ) }
+
+WHITESPACE = _{ " " | "\t" | "\n" }
+
+function = { "fun" ~ identifier ~ "(" ~ function_args? ~ ")" ~ ("->" ~ type)? ~ ( "{" ~ function_body ~ "}" ) }
+function_body = { (stmt)* }
+function_args = { (function_arg ~ ",")+ ~ function_arg? }
+function_arg = { identifier ~ ":" ~ type }
+
+struct = { "struct" ~ identifier ~ "{" ~ (struct_field_decl ~ "," )* ~ struct_field_decl? ~ "}" }
+struct_field_decl = { identifier ~ (":" ~ type) }
+
+assignment = { "var" ~ identifier ~ "=" ~ expression }
+assign = { identifier ~ "=" ~ expression }
+
+expression = _{
+	array | array_lookup | return | assign | if_else | while_loop | boolean |
+	call | struct_init | struct_field_ref | integer | string | identifier |
+	reference | operation | float
+}
+
+identifier = { ASCII_ALPHA+ ~ ASCII_DIGIT* }
+
+type = { int_type | string_type | float_type |
+		 array_type | bool_type | ref_type |
+         fun_type | custom_type
+         }
+
+string_type = { "str" }
+int_type = { "int" }
+float_type = { "float" }
+array_type = { "[" ~ type ~ ";" ~ ASCII_DIGIT* ~ "]" }
+bool_type = { "bool" }
+ref_type = { "&" ~ type }
+fun_type = { "fun" ~ identifier ~ "(" ~ function_args? ~ ")" ~ "->" ~ type }
+custom_type = { identifier }
+
+string = { "\"" ~ inner ~"\"" }
+inner = @{ char* }
+char = {
+    !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+
+boolean = { false | true }
+false = {"false"}
+true = {"true"}
+
+array = { "[" ~ (expression ~ ",")* ~ expression? ~ "]" }
+array_lookup = { identifier ~ "[" ~ expression ~ "]" }
+
+return = { "return" ~ expression? }
+block = { stmt* }
+condition = _{ expression }
+
+if_else = { "if" ~ condition ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
+
+while_loop = { "while" ~ condition ~ "{" ~ block ~ "}" }
+
+integer = { ASCII_DIGIT+ }
+float = { ASCII_DIGIT+ ~ "." ~ (ASCII_DIGIT+)? }
+reference = { "&" ~ expression }
+
+call = { identifier ~ "(" ~ call_args? ~ ")" }
+call_args = { ( expression ~ "," )* ~ expression? }
+
+struct_init = { identifier ~ "{" ~ ( expression ~ ",")* ~ expression? ~ "}" }
+
+struct_field_ref = ${ identifier ~ "." ~ identifier }
+
+operation = { primary ~ (infix_operator ~ primary)* }
+primary = _{ integer | float | boolean | "(" ~ expression ~ ")" }
+
+infix_operator = _{
+	addition | subtraction | division | multiplication | equal | not_equal | greater_than_or_equal | less_than_or_equal | greater_than | less_than
+}
+
+addition = { "+" }
+subtraction = { "-" }
+multiplication = { "*" }
+division = { "/" }
+equal = { "==" }
+not_equal = { "!=" }
+greater_than = { ">" }
+less_than = { "<" }
+greater_than_or_equal = { ">=" }
+less_than_or_equal = { "<=" }
+
+// fix comments
+comment = _{ "//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
