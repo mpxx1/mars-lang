@@ -1,115 +1,170 @@
-program      = _{ SOI ~ ( stmt )* ~ EOI }
-stmt         = _{ NEWLINE | break | comment | struct_decl |
-                  assigment | assign | expr }
+program = _{ SOI ~ (stmt)* ~ EOI }
+stmt    = _{
+    NEWLINE
+  | break
+  | comment
+  | struct_decl
+  | func_decl
+  | assigment
+  | assign
+  | expr
+}
 
-WHITESPACE   = _{ " " | "\t" | "\r" | "\n" }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 
-break        =  { "break" }
+break = { "break" }
 
-comment      = _{ multi_line_comment }
+comment            = _{ multi_line_comment }
 multi_line_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
-identifier   = @{ !"i64" ~ !"f64" ~ !"u8" ~ !"str" ~ !"char" ~ !"bool" ~ !"fn" ~
-                  !"null" ~ !"if" ~ !"else" ~ !"while" ~ !"for" ~ !"loop" ~
-                  !"var" ~ !"struct" ~ !"break" ~ !"as" ~
-                  ( ASCII_ALPHA ~ ( ASCII_ALPHANUMERIC )* ) }
-literal      =  { i64_decl | f64_decl | u8_decl | str_decl | char_decl |
-                  bool_decl }
-block        = _{ stmt* }
-type         = _{ ref_type | i64_type | func_type | f64_type | u8_type |
-                  str_type | char_type | bool_type | custom_type | array_type }
-args_decl    =  { ( identifier ~ ":" ~ type ~ "," )* ~ ( identifier ~ ":" ~ type )? }
+identifier = @{
+    !"i64" ~ !"f64" ~ !"u8" ~ !"str" ~ !"char" ~ !"bool" ~ !"fn" ~ !"size" ~ !"null" ~ !"if" ~
+    !"else" ~ !"while" ~ !"for" ~ !"loop" ~ !"false" ~ !"var" ~ !"struct" ~ !"break" ~ !"as" ~
+    !"const" ~ !"true" ~ !"Vec" ~ (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)*)
+}
+literal    =  { flt_decl | int_decl | str_decl | char_decl | bool_decl }
+block      = _{ stmt* }
+type       = _{
+    ref_type
+  | i64_type
+  | func_type
+  | f64_type
+  | u8_type
+  | size_type
+  | str_type
+  | char_type
+  | bool_type
+  | custom_type
+  | array_type
+  | vec_type
+}
+args_decl    =  { (identifier ~ ":" ~ type ~ ",")* ~ (identifier ~ ":" ~ type)? }
 
-f64_decl     = @{ "-"? ~ (ASCII_DIGIT)+ ~ "." ~ (ASCII_DIGIT)+ }
-i64_decl     = @{ "-"? ~ (ASCII_DIGIT)+ }
-u8_decl      = @{ (ASCII_DIGIT)+ }
-str_decl     = @{ "\"" ~ inner ~"\"" }
+flt_decl     = @{ ("-"? ~ (ASCII_DIGIT)+ ~ "." ~ (ASCII_DIGIT)+) | num_exp_decl }
+int_decl     = @{ ("-"? ~ (ASCII_DIGIT)+) | num_exp_decl }
+num_exp_decl = @{ "-"? ~ (ASCII_DIGIT)+ ~ "e" ~ (ASCII_DIGIT)+ }
+str_decl     = @{ "\"" ~ inner ~ "\"" }
 char_decl    = @{ "'" ~ char ~ "'" }
 bool_decl    = @{ "true" | "false" }
 
-array_decl   =  { "[" ~ ( expr ~ "," )* ~ ( expr )? ~ "]" }
+array_decl = { "[" ~ (expr ~ ",")* ~ (expr)? ~ "]" }
 // strings also must support it as array of chars
-array_lookup =  { identifier ~ "[" ~ expr ~ "]" }
-array_len    =  { (ASCII_DIGIT)+ }
+mem_lookup = { identifier ~ "[" ~ expr ~ "]" ~ ( "[" ~ expr ~ "]" )* }
+array_len  = { (ASCII_DIGIT)+ }
 
-inner        = @{ char* }
-char         =  { !("\"" | "\\") ~ ANY
-                  | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
-                  | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4}) }
+inner = @{ char* }
+char  =  {
+    !("\"" | "\\") ~ ANY
+  | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+  | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
 
-i64_type     =  { "i64" }
-f64_type     =  { "f64" }
-u8_type      =  { "u8"  }
-str_type     =  { "str" }
-char_type    =  { "char" }
-bool_type    =  { "bool" }
-custom_type  =  { identifier }
-array_type   =  { "[" ~ type ~ ";" ~ array_len ~ "]" }
-func_type    =  { "fn" ~ "(" ~ ( type ~ "," )* ~ type? ~ ")" ~ ( "->" ~ return_type )? }
-ref_type     =  { "&" ~ type }
+i64_type    = { "i64" }
+f64_type    = { "f64" }
+u8_type     = { "u8" }
+str_type    = { "str" }
+char_type   = { "char" }
+bool_type   = { "bool" }
+size_type   = { "size" }
+custom_type = { identifier }
+array_type  = { "[" ~ type ~ ";" ~ array_len ~ "]" }
+func_type   = { "fn" ~ "(" ~ (type ~ ",")* ~ type? ~ ")" ~ ("->" ~ return_type)? }
+ref_type    = { "&" ~ type }
 
-func_decl    =  { "fn" ~ ( identifier )? ~ "(" ~ args_decl ~ ")" ~ ( "->" ~ return_type )? ~ "{" ~ block ~ "}" }
-return_type  =  { type }
+func_decl   = { "fn" ~ identifier ~ "(" ~ args_decl ~ ")" ~ ("->" ~ return_type)? ~ "{" ~ block ~ "}" }
+return_type = { type }
 
-struct_decl  =  { "struct" ~ identifier ~ "{" ~ args_decl ~ "}" }
+struct_decl = { "struct" ~ identifier ~ "{" ~ args_decl ~ "}" }
 
-assigment    =  { "var" ~ identifier ~ ( ":" ~ type )? ~ "=" ~ expr }
-// first expr can be identifier or array_lookup only
-assign       =  { expr ~ "=" ~ expr }
+assigment = { "var" ~ identifier ~ (":" ~ type)? ~ "=" ~ expr }
+// first expr can be identifier or mem_lookup only
+assign = {
+    expr ~ assign_base
+  | assign_add
+  | assign_sub
+  | assign_mul
+  | assign_div
+  | assign_mod_rem
+  | assign_div_floor
+  | assign_pow ~ expr
+}
 
-expr         = _{ return | reference | dereference | not | func_call | func_decl |
-                  array_decl | array_lookup | struct_init | if_else | loop |
-                  logical_expr }
+assign_base      = { "=" }
+assign_add       = { "+=" }
+assign_sub       = { "-=" }
+assign_mul       = { "*=" }
+assign_div       = { "/=" }
+assign_mod_rem   = { "%=" }
+assign_div_floor = { "//=" }
+assign_pow       = { "^=" }
 
-return       =  { "return" ~ expr? }
+expr = _{
+    return
+  | cast_type
+  | reference
+  | dereference
+  | not
+  | func_call
+  | array_decl
+  | mem_lookup
+  | struct_init
+  | if_else
+  | loop
+  | logical_expr
+}
 
-reference    =  { "&" ~ expr }
-dereference  =  { "*" ~ expr }
-not          =  { "!" ~ expr }
+return = { "return" ~ expr? }
 
-struct_init  =  { identifier ~ "{" ~ struct_init_args ~ "}" }
-struct_field = { identifier }
-struct_init_args  =  { ( struct_field ~ ":" ~ expr ~ "," )* ~ ( struct_field ~ ":" ~ expr )? }
+reference   = { "&" ~ expr }
+dereference = { "*" ~ expr }
+not         = { "!" ~ expr }
 
-func_call    =  { identifier ~ "(" ~ func_args_to_call ~ ")" }
-func_args_to_call = { ( expr ~ "," )* ~ ( expr )? }
+cast_type = { "(" ~ type ~ ")" ~ expr }
 
-condition    =  { expr }
-if_else      =  { "if" ~ condition ~ "{" ~ block ~ "}" ~
-                ( "else" ~ "if" ~ condition ~ "{" ~ block ~ "}" )* ~
-                ( "else" ~ "{" ~ block ~ "}" )? }
+struct_init      = { identifier ~ "{" ~ struct_init_args ~ "}" }
+struct_field     = { identifier }
+struct_init_args = { (struct_field ~ ":" ~ expr ~ ",")* ~ (struct_field ~ ":" ~ expr)? }
 
-or_op        =  { "||" }
-and_op       =  { "&&" }
-equal_op     =  { "==" }
-not_equal_op =  { "!=" }
-more_eq_op   =  { ">=" }
-less_eq_op   =  { "<=" }
-more_op      =  { ">"  }
-less_op      =  { "<"  }
+func_call         = { identifier ~ "(" ~ func_args_to_call ~ ")" }
+func_args_to_call = { (expr ~ ",")* ~ (expr)? }
 
-add_op       =  { "+"  }
-sub_op       =  { "-"  }
-mul_op       =  { "*"  }
-div_op       =  { "/"  }
+condition = { expr }
+if_else   = {
+    "if" ~ condition ~ "{" ~ block ~ "}" ~
+    ("else" ~ "if" ~ condition ~ "{" ~ block ~ "}")* ~
+    ("else" ~ "{" ~ block ~ "}")?
+}
 
-logical_expr     =  { logical_or_expr }
-logical_or_expr  =  { logical_and_expr ~ ( or_op ~ logical_and_expr )* }
-logical_and_expr =  { equality_expr ~ ( and_op ~ equality_expr )* }
-equality_expr    =  { relational_expr ~ ( ( equal_op | not_equal_op ) ~ relational_expr )* }
-relational_expr  =  { additive_expr ~ ( ( more_eq_op | less_eq_op | more_op | less_op ) ~ additive_expr )* }
-additive_expr    =  { multiplicative_expr ~ (( add_op | sub_op ) ~ multiplicative_expr )* }
-multiplicative_expr = { primary_expr ~ (( mul_op | div_op ) ~ primary_expr )* }
-primary_expr     =  { literal | identifier | "(" ~ expr ~ ")" }
+or_op        = { "||" }
+and_op       = { "&&" }
+equal_op     = { "==" }
+not_equal_op = { "!=" }
+more_eq_op   = { ">=" }
+less_eq_op   = { "<=" }
+more_op      = { ">" }
+less_op      = { "<" }
 
-// temporary unavailable (maybe it's superfluous)
-// null             = { "null" }
+add_op       = { "+" }
+sub_op       = { "-" }
+mul_op       = { "*" }
+div_op       = { "/" }
+mod_op       = { "%" }
+div_floor_op = { "//" }
+pow_op       = { "^" }
 
-loop        =  { base_loop }
-base_loop   =  { "loop" ~ "{" ~ block ~ "}" }
+logical_expr        = { logical_or_expr }
+logical_or_expr     = { logical_and_expr ~ (or_op ~ logical_and_expr)* }
+logical_and_expr    = { equality_expr ~ (and_op ~ equality_expr)* }
+equality_expr       = { relational_expr ~ ((equal_op | not_equal_op) ~ relational_expr)* }
+relational_expr     = { additive_expr ~ ((more_eq_op | less_eq_op | more_op | less_op) ~ additive_expr)* }
+additive_expr       = { multiplicative_expr ~ ((add_op | sub_op) ~ multiplicative_expr)* }
+multiplicative_expr = { power_expr ~ ((div_floor_op | mul_op | div_op | mod_op) ~ power_expr)* }
+power_expr          = { primary_expr ~ (pow_op ~ primary_expr)* }
+primary_expr        = { literal | identifier | "(" ~ expr ~ ")" }
 
-// todo: while_loop, for_loop
-// todo: type casting
-// todo: add 1e9 decl ability to f64
-// todo: add modules support
-// todo: simple vector support
+loop       = { while_loop }
+while_loop = { "while" ~ condition ~ "{" ~ block ~ "}" }
+
+// test of vec support
+capacity   =  { (ASCII_DIGIT)+ }
+vec_type   =  { "Vec" ~ "<" ~ type ~ ( ";" ~ capacity )? ~ ">" }
