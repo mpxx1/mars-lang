@@ -10,29 +10,32 @@ comment      = _{ multi_line_comment }
 multi_line_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
 identifier   = @{ !"i64" ~ !"f64" ~ !"u8" ~ !"str" ~ !"char" ~ !"bool" ~ !"fn" ~
+                  !"null" ~ !"if" ~ !"else" ~ !"while" ~ !"for" ~ !"loop" ~
+                  !"var" ~ !"struct" ~ !"break" ~ !"as" ~
                   ( ASCII_ALPHA ~ ( ASCII_ALPHANUMERIC )* ) }
 literal      =  { i64_decl | f64_decl | u8_decl | str_decl | char_decl |
                   bool_decl }
-block        =  { stmt* }
+block        = _{ stmt* }
 type         = _{ ref_type | i64_type | func_type | f64_type | u8_type |
                   str_type | char_type | bool_type | custom_type | array_type }
 args_decl    =  { ( identifier ~ ":" ~ type ~ "," )* ~ ( identifier ~ ":" ~ type )? }
 
-f64_decl     =  @{ "-"? ~ (ASCII_DIGIT)+ ~ "." ~ (ASCII_DIGIT)+ }
-i64_decl     =  @{ "-"? ~ (ASCII_DIGIT)+ }
-u8_decl      =  @{ (ASCII_DIGIT)+ }
-str_decl     =  @{ "\"" ~ inner ~"\"" }
-char_decl    =  @{ "'" ~ char ~ "'" }
-bool_decl    =  @{ "true" | "false" }
+f64_decl     = @{ "-"? ~ (ASCII_DIGIT)+ ~ "." ~ (ASCII_DIGIT)+ }
+i64_decl     = @{ "-"? ~ (ASCII_DIGIT)+ }
+u8_decl      = @{ (ASCII_DIGIT)+ }
+str_decl     = @{ "\"" ~ inner ~"\"" }
+char_decl    = @{ "'" ~ char ~ "'" }
+bool_decl    = @{ "true" | "false" }
 
-array_decl   =   { "[" ~ ( expr ~ "," )* ~ ( expr )? ~ "]" }
-array_lookup =   { identifier ~ "[" ~ expr ~ "]" }
-array_len    =   { (ASCII_DIGIT)+ }
+array_decl   =  { "[" ~ ( expr ~ "," )* ~ ( expr )? ~ "]" }
+// strings also must support it as array of chars
+array_lookup =  { identifier ~ "[" ~ expr ~ "]" }
+array_len    =  { (ASCII_DIGIT)+ }
 
-inner        =  @{ char* }
-char         =   { !("\"" | "\\") ~ ANY
-                    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
-                    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4}) }
+inner        = @{ char* }
+char         =  { !("\"" | "\\") ~ ANY
+                  | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+                  | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4}) }
 
 i64_type     =  { "i64" }
 f64_type     =  { "f64" }
@@ -45,13 +48,14 @@ array_type   =  { "[" ~ type ~ ";" ~ array_len ~ "]" }
 func_type    =  { "fn" ~ "(" ~ ( type ~ "," )* ~ type? ~ ")" ~ ( "->" ~ return_type )? }
 ref_type     =  { "&" ~ type }
 
-func_decl    =  { "fn" ~ identifier ~ "(" ~ args_decl ~ ")" ~ ( "->" ~ return_type )? ~ "{" ~ block ~ "}" }
+func_decl    =  { "fn" ~ ( identifier )? ~ "(" ~ args_decl ~ ")" ~ ( "->" ~ return_type )? ~ "{" ~ block ~ "}" }
 return_type  =  { type }
 
 struct_decl  =  { "struct" ~ identifier ~ "{" ~ args_decl ~ "}" }
 
 assigment    =  { "var" ~ identifier ~ ( ":" ~ type )? ~ "=" ~ expr }
-assign       =  { expr ~ "=" ~ expr }  // first expr can be identifier or array_lookup only
+// first expr can be identifier or array_lookup only
+assign       =  { expr ~ "=" ~ expr }
 
 expr         = _{ return | reference | dereference | not | func_call | func_decl |
                   array_decl | array_lookup | struct_init | if_else | loop |
@@ -96,9 +100,10 @@ equality_expr    =  { relational_expr ~ ( ( equal_op | not_equal_op ) ~ relation
 relational_expr  =  { additive_expr ~ ( ( more_eq_op | less_eq_op | more_op | less_op ) ~ additive_expr )* }
 additive_expr    =  { multiplicative_expr ~ (( add_op | sub_op ) ~ multiplicative_expr )* }
 multiplicative_expr = { primary_expr ~ (( mul_op | div_op ) ~ primary_expr )* }
-primary_expr     =  { null | literal | identifier | "(" ~ expr ~ ")" }
+primary_expr     =  { literal | identifier | "(" ~ expr ~ ")" }
 
-null             = { "null" }
+// temporary unavailable (maybe it's superfluous)
+// null             = { "null" }
 
 loop        =  { base_loop }
 base_loop   =  { "loop" ~ "{" ~ block ~ "}" }
@@ -107,3 +112,4 @@ base_loop   =  { "loop" ~ "{" ~ block ~ "}" }
 // todo: type casting
 // todo: add 1e9 decl ability to f64
 // todo: add modules support
+// todo: simple vector support
