@@ -1,8 +1,8 @@
 use anyhow::Result;
-use pest::Parser as PestParser;
-use pest_derive::Parser as PestParser;
+use pest::Parser;
+use pest_derive::Parser;
 
 
-#[derive(PestParser)]
+#[derive(Parser)]
 #[grammar = "mars_grammar.pest"]
-struct Parser;
+struct MarsLangParser;

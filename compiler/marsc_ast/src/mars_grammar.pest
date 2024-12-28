@@ -9,8 +9,8 @@ break        =  { "break" }
 comment      = _{ multi_line_comment }
 multi_line_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
-identifier   = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)* }
-literal      =  { i64_decl | f64_decl | u8_decl | str_decl | char_decl | bool_decl }
+identifier   = @{ (!"return" ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)*) }
+literal      =  { (!"return" ~ i64_decl | f64_decl | u8_decl | str_decl | char_decl | bool_decl) }
 block        =  { stmt* }
 type         = _{ ref_type | i64_type | func_type | f64_type | u8_type |
                   str_type | char_type | bool_type | custom_type }
@@ -38,7 +38,7 @@ custom_type  =  { identifier }
 func_type    =  { "fn" ~ "(" ~ ( type ~ "," )* ~ type? ~ ")" ~ ( "->" ~ return_type )? }
 ref_type     =  { "&" ~ type }
 
-func_decl    =  { "fn" ~ identifier ~ "(" ~ args_decl ~ ")" ~ ( "->" ~ return_type )? ~ "{" ~ block ~ "}" }
+func_decl    =  { "fn" ~ identifier ~ "(" ~ args_decl ~ ")" ~ ( "->" ~ return_type )? ~ "{" ~ ( block )? ~ return ~ "}" }
 return_type  =  { type }
 
 struct_decl  =  { "struct" ~ identifier ~ "{" ~ args_decl ~ "}" }
@@ -46,13 +46,14 @@ struct_decl  =  { "struct" ~ identifier ~ "{" ~ args_decl ~ "}" }
 assigment    =  { "var" ~ identifier ~ ( ":" ~ type )? ~ "=" ~ expr }
 assign       =  { identifier ~ "=" ~ expr }
 
-expr         = _{ return | reference | dereference | func_call | struct_init |
-                  if_else | loop | logical_expr }
+expr         = _{ reference | dereference | func_call | not |
+                  struct_init | if_else | loop | logical_expr }
 
 return       =  { "return" ~ expr? }
 
 reference    =  { "&" ~ expr }
 dereference  =  { "*" ~ expr }
+not          =  { "!" ~ expr }
 
 struct_init  =  { identifier ~ "{" ~ struct_init_args ~ "}" }
 struct_field = { identifier }
@@ -62,9 +63,9 @@ func_call    =  { identifier ~ "(" ~ func_args_to_call ~ ")" }
 func_args_to_call = { ( expr ~ "," )* ~ ( expr )? }
 
 condition    =  { expr }
-if_else      =  { "if" ~ condition ~ "{" ~ block ~ "}" ~
-                ( "else" ~ "if" ~ condition ~ "{" ~ block ~ "}" )* ~
-                ( "else" ~ "{" ~ block ~ "}" )? }
+if_else      =  { "if" ~ condition ~ "{" ~ ( block )? ~ return ~ "}" ~
+                ( "else" ~ "if" ~ condition ~ "{" ~ ( block )? ~ return ~ "}" )* ~
+                ( "else" ~ "{" ~ ( block )? ~ return ~ "}" )? }
 
 or_op        =  { "||" }
 and_op       =  { "&&" }
@@ -93,3 +94,4 @@ loop        =  { base_loop }
 base_loop   =  { "loop" ~ "{" ~ block ~ "}" }
 
 // todo: while_loop, for_loop, type casting
+// todo: add 1e9 decl ability to f64
