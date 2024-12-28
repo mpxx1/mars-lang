@@ -1,6 +1,6 @@
 program      = _{ SOI ~ ( stmt )* ~ EOI }
-stmt         = _{ NEWLINE | break | comment | func_decl |
-                  struct_decl | assigment | assign | expr }
+stmt         = _{ NEWLINE | break | comment | struct_decl |
+                  assigment | assign | expr }
 
 WHITESPACE   = _{ " " | "\t" | "\r" | "\n" }
 
@@ -9,11 +9,13 @@ break        =  { "break" }
 comment      = _{ multi_line_comment }
 multi_line_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
-identifier   = @{ (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)*) }
-literal      =  { (i64_decl | f64_decl | u8_decl | str_decl | char_decl | bool_decl) }
+identifier   = @{ !"i64" ~ !"f64" ~ !"u8" ~ !"str" ~ !"char" ~ !"bool" ~ !"fn" ~
+                  ( ASCII_ALPHA ~ ( ASCII_ALPHANUMERIC )* ) }
+literal      =  { i64_decl | f64_decl | u8_decl | str_decl | char_decl |
+                  bool_decl }
 block        =  { stmt* }
 type         = _{ ref_type | i64_type | func_type | f64_type | u8_type |
-                  str_type | char_type | bool_type | custom_type }
+                  str_type | char_type | bool_type | custom_type | array_type }
 args_decl    =  { ( identifier ~ ":" ~ type ~ "," )* ~ ( identifier ~ ":" ~ type )? }
 
 f64_decl     =  @{ "-"? ~ (ASCII_DIGIT)+ ~ "." ~ (ASCII_DIGIT)+ }
@@ -22,6 +24,10 @@ u8_decl      =  @{ (ASCII_DIGIT)+ }
 str_decl     =  @{ "\"" ~ inner ~"\"" }
 char_decl    =  @{ "'" ~ char ~ "'" }
 bool_decl    =  @{ "true" | "false" }
+
+array_decl   =   { "[" ~ ( expr ~ "," )* ~ ( expr )? ~ "]" }
+array_lookup =   { identifier ~ "[" ~ expr ~ "]" }
+array_len    =   { (ASCII_DIGIT)+ }
 
 inner        =  @{ char* }
 char         =   { !("\"" | "\\") ~ ANY
@@ -35,6 +41,7 @@ str_type     =  { "str" }
 char_type    =  { "char" }
 bool_type    =  { "bool" }
 custom_type  =  { identifier }
+array_type   =  { "[" ~ type ~ ";" ~ array_len ~ "]" }
 func_type    =  { "fn" ~ "(" ~ ( type ~ "," )* ~ type? ~ ")" ~ ( "->" ~ return_type )? }
 ref_type     =  { "&" ~ type }
 
@@ -44,10 +51,11 @@ return_type  =  { type }
 struct_decl  =  { "struct" ~ identifier ~ "{" ~ args_decl ~ "}" }
 
 assigment    =  { "var" ~ identifier ~ ( ":" ~ type )? ~ "=" ~ expr }
-assign       =  { identifier ~ "=" ~ expr }
+assign       =  { expr ~ "=" ~ expr }  // first expr can be identifier or array_lookup only
 
-expr         = _{ return | reference | dereference | not | func_call |
-                  struct_init | if_else | loop | logical_expr }
+expr         = _{ return | reference | dereference | not | func_call | func_decl |
+                  array_decl | array_lookup | struct_init | if_else | loop |
+                  logical_expr }
 
 return       =  { "return" ~ expr? }
 
@@ -88,7 +96,9 @@ equality_expr    =  { relational_expr ~ ( ( equal_op | not_equal_op ) ~ relation
 relational_expr  =  { additive_expr ~ ( ( more_eq_op | less_eq_op | more_op | less_op ) ~ additive_expr )* }
 additive_expr    =  { multiplicative_expr ~ (( add_op | sub_op ) ~ multiplicative_expr )* }
 multiplicative_expr = { primary_expr ~ (( mul_op | div_op ) ~ primary_expr )* }
-primary_expr     =  { literal | identifier | "(" ~ expr ~ ")" }
+primary_expr     =  { null | literal | identifier | "(" ~ expr ~ ")" }
+
+null             = { "null" }
 
 loop        =  { base_loop }
 base_loop   =  { "loop" ~ "{" ~ block ~ "}" }
