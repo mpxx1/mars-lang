@@ -1,7 +1,0 @@
-[package]
-name = "marsc_ast"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-marsc_lexer = { path = "../marsc_lexer" }

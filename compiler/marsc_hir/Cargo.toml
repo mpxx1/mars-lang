@@ -1,0 +1,17 @@
+[package]
+name = "marsc_hir"
+version = "0.1.0"
+edition = "2021"
+license = "BSDv3"
+description = """
+Mars programming language parser and ast builder
+"""
+
+[lib]
+name = "m_hir"
+path = "src/lib.rs"
+
+[dependencies]
+pest = "2.7.14"
+pest_derive = "2.7.14"
+anyhow = "1.0.95"

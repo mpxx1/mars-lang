@@ -5,7 +5,7 @@
 
 ### compiler building status 
 
-- [ ] lexer
+
 - [ ] parser
 - [ ] ast
 - [ ] print
