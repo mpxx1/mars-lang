@@ -1,5 +1,5 @@
 [package]
-name = "marsc_ast"
+name = "marsc_hir"
 version = "0.1.0"
 edition = "2021"
 license = "BSDv3"
@@ -8,7 +8,7 @@ Mars programming language parser and ast builder
 """
 
 [lib]
-name = "m_ast"
+name = "m_hir"
 path = "src/lib.rs"
 
 [dependencies]

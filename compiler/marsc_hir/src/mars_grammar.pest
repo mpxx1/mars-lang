@@ -1,5 +1,7 @@
-program = _{ SOI ~ (stmt)* ~ EOI }
-stmt    = _{
+program   = _{ SOI ~ ( prog_stmt )* ~ EOI }
+prog_stmt = _{ NEWLINE | comment | struct_decl | func_decl }
+
+stmt      = _{
     NEWLINE
   | break
   | comment
@@ -7,7 +9,15 @@ stmt    = _{
   | func_decl
   | assigment
   | assign
-  | expr
+  | stmt_expr
+}
+
+stmt_expr = _{
+    ( "{" ~ block ~ "}" )
+  | return
+  | func_call
+  | if_else
+  | loop
 }
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
@@ -23,7 +33,7 @@ identifier = @{
     !"const" ~ !"true" ~ !"Vec" ~ (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)*)
 }
 literal    =  { flt_decl | int_decl | str_decl | char_decl | bool_decl }
-block      = _{ stmt* }
+block      =  { stmt* }
 type       = _{
     ref_type
   | i64_type
@@ -42,14 +52,13 @@ args_decl    =  { (identifier ~ ":" ~ type ~ ",")* ~ (identifier ~ ":" ~ type)? 
 
 flt_decl     = @{ ("-"? ~ (ASCII_DIGIT)+ ~ "." ~ (ASCII_DIGIT)+) | num_exp_decl }
 int_decl     = @{ ("-"? ~ (ASCII_DIGIT)+) | num_exp_decl }
-num_exp_decl = @{ "-"? ~ (ASCII_DIGIT)+ ~ "e" ~ (ASCII_DIGIT)+ }
+num_exp_decl = @{ "-"? ~ (ASCII_DIGIT)+ ~ "e" ~ "-"? ~ (ASCII_DIGIT)+ }
 str_decl     = @{ "\"" ~ inner ~ "\"" }
 char_decl    = @{ "'" ~ char ~ "'" }
 bool_decl    = @{ "true" | "false" }
 
 array_decl = { "[" ~ (expr ~ ",")* ~ (expr)? ~ "]" }
-// strings also must support it as array of chars
-mem_lookup = { identifier ~ "[" ~ expr ~ "]" ~ ( "[" ~ expr ~ "]" )* }
+mem_lookup = { identifier ~ ( "[" ~ expr ~ "]" )+ }
 array_len  = { (ASCII_DIGIT)+ }
 
 inner = @{ char* }
@@ -77,17 +86,15 @@ return_type = { type }
 struct_decl = { "struct" ~ identifier ~ "{" ~ args_decl ~ "}" }
 
 assigment = { "var" ~ identifier ~ (":" ~ type)? ~ "=" ~ expr }
-// first expr can be identifier or mem_lookup only
 assign = {
-    expr ~ assign_base
-  | assign_add
-  | assign_sub
-  | assign_mul
-  | assign_div
-  | assign_mod_rem
-  | assign_div_floor
-  | assign_pow ~ expr
+    assign_lh ~ assign_op ~ assign_rh
 }
+assign_lh = { dereference | mem_lookup | identifier }
+assign_rh = { ("{" ~ block ~ "}") | expr }
+
+assign_op        = { assign_pow | assign_div_floor | assign_mod_rem |
+                     assign_div | assign_mul | assign_sub | assign_add |
+                     assign_base }
 
 assign_base      = { "=" }
 assign_add       = { "+=" }
@@ -96,36 +103,38 @@ assign_mul       = { "*=" }
 assign_div       = { "/=" }
 assign_mod_rem   = { "%=" }
 assign_div_floor = { "//=" }
-assign_pow       = { "^=" }
+assign_pow       = { "**=" }
 
 expr = _{
     return
   | cast_type
   | reference
   | dereference
-  | not
   | func_call
   | array_decl
   | mem_lookup
   | struct_init
   | if_else
   | loop
+  | struct_field_call
   | logical_expr
 }
 
-return = { "return" ~ expr? }
+return = { "return" ~ return_body }
+return_body = { ( expr )? }
 
-reference   = { "&" ~ expr }
-dereference = { "*" ~ expr }
-not         = { "!" ~ expr }
+ref_inner   = { reference | dereference | mem_lookup | struct_field_call | struct_init | identifier | "(" ~ ref_inner ~ ")" }
+reference   = { "&" ~ ref_inner }
+dereference = { "*" ~ ref_inner }
 
 cast_type = { "(" ~ type ~ ")" ~ expr }
 
-struct_init      = { identifier ~ "{" ~ struct_init_args ~ "}" }
-struct_field     = { identifier }
-struct_init_args = { (struct_field ~ ":" ~ expr ~ ",")* ~ (struct_field ~ ":" ~ expr)? }
+struct_init       = { identifier ~ "{" ~ struct_init_args ~ "}" }
+struct_field      = { identifier }
+struct_init_args  = { (struct_field ~ ":" ~ expr ~ ",")* ~ (struct_field ~ ":" ~ expr)? }
+struct_field_call = { identifier ~ "." ~ struct_field }
 
-func_call         = { identifier ~ "(" ~ func_args_to_call ~ ")" }
+func_call         = { identifier ~ ( "(" ~ func_args_to_call ~ ")" )+  }
 func_args_to_call = { (expr ~ ",")* ~ (expr)? }
 
 condition = { expr }
@@ -150,9 +159,11 @@ mul_op       = { "*" }
 div_op       = { "/" }
 mod_op       = { "%" }
 div_floor_op = { "//" }
-pow_op       = { "^" }
+pow_op       = { "**" }
+not_op       = { "!"  }
 
-logical_expr        = { logical_or_expr }
+logical_expr        = { logical_not_expr }
+logical_not_expr    = { not_op? ~ logical_or_expr }
 logical_or_expr     = { logical_and_expr ~ (or_op ~ logical_and_expr)* }
 logical_and_expr    = { equality_expr ~ (and_op ~ equality_expr)* }
 equality_expr       = { relational_expr ~ ((equal_op | not_equal_op) ~ relational_expr)* }
