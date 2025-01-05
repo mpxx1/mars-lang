@@ -48,7 +48,8 @@ type       = _{
   | array_type
   | vec_type
 }
-args_decl    =  { (identifier ~ ":" ~ type ~ ",")* ~ (identifier ~ ":" ~ type)? }
+args_decl    =  { (arg_decl ~ ",")* ~ (arg_decl)? }
+arg_decl     =  { identifier ~ ":" ~ type }
 
 flt_decl     = @{ ("-"? ~ (ASCII_DIGIT)+ ~ "." ~ (ASCII_DIGIT)+) | num_exp_decl }
 int_decl     = @{ ("-"? ~ (ASCII_DIGIT)+) | num_exp_decl }

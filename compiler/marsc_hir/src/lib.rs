@@ -1,2 +1,4 @@
-pub mod parser;
+#![feature(postfix_match)]
+
 pub mod ast;
+pub mod parser;

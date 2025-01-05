@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AST {
     pub program: Vec<ProgStmt>,
 }
@@ -9,7 +9,7 @@ pub enum ProgStmt {
     FuncDecl(FuncDecl),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct StructDecl {
     pub name: String,
     pub fields: Vec<ArgDecl>,
@@ -63,7 +63,7 @@ pub enum Stmt {
 #[derive(Debug, Clone)]
 pub enum StmtExpr {
     Block(Block),
-    Return(Expr),
+    Return(Option<Expr>),
     FuncCall(FuncCall),
     IfElse(IfElse),
     Loop(WhileLoop),
@@ -79,7 +79,7 @@ pub struct Assignment {
 #[derive(Debug, Clone)]
 pub struct Assign {
     pub lhs: AssignLhs,
-    pub op:  AssignOp,
+    pub op: AssignOp,
     pub rhs: AssignRhs,
 }
 
