@@ -141,7 +141,6 @@ func_args_to_call = { (expr ~ ",")* ~ (expr)? }
 condition = { expr }
 if_else   = {
     "if" ~ condition ~ "{" ~ block ~ "}" ~
-    ("else" ~ "if" ~ condition ~ "{" ~ block ~ "}")* ~
     ("else" ~ "{" ~ block ~ "}")?
 }
 

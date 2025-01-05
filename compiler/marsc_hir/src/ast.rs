@@ -156,7 +156,6 @@ pub struct StructInit {
 pub struct IfElse {
     pub condition: Box<Expr>,
     pub then_block: Block,
-    pub else_if_conditions: Vec<(Expr, Block)>,
     pub else_block: Option<Block>,
 }
 
