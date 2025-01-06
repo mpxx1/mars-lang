@@ -33,16 +33,13 @@ pub struct ArgDecl {
 pub enum Type {
     I64,
     F64,
-    U8,
     Str,
     Char,
     Bool,
-    Size,
     Custom(String),
     Array(Box<Type>, usize),
     Vec(Box<Type>),
     Ref(Box<Type>),
-    Func(Vec<Type>, Box<Type>),
 }
 
 #[derive(Debug, Clone)]
@@ -172,9 +169,9 @@ pub enum LogicalExpr {
     Not(Box<LogicalExpr>),
     Or(Box<LogicalExpr>, Box<LogicalExpr>),
     And(Box<LogicalExpr>, Box<LogicalExpr>),
-    Equality(Box<LogicalExpr>, EqualityOp, Box<LogicalExpr>),
-    Relational(Box<LogicalExpr>, RelationalOp, Box<LogicalExpr>),
-    Primary(Box<Expr>)
+    Equality(Box<MathExpr>, EqualityOp, Box<MathExpr>),
+    // Relational(Box<LogicalExpr>, RelationalOp, Box<LogicalExpr>),
+    // Primary(Box<Expr>)
 }
 
 #[derive(Debug, Clone)]
@@ -189,10 +186,6 @@ pub enum MathExpr {
 pub enum EqualityOp {
     Equal,
     NotEqual,
-}
-
-#[derive(Debug, Clone)]
-pub enum RelationalOp {
     More,
     MoreEqual,
     Less,
@@ -211,5 +204,4 @@ pub enum MulOp {
     Div,
     Mod,
     DivFloor,
-    Pow,
 }

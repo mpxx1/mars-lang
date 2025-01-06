@@ -105,14 +105,11 @@ fn parse_type(pair: Pair<Rule>) -> Result<Type> {
               p_iter.next().unwrap().as_str().parse::<usize>()?
             )
         },
-        Rule::func_type => unimplemented!(),
         Rule::ref_type => Type::Ref(Box::new(
             parse_type(
                 pair.into_inner().next().unwrap()
             )?
         )),
-        Rule::size_type => Type::Size,
-        Rule::u8_type   => Type::U8,
         Rule::vec_type  => Type::Vec(Box::new(
             parse_type(
                 pair.into_inner().next().unwrap()
@@ -176,6 +173,7 @@ fn parse_additive_expr(pair: Pair<Rule>) -> Result<MathExpr> {
             Rule::add_op => operations.push(AddOp::Add),
             Rule::sub_op => operations.push(AddOp::Sub),
             Rule::multiplicative_expr => numbers.push(parse_multiplicative_expr(p)?),
+            _ => panic!("Failed to parse additive expr"),
         }
     }
 
@@ -198,7 +196,86 @@ fn parse_additive_expr(pair: Pair<Rule>) -> Result<MathExpr> {
 }
 
 fn parse_multiplicative_expr(pair: Pair<Rule>) -> Result<MathExpr> {
-    unimplemented!()
+    let mut inner_iter = pair.into_inner();
+    if inner_iter.len() == 1 {
+        return Ok(parse_power_expr(inner_iter.next().unwrap())?);
+    }
+
+    let mut operations = vec![];
+    let mut numbers = vec![];
+
+    for p in inner_iter {
+        p.as_rule().match {
+            Rule::mul_op => operations.push(MulOp::Mul),
+            Rule::div_op => operations.push(MulOp::Div),
+            Rule::div_floor_op => operations.push(MulOp::DivFloor),
+            Rule::mod_op => operations.push(MulOp::Mod),
+            Rule::power_expr => numbers.push(parse_power_expr(p)?),
+            _ => panic!("Failed to parse multiplicative expr"),
+        }
+    }
+
+    operations.reverse();
+    numbers.reverse();
+
+    let mut first = numbers.pop().unwrap();
+    let mut second = numbers.pop().unwrap();
+    let mut op = operations.pop().unwrap();
+    let mut tmp = MathExpr::Multiplicative(Box::new(first), op, Box::new(second));
+
+    while !operations.is_empty() {
+        first = tmp;
+        second = numbers.pop().unwrap();
+        op = operations.pop().unwrap();
+        tmp = MathExpr::Multiplicative(Box::new(first), op, Box::new(second));
+    }
+
+    Ok(tmp)
+}
+
+fn parse_power_expr(pair: Pair<Rule>) -> Result<MathExpr> {
+    let mut inner_iter = pair.into_inner();
+    if inner_iter.len() == 1 {
+        return Ok(parse_primary_expr(inner_iter.next().unwrap())?);
+    }
+
+    let mut numbers = vec![];
+
+    for p in inner_iter {
+        p.as_rule().match {
+            Rule::pow_op => continue,
+            Rule::multiplicative_expr => numbers.push(parse_primary_expr(p)?),
+            _ => panic!("Failed to parse power expr"),
+        }
+    }
+
+    numbers.reverse();
+
+    let mut exp = numbers.pop().unwrap();
+    let mut base = numbers.pop().unwrap();
+    let mut res = MathExpr::Power(Box::new(base), Box::new(exp));
+
+    while !numbers.is_empty() {
+        exp = res;
+        base = numbers.pop().unwrap();
+        res = MathExpr::Power(Box::new(base), Box::new(exp));
+    }
+
+    Ok(res)
+}
+
+fn parse_primary_expr(pair: Pair<Rule>) -> Result<MathExpr> {
+    let inner = pair.into_inner().next().unwrap();
+    Ok(inner.as_rule().match {
+        Rule::literal => MathExpr::Primary(Box::new(
+            Expr::Literal(parse_literal(inner)?)
+        )),
+        Rule::identifier => MathExpr::Primary(Box::new(
+            Expr::Identifier(parse_ident(inner)?),
+        )),
+        Rule::math_expr => parse_math_expr(inner)?,  // additive,
+        _ => panic!("Failed to parse primary expr"),
+    })
 }
 
 fn parse_while_loop(pair: Pair<Rule>) -> Result<WhileLoop> {
@@ -222,7 +299,7 @@ fn parse_if_else(pair: Pair<Rule>) -> Result<IfElse> {
 }
 
 fn parse_literal(pair: Pair<Rule>) -> Result<Literal> {
-    let mut inner = pair.into_inner().next().unwrap();
+    let inner = pair.into_inner().next().unwrap();
     Ok(inner.as_rule().match {
         Rule::int_decl => { Literal::Int(inner.as_str().parse::<i64>()?) }
         Rule::flt_decl => { Literal::Float(inner.as_str().parse::<f64>()?) }
