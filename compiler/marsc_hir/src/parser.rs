@@ -160,10 +160,120 @@ fn parse_expr(_pair: Pair<Rule>) -> Result<Expr> {
     unimplemented!()
 }
 
+fn parse_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+    parse_logical_or_expr(pair.into_inner().next().unwrap())
+}
+
+fn parse_logical_or_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+    let mut inner_iter = pair.into_inner();
+    if inner_iter.len() == 1 {
+        return parse_logical_and_expr(inner_iter.next().unwrap());
+    }
+    let mut exprs = vec![];
+
+    for p in inner_iter {
+        p.as_rule().match {
+            Rule::or_op => continue,
+            Rule::logical_and_expr => exprs.push(parse_logical_and_expr(p)?),
+            _ => panic!("Failed to parse logical_or expr"),
+        }
+    }
+
+    exprs.reverse();
+
+    let mut second = exprs.pop().unwrap();
+    let mut first = exprs.pop().unwrap();
+    let mut res = LogicalExpr::Or(Box::new(first), Box::new(second));
+
+    while !exprs.is_empty() {
+        second = res;
+        first = exprs.pop().unwrap();
+        res = LogicalExpr::Or(Box::new(first), Box::new(second));
+    }
+
+    Ok(res)
+}
+
+fn parse_logical_and_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+    let mut inner_iter = pair.into_inner();
+    if inner_iter.len() == 1 {
+        return parse_logical_not_expr(inner_iter.next().unwrap());
+    }
+    let mut exprs = vec![];
+
+    for p in inner_iter {
+        p.as_rule().match {
+            Rule::or_op => continue,
+            Rule::logical_not_expr => exprs.push(parse_logical_not_expr(p)?),
+            _ => panic!("Failed to parse logical_or expr"),
+        }
+    }
+
+    exprs.reverse();
+
+    let mut second = exprs.pop().unwrap();
+    let mut first = exprs.pop().unwrap();
+    let mut res = LogicalExpr::And(Box::new(first), Box::new(second));
+
+    while !exprs.is_empty() {
+        second = res;
+        first = exprs.pop().unwrap();
+        res = LogicalExpr::And(Box::new(first), Box::new(second));
+    }
+
+    Ok(res)
+}
+
+fn parse_logical_not_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+    let mut inner_iter = pair.into_inner();
+    if inner_iter.len() == 1 {
+        return parse_primary_logical_expr(inner_iter.next().unwrap());
+    }
+    inner_iter.next().unwrap();
+
+    Ok(LogicalExpr::Not(Box::new(
+        parse_primary_logical_expr(inner_iter.next().unwrap())?
+    )))
+}
+
+fn parse_primary_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+    unimplemented!()
+}
+
+fn parse_cmp_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+    let mut inner_iter = pair.into_inner();
+
+    let mut operation = vec![];
+    let mut nums = vec![];
+
+    for p in inner_iter {
+        p.as_rule().match {
+            Rule::more_eq_op => operation.push(CmpOp::MoreEqual),
+            Rule::less_eq_op => operation.push(CmpOp::LessEqual),
+            Rule::equal_op => operation.push(CmpOp::Equal),
+            Rule::not_equal_op => operation.push(CmpOp::NotEqual),
+            Rule::more_op => operation.push(CmpOp::More),
+            Rule::less_op => operation.push(CmpOp::Less),
+            Rule::math_expr => nums.push(parse_math_expr(p)?),
+            _ => panic!("Failed to parse additive expr"),
+        }
+    }
+
+    let sec = nums.pop().unwrap();
+    let fir = nums.pop().unwrap();
+    let op = operation.pop().unwrap();
+
+    Ok(LogicalExpr::Comparison(Box::new(fir), op, Box::new(sec)))
+}
+
+fn parse_math_expr(pair: Pair<Rule>) -> Result<MathExpr> {
+    parse_additive_expr(pair.into_inner().next().unwrap())
+}
+
 fn parse_additive_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     let mut inner_iter = pair.into_inner();
     if inner_iter.len() == 1 {
-        return Ok(parse_multiplicative_expr(inner_iter.next().unwrap())?);
+        return parse_multiplicative_expr(inner_iter.next().unwrap());
     }
     let mut operations = vec![];
     let mut numbers = vec![];
@@ -180,25 +290,25 @@ fn parse_additive_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     operations.reverse();
     numbers.reverse();
 
-    let mut first = numbers.pop().unwrap();
     let mut second = numbers.pop().unwrap();
+    let mut first = numbers.pop().unwrap();
     let mut op = operations.pop().unwrap();
-    let mut tmp = MathExpr::Additive(Box::new(first), op, Box::new(second));
+    let mut res = MathExpr::Additive(Box::new(first), op, Box::new(second));
 
     while !operations.is_empty() {
-        first = tmp;
-        second = numbers.pop().unwrap();
+        second = res;
+        first = numbers.pop().unwrap();
         op = operations.pop().unwrap();
-        tmp = MathExpr::Additive(Box::new(first), op, Box::new(second));
+        res = MathExpr::Additive(Box::new(first), op, Box::new(second));
     }
 
-    Ok(tmp)
+    Ok(res)
 }
 
 fn parse_multiplicative_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     let mut inner_iter = pair.into_inner();
     if inner_iter.len() == 1 {
-        return Ok(parse_power_expr(inner_iter.next().unwrap())?);
+        return parse_power_expr(inner_iter.next().unwrap());
     }
 
     let mut operations = vec![];
@@ -218,25 +328,25 @@ fn parse_multiplicative_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     operations.reverse();
     numbers.reverse();
 
-    let mut first = numbers.pop().unwrap();
     let mut second = numbers.pop().unwrap();
+    let mut first = numbers.pop().unwrap();
     let mut op = operations.pop().unwrap();
-    let mut tmp = MathExpr::Multiplicative(Box::new(first), op, Box::new(second));
+    let mut res = MathExpr::Multiplicative(Box::new(first), op, Box::new(second));
 
     while !operations.is_empty() {
-        first = tmp;
-        second = numbers.pop().unwrap();
+        second = res;
+        first = numbers.pop().unwrap();
         op = operations.pop().unwrap();
-        tmp = MathExpr::Multiplicative(Box::new(first), op, Box::new(second));
+        res = MathExpr::Multiplicative(Box::new(first), op, Box::new(second));
     }
 
-    Ok(tmp)
+    Ok(res)
 }
 
 fn parse_power_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     let mut inner_iter = pair.into_inner();
     if inner_iter.len() == 1 {
-        return Ok(parse_primary_expr(inner_iter.next().unwrap())?);
+        return parse_primary_expr(inner_iter.next().unwrap());
     }
 
     let mut numbers = vec![];
@@ -273,7 +383,7 @@ fn parse_primary_expr(pair: Pair<Rule>) -> Result<MathExpr> {
         Rule::identifier => MathExpr::Primary(Box::new(
             Expr::Identifier(parse_ident(inner)?),
         )),
-        Rule::math_expr => parse_math_expr(inner)?,  // additive,
+        Rule::math_expr => parse_math_expr(inner)?,
         _ => panic!("Failed to parse primary expr"),
     })
 }

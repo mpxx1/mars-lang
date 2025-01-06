@@ -169,9 +169,8 @@ pub enum LogicalExpr {
     Not(Box<LogicalExpr>),
     Or(Box<LogicalExpr>, Box<LogicalExpr>),
     And(Box<LogicalExpr>, Box<LogicalExpr>),
-    Equality(Box<MathExpr>, EqualityOp, Box<MathExpr>),
-    // Relational(Box<LogicalExpr>, RelationalOp, Box<LogicalExpr>),
-    // Primary(Box<Expr>)
+    Comparison(Box<MathExpr>, CmpOp, Box<MathExpr>),
+    Primary(Box<Expr>),
 }
 
 #[derive(Debug, Clone)]
@@ -183,7 +182,7 @@ pub enum MathExpr {
 }
 
 #[derive(Debug, Clone)]
-pub enum EqualityOp {
+pub enum CmpOp {
     Equal,
     NotEqual,
     More,

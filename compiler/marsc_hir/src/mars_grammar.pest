@@ -41,6 +41,7 @@ type       = _{
   | str_type
   | char_type
   | bool_type
+  | void_type
   | custom_type
   | array_type
   | vec_type
@@ -71,21 +72,22 @@ f64_type    = { "f64" }
 str_type    = { "str" }
 char_type   = { "char" }
 bool_type   = { "bool" }
+void_type   = { "void" }
 custom_type = { identifier }
 array_type  = { "[" ~ type ~ ";" ~ array_len ~ "]" }
 ref_type    = { "&" ~ type }
 
-func_decl   = { "fn" ~ identifier ~ "(" ~ args_decl ~ ")" ~ ("->" ~ return_type)? ~ "{" ~ block ~ "}" }
+func_decl   = { "fn" ~ identifier ~ "(" ~ args_decl ~ ")" ~ "->" ~ return_type ~ "{" ~ block ~ "}" }
 return_type = { type }
 
 struct_decl = { "struct" ~ identifier ~ "{" ~ args_decl ~ "}" }
 
-assigment = { "var" ~ identifier ~ (":" ~ type)? ~ "=" ~ expr }
+assigment = { "var" ~ identifier ~ (":" ~ type)? ~ "=" ~ (!return ~ expr) ~ ";" }
 assign = {
-    assign_lh ~ assign_op ~ assign_rh
+    assign_lh ~ assign_op ~ assign_rh ~ ";"
 }
 assign_lh = { dereference | mem_lookup | identifier }
-assign_rh = { ("{" ~ block ~ "}") | expr }
+assign_rh = { (!return ~ expr) }
 
 assign_op        = { assign_pow | assign_div_floor | assign_mod_rem |
                      assign_div | assign_mul | assign_sub | assign_add |
@@ -116,12 +118,12 @@ expr = _{
   | math_expr
 }
 
-return = { "return" ~ return_body }
+return = { "return" ~ return_body ~ ";" }
 return_body = { ( expr )? }
 
-ref_inner   = { reference | dereference | mem_lookup | struct_field_call | struct_init | identifier | "(" ~ ref_inner ~ ")" }
-reference   = { "&" ~ ref_inner }
-dereference = { "*" ~ ref_inner }
+ref_inner   = _{ reference | dereference | mem_lookup | struct_field_call | struct_init | identifier | "(" ~ ref_inner ~ ")" }
+reference   =  { "&" ~ ref_inner }
+dereference =  { "*" ~ ref_inner }
 
 cast_type = { "(" ~ type ~ ")" ~ expr }
 
@@ -162,19 +164,18 @@ logical_expr         = { logical_or_expr }
 logical_or_expr      = { logical_and_expr ~ (or_op ~ logical_and_expr)* }
 logical_and_expr     = { logical_not_expr ~ (and_op ~ logical_not_expr)* }
 logical_not_expr     = { not_op? ~ primary_logical_expr }
-primary_logical_expr = { comparison_expr | math_expr | "(" ~ logical_expr ~ ")" }
 comparison_expr      = { math_expr ~ (more_eq_op | less_eq_op | equal_op | not_equal_op | more_op | less_op) ~ math_expr }
+primary_logical_expr = { comparison_expr | math_expr | "(" ~ logical_expr ~ ")" }
 
 math_expr            = { additive_expr }
 additive_expr        = { multiplicative_expr ~ ((add_op | sub_op) ~ multiplicative_expr)* }
 multiplicative_expr  = { power_expr ~ ((div_floor_op | mul_op | div_op | mod_op) ~ power_expr)* }
 power_expr           = { primary_math_expr ~ (pow_op ~ primary_math_expr)* }
-primary_math_expr    = { literal | identifier | "(" ~ math_expr ~ ")" }
+primary_math_expr    = { identifier | literal | "(" ~ math_expr ~ ")" }
 
 
 loop       = { while_loop }
 while_loop = { "while" ~ condition ~ "{" ~ block ~ "}" }
 
-// test of vec support
 capacity   =  { (ASCII_DIGIT)+ }
 vec_type   =  { "Vec" ~ "<" ~ type ~ ( ";" ~ capacity )? ~ ">" }
