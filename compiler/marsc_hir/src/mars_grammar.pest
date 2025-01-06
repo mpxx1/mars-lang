@@ -32,7 +32,7 @@ identifier = @{
     !"else" ~ !"while" ~ !"for" ~ !"loop" ~ !"false" ~ !"var" ~ !"struct" ~ !"break" ~ !"as" ~
     !"const" ~ !"true" ~ !"Vec" ~ (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)*)
 }
-literal    =  { flt_decl | int_decl | str_decl | char_decl | bool_decl }
+literal    =  { flt_decl | int_decl | char_decl | str_decl | bool_decl }
 block      =  { stmt* }
 type       = _{
     ref_type
@@ -51,8 +51,8 @@ type       = _{
 args_decl    =  { (arg_decl ~ ",")* ~ (arg_decl)? }
 arg_decl     =  { identifier ~ ":" ~ type }
 
-flt_decl     = @{ ("-"? ~ (ASCII_DIGIT)+ ~ "." ~ (ASCII_DIGIT)+) | num_exp_decl }
-int_decl     = @{ ("-"? ~ (ASCII_DIGIT)+) | num_exp_decl }
+flt_decl     = @{ ("-"? ~ (ASCII_DIGIT)+ ~ "." ~ (ASCII_DIGIT)* ) | num_exp_decl }
+int_decl     = @{ ("-"? ~ (ASCII_DIGIT)+) }
 num_exp_decl = @{ "-"? ~ (ASCII_DIGIT)+ ~ "e" ~ "-"? ~ (ASCII_DIGIT)+ }
 str_decl     = @{ "\"" ~ inner ~ "\"" }
 char_decl    = @{ "'" ~ char ~ "'" }
@@ -132,7 +132,8 @@ cast_type = { "(" ~ type ~ ")" ~ expr }
 
 struct_init       = { identifier ~ "{" ~ struct_init_args ~ "}" }
 struct_field      = { identifier }
-struct_init_args  = { (struct_field ~ ":" ~ expr ~ ",")* ~ (struct_field ~ ":" ~ expr)? }
+struct_init_args  = { (struct_init_arg ~ ",")* ~ (struct_init_arg)? }
+struct_init_arg   = { struct_field ~ ":" ~ expr }
 struct_field_call = { identifier ~ "." ~ struct_field }
 
 func_call         = { identifier ~ ( "(" ~ func_args_to_call ~ ")" )+  }

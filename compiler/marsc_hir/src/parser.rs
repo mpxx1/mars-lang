@@ -13,7 +13,7 @@ pub fn build_ast(source_code: &str) -> Result<AST> {
 
     let mut ast = AST::default();
 
-    for pair in prog.into_iter() {
+    for pair in prog {
         ast.program.push(
             pair.as_rule().match {
                 Rule::struct_decl => { ProgStmt::StructDecl(parse_struct_decl(pair)?) }
@@ -31,7 +31,7 @@ pub fn build_ast(source_code: &str) -> Result<AST> {
 }
 
 fn parse_struct_decl(pair: Pair<Rule>) -> Result<StructDecl> {
-    let mut decl_iter = pair.into_inner().into_iter();
+    let mut decl_iter = pair.into_inner();
     let name = parse_ident(decl_iter.next().unwrap())?;
     let args_pair = decl_iter.next().unwrap();
     let fields = parse_args_decl(args_pair)?;
@@ -55,7 +55,7 @@ fn parse_args_decl(pairs: Pair<Rule>) -> Result<Vec<ArgDecl>> {
 }
 
 fn parse_arg_decl(pair: Pair<Rule>) -> Result<ArgDecl> {
-    let mut inner_iter = pair.into_inner().into_iter();
+    let mut inner_iter = pair.into_inner();
     let name = parse_ident(inner_iter.next().unwrap())?;
     let typ = parse_type(inner_iter.next().unwrap())?;
 
@@ -63,19 +63,19 @@ fn parse_arg_decl(pair: Pair<Rule>) -> Result<ArgDecl> {
 }
 
 fn parse_func_decl(pair: Pair<Rule>) -> Result<FuncDecl> {
-    let mut decl_iter = pair.into_inner().into_iter();
+    let mut decl_iter = pair.into_inner();
     let name = parse_ident(decl_iter.next().unwrap())?;
     let args = parse_args_decl(decl_iter.next().unwrap())?;
 
     let opt = decl_iter.next().unwrap();
     let (return_type, body) = opt.as_rule().match {
         Rule::return_type => (
-            Some(parse_type(opt.into_inner().into_iter().next().unwrap())?),
-            parse_block(decl_iter.next().unwrap(), true)?
+            Some(parse_type(opt.into_inner().next().unwrap())?),
+            parse_block(decl_iter.next().unwrap())?
         ),
         Rule::block => (
             None,
-            parse_block(opt, false)?
+            parse_block(opt)?
         ),
         _ => { return Err(anyhow!("Failed to parse function decl:\n{:#?}", opt.as_span())); } // todo span
     };
@@ -96,10 +96,10 @@ fn parse_type(pair: Pair<Rule>) -> Result<Type> {
         Rule::bool_type => Type::Bool,
         Rule::char_type => Type::Char,
         Rule::custom_type => Type::Custom(parse_ident(
-            pair.into_inner().into_iter().next().unwrap()
+            pair.into_inner().next().unwrap()
         )?),
         Rule::array_type => {
-            let mut p_iter = pair.into_inner().into_iter();
+            let mut p_iter = pair.into_inner();
             Type::Array(Box::new(
             parse_type(p_iter.next().unwrap())?),
               p_iter.next().unwrap().as_str().parse::<usize>()?
@@ -108,63 +108,175 @@ fn parse_type(pair: Pair<Rule>) -> Result<Type> {
         Rule::func_type => unimplemented!(),
         Rule::ref_type => Type::Ref(Box::new(
             parse_type(
-                pair.into_inner().into_iter().next().unwrap()
+                pair.into_inner().next().unwrap()
             )?
         )),
         Rule::size_type => Type::Size,
         Rule::u8_type   => Type::U8,
         Rule::vec_type  => Type::Vec(Box::new(
             parse_type(
-                pair.into_inner().into_iter().next().unwrap()
+                pair.into_inner().next().unwrap()
             )?
         )),
         _ => { return Err(anyhow!("Failed to parse type '{:?}'", pair.as_rule())) } // todo span
     })
 }
 
-fn parse_block(pair: Pair<Rule>, must_return: bool) -> Result<Block> {
-    // dbg!(pair, must_return);
-    let mut block = Block { stmts: vec![] };
-    let mut inner_iter = pair.into_inner().peekable();
+fn parse_block(pair: Pair<Rule>) -> Result<Block> {
+    let stmts = pair
+        .into_inner()
+        .map(|p| {
+            p.as_rule().match {
+                Rule::r#break => Ok(Stmt::Break),
+                Rule::struct_decl => parse_struct_decl(p).map(Stmt::StructDecl),
+                Rule::func_decl => parse_func_decl(p).map(Stmt::FuncDecl),
+                Rule::assigment => unimplemented!(),
+                Rule::assign => unimplemented!(),
+                Rule::stmt_expr => unimplemented!(),
+                _ => Err(anyhow::anyhow!(
+                    "Failed to parse block stmt '{:?}'",    // todo scope
+                    p.as_rule()
+                )),
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
 
-    // collect
-    while let Some(pair) = inner_iter.next() {
-        if inner_iter.peek().is_none() {
-            // if must return, then return_body must not be empty
-            // else if must not return, then return body can be empty or, there can
-            // be no return body at all
-            check_return(&pair)?
-            // stmt_expr (return)
-        } else {
-            block.stmts.push(
-                pair.as_rule().match {
-                    Rule::r#break => { Stmt::Break }
-                    Rule::struct_decl => { Stmt::StructDecl(parse_struct_decl(pair)?) }
-                    Rule::func_decl   => { Stmt::FuncDecl(parse_func_decl(pair)?) }
-                    Rule::assigment => unimplemented!(),
-                    Rule::assign => unimplemented!(),
-                    Rule::stmt_expr => unimplemented!(),
-                    _ => return Err(anyhow!("Failed to parse block stmt '{:?}'", pair.as_rule())), // todo span
-                }
-            )
+    Ok(Block { stmts })
+}
+
+
+// fn check_return(last_pair: &Pair<Rule>) -> Result<()> {
+//     match last_pair.as_rule() {
+//         Rule::r#return => {
+//             let ret_body = last_pair.clone().into_inner().next().unwrap();
+//             if ret_body.into_inner().next().is_none() {
+//                 return Err(anyhow!("Return body can not be empty is empty")) // todo span
+//             }
+//
+//             Ok(())
+//         },
+//         _ => { Err(anyhow!("Failed to parse block")) }  // todo span
+//     }
+// }
+
+fn parse_expr(_pair: Pair<Rule>) -> Result<Expr> {
+    unimplemented!()
+}
+
+fn parse_additive_expr(pair: Pair<Rule>) -> Result<MathExpr> {
+    let mut inner_iter = pair.into_inner();
+    if inner_iter.len() == 1 {
+        return Ok(parse_multiplicative_expr(inner_iter.next().unwrap())?);
+    }
+    let mut operations = vec![];
+    let mut numbers = vec![];
+
+    for p in inner_iter {
+        p.as_rule().match {
+            Rule::add_op => operations.push(AddOp::Add),
+            Rule::sub_op => operations.push(AddOp::Sub),
+            Rule::multiplicative_expr => numbers.push(parse_multiplicative_expr(p)?),
         }
     }
 
-    Ok(block)
+    operations.reverse();
+    numbers.reverse();
+
+    let mut first = numbers.pop().unwrap();
+    let mut second = numbers.pop().unwrap();
+    let mut op = operations.pop().unwrap();
+    let mut tmp = MathExpr::Additive(Box::new(first), op, Box::new(second));
+
+    while !operations.is_empty() {
+        first = tmp;
+        second = numbers.pop().unwrap();
+        op = operations.pop().unwrap();
+        tmp = MathExpr::Additive(Box::new(first), op, Box::new(second));
+    }
+
+    Ok(tmp)
 }
 
-fn check_return(last_pair: &Pair<Rule>) -> Result<()> {
-    match last_pair.as_rule() {
-        Rule::r#return => {
-            let ret_body = last_pair.clone().into_inner().into_iter().next().unwrap();
-            if ret_body.into_inner().into_iter().next().is_none() {
-                return Err(anyhow!("Return body can not be empty is empty")) // todo span
-            }
+fn parse_multiplicative_expr(pair: Pair<Rule>) -> Result<MathExpr> {
+    unimplemented!()
+}
 
-            Ok(())
-        },
-        _ => { Err(anyhow!("Failed to parse block")) }  // todo span
+fn parse_while_loop(pair: Pair<Rule>) -> Result<WhileLoop> {
+    let mut inner = pair.into_inner();
+    Ok(WhileLoop {
+        condition: Box::new(parse_expr(inner.next().unwrap())?),
+        body: parse_block(inner.next().unwrap())?
+    })
+}
+
+fn parse_if_else(pair: Pair<Rule>) -> Result<IfElse> {
+    let mut inner = pair.into_inner();
+    let condition = Box::new(parse_expr(inner.next().unwrap())?);
+    let then_block = parse_block(inner.next().unwrap())?;
+    let mut else_block = None;
+    if let Some(block) = inner.next() {
+        else_block = Some(parse_block(block)?);
     }
+
+    Ok(IfElse { condition, then_block, else_block })
+}
+
+fn parse_literal(pair: Pair<Rule>) -> Result<Literal> {
+    let mut inner = pair.into_inner().next().unwrap();
+    Ok(inner.as_rule().match {
+        Rule::int_decl => { Literal::Int(inner.as_str().parse::<i64>()?) }
+        Rule::flt_decl => { Literal::Float(inner.as_str().parse::<f64>()?) }
+        Rule::bool_decl => { Literal::Bool(inner.as_str().parse::<bool>()?) }
+        Rule::str_decl => { Literal::Str(inner.as_str().replace("\"", "").to_string()) }
+        Rule::char_decl => { Literal::Char(inner.as_str().replace("'", "").parse::<char>()?) }
+        _ => { return Err(anyhow!("Failed to parse literal")) }  // todo impossible exception
+    })
+}
+
+fn parse_struct_init(pair: Pair<Rule>) -> Result<StructInit> {
+    let mut inner_iter = pair.into_inner();
+
+    let name = parse_ident(inner_iter.next().unwrap())?;
+    let fields = parse_struct_init_args(inner_iter.next().unwrap())?;
+
+    Ok(StructInit { name, fields })
+}
+
+fn parse_struct_init_args(pair: Pair<Rule>) -> Result<Vec<(String, Expr)>> {
+    Ok(pair
+        .into_inner()
+        .map(|p| parse_struct_init_arg(p).unwrap())
+        .collect())
+}
+
+fn parse_struct_init_arg(pair: Pair<Rule>) -> Result<(String, Expr)> {
+    let mut inner_iter = pair.into_inner();
+    let name = parse_ident(inner_iter.next().unwrap())?;
+    let expr = parse_expr(inner_iter.next().unwrap())?;
+    Ok((name, expr))
+}
+
+#[test]
+fn liter_test() {
+    let string = "fn main() { var a = Hello {
+          a: alpha,
+          b: 42,
+          c: true,
+        } }";
+    let mut it = MarsLangParser::parse(Rule::program, string).unwrap();
+    let mut prog = it.next().unwrap().into_inner();
+    prog.next().unwrap();
+    prog.next().unwrap();
+    let mut blk = prog.next().unwrap().into_inner();
+    // let mut ass = blk.next().unwrap().into_inner();
+    // ass.next().unwrap();
+    let mut dst = blk.next().unwrap().into_inner();
+    dst.next().unwrap();
+    let dst = dst.next().unwrap();
+
+    dbg!(&dst);
+    let tst = parse_struct_init(dst).unwrap();
+    dbg!(&tst);
 }
 
 

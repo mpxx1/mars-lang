@@ -123,10 +123,12 @@ pub enum Expr {
     StructInit(StructInit),
     IfElse(IfElse),
     Loop(WhileLoop),
-    LogicalExpr(LogicalExpr),
     CastType(Box<Type>, Box<Expr>),
     Dereference(Box<Expr>),
     Reference(Box<Expr>),
+
+    LogicalExpr(LogicalExpr),
+    MathExpr(MathExpr),
 
     Literal(Literal),
 }
@@ -172,9 +174,14 @@ pub enum LogicalExpr {
     And(Box<LogicalExpr>, Box<LogicalExpr>),
     Equality(Box<LogicalExpr>, EqualityOp, Box<LogicalExpr>),
     Relational(Box<LogicalExpr>, RelationalOp, Box<LogicalExpr>),
-    Additive(Box<LogicalExpr>, AddOp, Box<LogicalExpr>),
-    Multiplicative(Box<LogicalExpr>, MulOp, Box<LogicalExpr>),
-    Power(Box<LogicalExpr>, Box<LogicalExpr>),
+    Primary(Box<Expr>)
+}
+
+#[derive(Debug, Clone)]
+pub enum MathExpr {
+    Additive(Box<MathExpr>, AddOp, Box<MathExpr>),
+    Multiplicative(Box<MathExpr>, MulOp, Box<MathExpr>),
+    Power(Box<MathExpr>, Box<MathExpr>),
     Primary(Box<Expr>),
 }
 
