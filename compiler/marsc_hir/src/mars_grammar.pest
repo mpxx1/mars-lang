@@ -131,10 +131,9 @@ dereference =  { "*" ~ ref_inner }
 cast_type = { "(" ~ type ~ ")" ~ expr }
 
 struct_init       = { identifier ~ "{" ~ struct_init_args ~ "}" }
-struct_field      = { identifier }
 struct_init_args  = { (struct_init_arg ~ ",")* ~ (struct_init_arg)? }
-struct_init_arg   = { struct_field ~ ":" ~ expr }
-struct_field_call = { identifier ~ "." ~ struct_field }
+struct_init_arg   = { identifier ~ ":" ~ expr }
+struct_field_call = { identifier ~ "." ~ identifier }
 
 func_call         = { identifier ~ "(" ~ func_args_to_call ~ ")"  }
 func_args_to_call = { (expr ~ ",")* ~ (expr)? }

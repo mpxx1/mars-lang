@@ -147,13 +147,17 @@ fn parse_return_body(pair: Pair<Rule>) -> Result<Option<Expr>> {
     if pair.as_str().is_empty() {
         return Ok(None);
     }
-    Ok(Some(parse_expr(pair.into_inner().next().unwrap())?))
+    // dbg!(&pair);
+    Ok(Some(parse_expr(pair)?))
 }
 
 fn parse_assignment(pair: Pair<Rule>) -> Result<Assignment> {
     let mut inner_iter = pair.into_inner();
+    dbg!(&inner_iter);
     let var_name = parse_ident(inner_iter.next().unwrap())?;
+    dbg!(&var_name);
     let sth = inner_iter.next().unwrap();
+    dbg!(&sth);
     let (typ, expr) = match sth.as_rule() {
         Rule::r#type => (Some(parse_type(sth)?), parse_expr(inner_iter.next().unwrap())?),
         _ => (None, parse_expr(sth)?),  // can have only expr_s, be careful here
@@ -222,25 +226,36 @@ fn parse_func_args_to_call(pair: Pair<Rule>) -> Result<Vec<Expr>> {
 }
 
 fn parse_expr(pair: Pair<Rule>) -> Result<Expr> {
-    let inner = pair.into_inner().next().unwrap();
-    match inner.as_rule() {
-        Rule::cast_type => parse_cast_type(inner).map(Expr::CastType),
-        Rule::reference => Ok(Expr::Reference(Box::new(parse_reference(inner)?))),
-        Rule::dereference => Ok(Expr::Dereference(Box::new(parse_deref(inner)?))),
-        Rule::func_call => parse_func_call(inner).map(Expr::FuncCall),
-        Rule::array_decl => parse_arr_decl(inner).map(Expr::ArrayDecl),
-        Rule::mem_lookup => parse_mem_look(inner).map(Expr::MemLookup),
-        Rule::struct_init => parse_struct_init(inner).map(Expr::StructInit),
-        Rule::if_else => parse_if_else(inner).map(Expr::IfElse),
-        Rule::while_loop => parse_while_loop(inner).map(Expr::Loop),
-        Rule::struct_field_call => unimplemented!(),
-        Rule::logical_expr => parse_logical_expr(inner).map(Expr::LogicalExpr),
-        Rule::math_expr => parse_math_expr(inner).map(Expr::MathExpr),
-        _ => unreachable!()
+
+    match pair.as_rule() {
+        Rule::cast_type => parse_cast_type(pair).map(Expr::CastType),
+        Rule::reference => Ok(Expr::Reference(Box::new(parse_reference(pair)?))),
+        Rule::dereference => Ok(Expr::Dereference(Box::new(parse_deref(pair)?))),
+        Rule::func_call => parse_func_call(pair).map(Expr::FuncCall),
+        Rule::array_decl => parse_arr_decl(pair).map(Expr::ArrayDecl),
+        Rule::mem_lookup => parse_mem_look(pair).map(Expr::MemLookup),
+        Rule::struct_init => parse_struct_init(pair).map(Expr::StructInit),
+        Rule::if_else => parse_if_else(pair).map(Expr::IfElse),
+        Rule::while_loop => parse_while_loop(pair).map(Expr::Loop),
+        Rule::struct_field_call => parse_struct_field_call(pair).map(Expr::StructFieldCall),
+        Rule::logical_expr => parse_logical_expr(pair).map(Expr::LogicalExpr),
+        // Rule::logical_or_expr => parse_logical_or_expr(pair).map(Expr::LogicalExpr),
+        Rule::math_expr => parse_math_expr(pair).map(Expr::MathExpr),
+        _ => Err(anyhow!("Failed to parse function call rule: {:?}", pair.as_rule())),
     }
 }
 
-fn parse_mem_look(_pair: Pair<Rule>) -> Result<MemLookup> {
+fn parse_struct_field_call(pair: Pair<Rule>) -> Result<StructFieldCall> {
+    let mut inner_iter = pair.into_inner();
+
+    Ok(StructFieldCall {
+        name: parse_ident(inner_iter.next().unwrap())?,
+        field: parse_ident(inner_iter.into_iter().next().unwrap())?,
+    })
+}
+
+fn parse_mem_look(pair: Pair<Rule>) -> Result<MemLookup> {
+    dbg!(&pair);
     unimplemented!()
 }
 
@@ -536,6 +551,8 @@ fn parse_struct_init(pair: Pair<Rule>) -> Result<StructInit> {
 }
 
 fn parse_struct_init_args(pair: Pair<Rule>) -> Result<Vec<(String, Expr)>> {
+    println!("tht");
+    dbg!(&pair);
     Ok(pair
         .into_inner()
         .map(|p| parse_struct_init_arg(p).unwrap())
@@ -575,16 +592,12 @@ fn liter_test() {
 
 #[test]
 fn test() {
-    // let binding = std::fs::read_to_string("notes").unwrap();
-    // let f = binding.as_str();
-    // let inp = r#"struct Hello { a: i64, b: Hello }"#;
-    let inp = r#"fn hello() -> Hello {
-      struct Hello {
-        a: [i64; 14],
-      }
-
-      return Hello { a: 123, };
-    }"#;
+    let binding = std::fs::read_to_string("notes").unwrap();
+    let f = binding.as_str();
+    let inp = r#"struct Hello { a: i64, b: Hello }"#;
+    // let inp = r#"fn hello() -> void {
+    //
+    // }"#;
     let out = build_ast(inp);
 
     dbg!(out);

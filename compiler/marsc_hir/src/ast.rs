@@ -75,18 +75,6 @@ pub struct Assign {
     pub rhs: Expr,
 }
 
-// #[derive(Debug, Clone)]
-// pub enum AssignLhs {
-//     Identifier(String),
-//     Dereference(Box<Expr>),
-//     MemLookup(MemLookup),
-// }
-//
-// #[derive(Debug, Clone)]
-// pub enum AssignRhs {
-//     Expr(Expr),
-// }
-
 #[derive(Debug, Clone)]
 pub struct MemLookup {
     pub identifier: String,
@@ -99,7 +87,7 @@ pub enum Expr {
     FuncCall(FuncCall),
     ArrayDecl(Vec<Expr>),
     MemLookup(MemLookup),
-    StructFieldCall(String, String),
+    StructFieldCall(StructFieldCall),
     StructInit(StructInit),
     IfElse(IfElse),
     Loop(WhileLoop),
@@ -111,6 +99,12 @@ pub enum Expr {
     MathExpr(MathExpr),
 
     Literal(Literal),
+}
+
+#[derive(Debug, Clone)]
+pub struct StructFieldCall {
+    pub name: String,
+    pub field: String,
 }
 
 #[derive(Debug, Clone)]
