@@ -19,7 +19,7 @@ pub struct StructDecl {
 pub struct FuncDecl {
     pub name: String,
     pub args: Vec<ArgDecl>,
-    pub return_type: Option<Type>,
+    pub return_type: Type,
     pub body: Block,
 }
 
@@ -33,16 +33,14 @@ pub struct ArgDecl {
 pub enum Type {
     I64,
     F64,
-    U8,
     Str,
     Char,
     Bool,
-    Size,
+    Void,
     Custom(String),
     Array(Box<Type>, usize),
     Vec(Box<Type>),
     Ref(Box<Type>),
-    Func(Vec<Type>, Box<Type>),
 }
 
 #[derive(Debug, Clone)]
@@ -52,18 +50,13 @@ pub struct Block {
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
+    Block(Block),
+    Return(Option<Expr>),
     Break,
     StructDecl(StructDecl),
     FuncDecl(FuncDecl),
     Assignment(Assignment),
     Assign(Assign),
-    StmtExpr(StmtExpr),
-}
-
-#[derive(Debug, Clone)]
-pub enum StmtExpr {
-    Block(Block),
-    Return(Option<Expr>),
     FuncCall(FuncCall),
     IfElse(IfElse),
     Loop(WhileLoop),
@@ -78,22 +71,8 @@ pub struct Assignment {
 
 #[derive(Debug, Clone)]
 pub struct Assign {
-    pub lhs: AssignLhs,
-    pub op: AssignOp,
-    pub rhs: AssignRhs,
-}
-
-#[derive(Debug, Clone)]
-pub enum AssignLhs {
-    Identifier(String),
-    Dereference(Box<Expr>),
-    MemLookup(MemLookup),
-}
-
-#[derive(Debug, Clone)]
-pub enum AssignRhs {
-    Expr(Expr),
-    Block(Block),
+    pub lhs: Expr,      // ident, deref, mem
+    pub rhs: Expr,
 }
 
 #[derive(Debug, Clone)]
@@ -103,32 +82,35 @@ pub struct MemLookup {
 }
 
 #[derive(Debug, Clone)]
-pub enum AssignOp {
-    AddAssign,
-    SubAssign,
-    MulAssign,
-    DivAssign,
-    ModAssign,
-    DivFloorAssign,
-    PowAssign,
-}
-
-#[derive(Debug, Clone)]
 pub enum Expr {
     Identifier(String),
     FuncCall(FuncCall),
     ArrayDecl(Vec<Expr>),
     MemLookup(MemLookup),
-    StructFieldCall(String, String),
+    StructFieldCall(StructFieldCall),
     StructInit(StructInit),
     IfElse(IfElse),
     Loop(WhileLoop),
-    LogicalExpr(LogicalExpr),
-    CastType(Box<Type>, Box<Expr>),
+    CastType(CastType),
     Dereference(Box<Expr>),
     Reference(Box<Expr>),
 
+    LogicalExpr(LogicalExpr),
+    MathExpr(MathExpr),
+
     Literal(Literal),
+}
+
+#[derive(Debug, Clone)]
+pub struct StructFieldCall {
+    pub name: String,
+    pub field: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct CastType {
+    pub cast_to: Box<Type>,
+    pub expr: Box<Expr>
 }
 
 #[derive(Debug, Clone)]
@@ -156,7 +138,6 @@ pub struct StructInit {
 pub struct IfElse {
     pub condition: Box<Expr>,
     pub then_block: Block,
-    pub else_if_conditions: Vec<(Expr, Block)>,
     pub else_block: Option<Block>,
 }
 
@@ -171,22 +152,22 @@ pub enum LogicalExpr {
     Not(Box<LogicalExpr>),
     Or(Box<LogicalExpr>, Box<LogicalExpr>),
     And(Box<LogicalExpr>, Box<LogicalExpr>),
-    Equality(Box<LogicalExpr>, EqualityOp, Box<LogicalExpr>),
-    Relational(Box<LogicalExpr>, RelationalOp, Box<LogicalExpr>),
-    Additive(Box<LogicalExpr>, AddOp, Box<LogicalExpr>),
-    Multiplicative(Box<LogicalExpr>, MulOp, Box<LogicalExpr>),
-    Power(Box<LogicalExpr>, Box<LogicalExpr>),
+    Comparison(Box<MathExpr>, CmpOp, Box<MathExpr>),
     Primary(Box<Expr>),
 }
 
 #[derive(Debug, Clone)]
-pub enum EqualityOp {
-    Equal,
-    NotEqual,
+pub enum MathExpr {
+    Additive(Box<MathExpr>, AddOp, Box<MathExpr>),
+    Multiplicative(Box<MathExpr>, MulOp, Box<MathExpr>),
+    Power(Box<MathExpr>, Box<MathExpr>),
+    Primary(Box<Expr>),
 }
 
 #[derive(Debug, Clone)]
-pub enum RelationalOp {
+pub enum CmpOp {
+    Equal,
+    NotEqual,
     More,
     MoreEqual,
     Less,
@@ -205,5 +186,4 @@ pub enum MulOp {
     Div,
     Mod,
     DivFloor,
-    Pow,
 }
