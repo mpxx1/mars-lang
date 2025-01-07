@@ -103,7 +103,7 @@ pub enum Expr {
     StructInit(StructInit),
     IfElse(IfElse),
     Loop(WhileLoop),
-    CastType(Box<Type>, Box<Expr>),
+    CastType(CastType),
     Dereference(Box<Expr>),
     Reference(Box<Expr>),
 
@@ -111,6 +111,12 @@ pub enum Expr {
     MathExpr(MathExpr),
 
     Literal(Literal),
+}
+
+#[derive(Debug, Clone)]
+pub struct CastType {
+    pub cast_to: Box<Type>,
+    pub expr: Box<Expr>
 }
 
 #[derive(Debug, Clone)]

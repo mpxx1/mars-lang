@@ -222,14 +222,14 @@ fn parse_func_args_to_call(pair: Pair<Rule>) -> Result<Vec<Expr>> {
 }
 
 fn parse_expr(pair: Pair<Rule>) -> Result<Expr> {
-    let mut inner = pair.into_inner().next().unwrap();
+    let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
-        Rule::cast_type => parse_cast_type(inner)?,
-        Rule::reference => parse_reference(inner)?,
-        Rule::dereference => parse_deref(inner)?,
+        Rule::cast_type => parse_cast_type(inner).map(Expr::CastType),
+        Rule::reference => Ok(Expr::Reference(Box::new(parse_reference(inner)?))),
+        Rule::dereference => Ok(Expr::Dereference(Box::new(parse_deref(inner)?))),
         Rule::func_call => parse_func_call(inner).map(Expr::FuncCall),
-        Rule::array_decl => parse_arr_decl(inner)?,
-        Rule::mem_lookup => parse_mem_look(inner)?,
+        Rule::array_decl => parse_arr_decl(inner).map(Expr::ArrayDecl),
+        Rule::mem_lookup => parse_mem_look(inner).map(Expr::MemLookup),
         Rule::struct_init => parse_struct_init(inner).map(Expr::StructInit),
         Rule::if_else => parse_if_else(inner).map(Expr::IfElse),
         Rule::while_loop => parse_while_loop(inner).map(Expr::Loop),
@@ -240,24 +240,24 @@ fn parse_expr(pair: Pair<Rule>) -> Result<Expr> {
     }
 }
 
-fn parse_mem_look(p0: Pair<Rule>) -> _ {
-    todo!()
+fn parse_mem_look(_pair: Pair<Rule>) -> Result<MemLookup> {
+    unimplemented!()
 }
 
-fn parse_arr_decl(p0: Pair<Rule>) -> _ {
-    todo!()
+fn parse_arr_decl(_pair: Pair<Rule>) -> Result<Vec<Expr>> {
+    unimplemented!()
 }
 
-fn parse_deref(p0: Pair<Rule>) -> _ {
-    todo!()
+fn parse_deref(_pair: Pair<Rule>) -> Result<Expr> {
+    unimplemented!()
 }
 
-fn parse_reference(p0: Pair<Rule>) -> _ {
-    todo!()
+fn parse_reference(_pair: Pair<Rule>) -> Result<Expr> {
+    unimplemented!()
 }
 
-fn parse_cast_type(p0: Pair<Rule>) -> _ {
-    todo!()
+fn parse_cast_type(_pair: Pair<Rule>) -> Result<CastType> {
+    unimplemented!()
 }
 
 fn parse_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
@@ -337,7 +337,7 @@ fn parse_logical_not_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
 }
 
 fn parse_primary_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
-    let mut inner = pair.into_inner().next().unwrap();
+    let inner = pair.into_inner().next().unwrap();
     Ok(LogicalExpr::Primary(match inner.as_rule() {
         Rule::comparison_expr => Box::new(Expr::LogicalExpr(parse_cmp_logical_expr(inner)?)),
         Rule::math_expr => Box::new(Expr::MathExpr(parse_math_expr(inner)?)),
@@ -347,7 +347,7 @@ fn parse_primary_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
 }
 
 fn parse_cmp_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
-    let mut inner_iter = pair.into_inner();
+    let inner_iter = pair.into_inner();
 
     let mut operation = vec![];
     let mut nums = vec![];
