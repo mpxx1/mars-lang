@@ -1,0 +1,15 @@
+[package]
+name = "marsc_driver"
+version = "0.1.0"
+edition = "2021"
+license = "BSDv3"
+description = """
+Mars programming language driver
+"""
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+clap = { version = "4.5.23", features = ["derive"] }
+marsc_interface = { path = "../marsc_interface" }

@@ -1,0 +1,20 @@
+[package]
+name = "marsc_interface"
+version = "0.1.0"
+edition = "2021"
+license = "BSDv3"
+description = """
+Mars programming language interface
+"""
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+marsc_core = { path = "../marsc_core" }
+marsc_codegen = { path = "../marsc_codegen" }
+marsc_data_structures = { path = "../marsc_data_structures" }
+marsc_hir = { path = "../marsc_hir" }
+marsc_mir = { path = "../marsc_mir" }
+marsc_span = { path = "../marsc_span" }
+marsc_session = { path = "../marsc_session" }

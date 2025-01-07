@@ -1,10 +1,8 @@
+use marsc_driver;
 
-
-fn main() {  }
-
-
+fn main() {
+    marsc_driver::main()
+}
 
 #[cfg(test)]
-mod tests {
-
-}
+mod tests {}

@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = [
+    "compiler/marsc",
+    "compiler/marsc_core",
+    "compiler/marsc_codegen",
+    "compiler/marsc_data_structures",
+    "compiler/marsc_mir",
+    "compiler/marsc_session",
+]

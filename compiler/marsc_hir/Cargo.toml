@@ -8,7 +8,6 @@ Mars programming language parser and ast builder
 """
 
 [lib]
-name = "m_hir"
 path = "src/lib.rs"
 
 [dependencies]
