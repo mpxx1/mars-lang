@@ -2,27 +2,23 @@ program   = _{ SOI ~ ( prog_stmt )* ~ EOI }
 prog_stmt = _{ NEWLINE | comment | struct_decl | func_decl }
 
 stmt      = _{
-    NEWLINE
+    ( "{" ~ block ~ "}" )
+  | NEWLINE
   | break
+  | return
   | comment
   | struct_decl
   | func_decl
-  | assigment
+  | assignment
   | assign
-  | stmt_expr
-}
-
-stmt_expr = _{
-    ( "{" ~ block ~ "}" )
-  | return
-  | func_call
+  | ( func_call ~ ";")
   | if_else
   | loop
 }
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 
-break = { "break" }
+break = { "break" ~ ";"? }
 
 comment            = _{ multi_line_comment }
 multi_line_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
@@ -30,7 +26,7 @@ multi_line_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 identifier = @{
     !"i64" ~ !"f64" ~ !"u8" ~ !"str" ~ !"char" ~ !"bool" ~ !"fn" ~ !"size" ~ !"null" ~ !"if" ~
     !"else" ~ !"while" ~ !"for" ~ !"loop" ~ !"false" ~ !"var" ~ !"struct" ~ !"break" ~ !"as" ~
-    !"const" ~ !"true" ~ !"Vec" ~ (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)*)
+    !"const" ~ !"true" ~ !"Vec" ~ !"String" ~ (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)*)
 }
 literal    =  { flt_decl | int_decl | char_decl | str_decl | bool_decl }
 block      =  { stmt* }
@@ -82,14 +78,14 @@ return_type = { type }
 
 struct_decl = { "struct" ~ identifier ~ "{" ~ args_decl ~ "}" }
 
-assigment = { "var" ~ identifier ~ (":" ~ type)? ~ "=" ~ (!return ~ expr) ~ ";" }
+assignment = { "var" ~ identifier ~ (":" ~ type)? ~ "=" ~ expr ~ ";" }
 assign = {
     assign_lh ~ assign_op ~ assign_rh ~ ";"
 }
 assign_lh = { dereference | mem_lookup | identifier }
-assign_rh = { (!return ~ expr) }
+assign_rh = { expr }
 
-assign_op        = { assign_pow | assign_div_floor | assign_mod_rem |
+assign_op        = { assign_pow | assign_div_floor | assign_mod |
                      assign_div | assign_mul | assign_sub | assign_add |
                      assign_base }
 
@@ -98,13 +94,12 @@ assign_add       = { "+=" }
 assign_sub       = { "-=" }
 assign_mul       = { "*=" }
 assign_div       = { "/=" }
-assign_mod_rem   = { "%=" }
+assign_mod       = { "%=" }
 assign_div_floor = { "//=" }
 assign_pow       = { "**=" }
 
 expr = _{
-    return
-  | cast_type
+    cast_type
   | reference
   | dereference
   | func_call
@@ -116,6 +111,14 @@ expr = _{
   | struct_field_call
   | logical_expr
   | math_expr
+}
+
+condition_expr = _{
+    dereference
+  | func_call
+  | mem_lookup
+  | struct_field_call
+  | logical_expr
 }
 
 return = { "return" ~ return_body ~ ";" }
@@ -136,7 +139,7 @@ struct_field_call = { identifier ~ "." ~ struct_field }
 func_call         = { identifier ~ "(" ~ func_args_to_call ~ ")"  }
 func_args_to_call = { (expr ~ ",")* ~ (expr)? }
 
-condition = { expr }
+condition = { condition_expr }
 if_else   = {
     "if" ~ condition ~ "{" ~ block ~ "}" ~
     ("else" ~ "{" ~ block ~ "}")?
@@ -174,8 +177,8 @@ power_expr           = { primary_math_expr ~ (pow_op ~ primary_math_expr)* }
 primary_math_expr    = { identifier | literal | "(" ~ math_expr ~ ")" }
 
 
-loop       = { while_loop }
-while_loop = { "while" ~ condition ~ "{" ~ block ~ "}" }
+loop       = _{ while_loop }
+while_loop =  { "while" ~ condition ~ "{" ~ block ~ "}" }
 
 capacity   =  { (ASCII_DIGIT)+ }
 vec_type   =  { "Vec" ~ "<" ~ type ~ ( ";" ~ capacity )? ~ ">" }

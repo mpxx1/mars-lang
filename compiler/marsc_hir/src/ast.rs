@@ -19,7 +19,7 @@ pub struct StructDecl {
 pub struct FuncDecl {
     pub name: String,
     pub args: Vec<ArgDecl>,
-    pub return_type: Option<Type>,
+    pub return_type: Type,
     pub body: Block,
 }
 
@@ -36,6 +36,7 @@ pub enum Type {
     Str,
     Char,
     Bool,
+    Void,
     Custom(String),
     Array(Box<Type>, usize),
     Vec(Box<Type>),
@@ -49,18 +50,13 @@ pub struct Block {
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
+    Block(Block),
+    Return(Option<Expr>),
     Break,
     StructDecl(StructDecl),
     FuncDecl(FuncDecl),
     Assignment(Assignment),
     Assign(Assign),
-    StmtExpr(StmtExpr),
-}
-
-#[derive(Debug, Clone)]
-pub enum StmtExpr {
-    Block(Block),
-    Return(Option<Expr>),
     FuncCall(FuncCall),
     IfElse(IfElse),
     Loop(WhileLoop),
@@ -75,39 +71,26 @@ pub struct Assignment {
 
 #[derive(Debug, Clone)]
 pub struct Assign {
-    pub lhs: AssignLhs,
-    pub op: AssignOp,
-    pub rhs: AssignRhs,
+    pub lhs: Expr,      // ident, deref, mem
+    pub rhs: Expr,
 }
 
-#[derive(Debug, Clone)]
-pub enum AssignLhs {
-    Identifier(String),
-    Dereference(Box<Expr>),
-    MemLookup(MemLookup),
-}
-
-#[derive(Debug, Clone)]
-pub enum AssignRhs {
-    Expr(Expr),
-    Block(Block),
-}
+// #[derive(Debug, Clone)]
+// pub enum AssignLhs {
+//     Identifier(String),
+//     Dereference(Box<Expr>),
+//     MemLookup(MemLookup),
+// }
+//
+// #[derive(Debug, Clone)]
+// pub enum AssignRhs {
+//     Expr(Expr),
+// }
 
 #[derive(Debug, Clone)]
 pub struct MemLookup {
     pub identifier: String,
     pub indices: Vec<Expr>,
-}
-
-#[derive(Debug, Clone)]
-pub enum AssignOp {
-    AddAssign,
-    SubAssign,
-    MulAssign,
-    DivAssign,
-    ModAssign,
-    DivFloorAssign,
-    PowAssign,
 }
 
 #[derive(Debug, Clone)]
