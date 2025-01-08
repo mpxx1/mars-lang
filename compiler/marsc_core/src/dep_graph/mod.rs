@@ -3,17 +3,17 @@ use std::sync::Arc;
 
 pub trait Deps {}
 
-pub struct DepGraph<D: Deps> {
-    data: Option<Rc<DepGraphData<D>>>,
+pub struct DepGraph {
+    // data: Option<Rc<DepGraphData<D>>>,
 }
 
-pub struct DepGraphData<D: Deps> {
-    current: CurrentDepGraph<D>,
+pub struct DepGraphData {
+    current: CurrentDepGraph,
     previous: Arc<SerializedDepGraph>,
     colors: DepNodeColorMap,
 }
 
-pub struct CurrentDepGraph<D: Deps> {}
+pub struct CurrentDepGraph {}
 
 pub struct SerializedDepGraph {}
 
