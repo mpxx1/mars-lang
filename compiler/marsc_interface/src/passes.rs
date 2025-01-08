@@ -1,5 +1,5 @@
 use crate::interface::{Compiler, Result};
-use marsc_mir::types::context::GlobalContext;
+use marsc_context::context::GlobalContext;
 use std::sync::OnceLock;
 
 pub fn create_global_context<'tcx>(

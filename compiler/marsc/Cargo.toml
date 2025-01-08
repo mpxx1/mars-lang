@@ -8,4 +8,4 @@ Mars programming language compiler
 """
 
 [dependencies]
-marsc_driver = { path = "../marsc_driver" }
+marsc_query_system = { path = "../marsc_query_system" }

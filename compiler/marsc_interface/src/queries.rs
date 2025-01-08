@@ -3,7 +3,7 @@ use crate::passes;
 use marsc_core::dep_graph::{DepGraph};
 use marsc_data_structures::steal::Steal;
 use marsc_hir::ast;
-use marsc_mir::types::context::{GlobalContext, TypeContext};
+use marsc_context::context::{GlobalContext, TypeContext};
 use std::any::Any;
 use std::cell::{RefCell, RefMut};
 use std::sync::{Arc, OnceLock};

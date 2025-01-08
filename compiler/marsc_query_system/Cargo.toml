@@ -1,0 +1,13 @@
+[package]
+name = "marsc_query_system"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+marsc_context = { path = "../marsc_context" }
+lazy_static = "1.5.0"
+quote = "1.0.38"
+syn = "2.0.95"
+
+[lib]
+proc-macro = true

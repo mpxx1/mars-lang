@@ -1,5 +1,5 @@
 use marsc_codegen::codegen::CodegenBackend;
-use marsc_mir::types::context::{CurrentGlobalContext, GlobalContext};
+use marsc_context::context::{CurrentGlobalContext, GlobalContext};
 use marsc_session::session::Session;
 use marsc_span::ErrorGuaranteed;
 use std::path::PathBuf;
