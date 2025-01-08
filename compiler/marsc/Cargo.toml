@@ -8,4 +8,4 @@ Mars programming language compiler
 """
 
 [dependencies]
-marsc_hir = { path = "../marsc_hir" }
+#marsc_hir = { path = "../marsc_hir" }

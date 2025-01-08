@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 license = "BSDv3"
 description = """
-Mars programming language parser and ast builder
+Mars programming language compiler hir module: contains parser and ast builder
 """
 
 [lib]
-name = "m_hir"
+name = "hir"
 path = "src/lib.rs"
 
 [dependencies]

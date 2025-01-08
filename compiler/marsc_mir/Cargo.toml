@@ -1,0 +1,15 @@
+[package]
+name = "marsc_mir"
+version = "0.1.0"
+edition = "2021"
+license = "BSDv3"
+description = """
+Mars programming language compiler mir module
+"""
+
+[lib]
+name = "mir"
+path = "src/lib.rs"
+
+[dependencies]
+marsc_hir = { path = "../marsc_hir" }
