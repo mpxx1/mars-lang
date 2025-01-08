@@ -82,8 +82,8 @@ assignment = { "var" ~ identifier ~ (":" ~ type)? ~ "=" ~ expr ~ ";" }
 assign = {
     assign_lh ~ assign_op ~ assign_rh ~ ";"
 }
-assign_lh = { dereference | mem_lookup | identifier }
-assign_rh = { expr }
+assign_lh = _{ dereference | mem_lookup | identifier }
+assign_rh = _{ expr }
 
 assign_op        = { assign_pow | assign_div_floor | assign_mod |
                      assign_div | assign_mul | assign_sub | assign_add |
@@ -101,16 +101,13 @@ assign_pow       = { "**=" }
 expr = _{
     cast_type
   | reference
-  | dereference
   | func_call
   | array_decl
   | mem_lookup
   | struct_init
   | if_else
   | loop
-  | struct_field_call
   | logical_expr
-  | math_expr
 }
 
 condition_expr = _{
@@ -138,7 +135,7 @@ struct_field_call = { identifier ~ "." ~ identifier }
 func_call         = { identifier ~ "(" ~ func_args_to_call ~ ")"  }
 func_args_to_call = { (expr ~ ",")* ~ (expr)? }
 
-condition = { condition_expr }
+condition = _{ condition_expr }
 if_else   = {
     "if" ~ condition ~ "{" ~ block ~ "}" ~
     ("else" ~ "{" ~ block ~ "}")?
@@ -173,7 +170,7 @@ math_expr            = { additive_expr }
 additive_expr        = { multiplicative_expr ~ ((add_op | sub_op) ~ multiplicative_expr)* }
 multiplicative_expr  = { power_expr ~ ((div_floor_op | mul_op | div_op | mod_op) ~ power_expr)* }
 power_expr           = { primary_math_expr ~ (pow_op ~ primary_math_expr)* }
-primary_math_expr    = { identifier | literal | "(" ~ math_expr ~ ")" }
+primary_math_expr    = { dereference | struct_field_call | identifier | literal | "(" ~ math_expr ~ ")" }
 
 
 loop       = _{ while_loop }

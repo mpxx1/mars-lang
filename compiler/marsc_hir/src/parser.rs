@@ -1,6 +1,6 @@
 use crate::ast::*;
 use anyhow::{anyhow, Context, Result};
-use pest::{ Parser, iterators::Pair };
+use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 
 #[derive(Parser)]
@@ -9,21 +9,23 @@ struct MarsLangParser;
 
 pub fn build_ast(source_code: &str) -> Result<AST> {
     let prog = MarsLangParser::parse(Rule::program, source_code)
-        .with_context(|| format!("Failed to parse source from '{}'", source_code))?;  // todo span
+        .with_context(|| format!("Failed to parse source from '{}'", source_code))?; // todo span
 
     let mut ast = AST::default();
 
     for pair in prog {
-        ast.program.push(
-            match pair.as_rule() {
-                Rule::struct_decl => { ProgStmt::StructDecl(parse_struct_decl(pair)?) }
-                Rule::func_decl   => { ProgStmt::FuncDecl(parse_func_decl(pair)?)   }
-                Rule::EOI         => { break; }
-                _                 => { return Err(
-                    anyhow!("Failed to parse element '{:?}'", pair.as_rule()) // todo span
-                ); }
+        ast.program.push(match pair.as_rule() {
+            Rule::struct_decl => ProgStmt::StructDecl(parse_struct_decl(pair)?),
+            Rule::func_decl => ProgStmt::FuncDecl(parse_func_decl(pair)?),
+            Rule::EOI => {
+                break;
             }
-        )
+            _ => {
+                return Err(
+                    anyhow!("Failed to parse element '{:?}'", pair.as_rule()), // todo span
+                );
+            }
+        })
     }
 
     Ok(ast)
@@ -32,19 +34,21 @@ pub fn build_ast(source_code: &str) -> Result<AST> {
 fn parse_struct_decl(pair: Pair<Rule>) -> Result<StructDecl> {
     let mut decl_iter = pair.into_inner();
 
-    Ok( StructDecl {
+    Ok(StructDecl {
         name: parse_ident(decl_iter.next().unwrap())?,
-        fields: parse_args_decl(decl_iter.next().unwrap())?
-    } )
+        fields: parse_args_decl(decl_iter.next().unwrap())?,
+    })
 }
 
 fn parse_args_decl(pairs: Pair<Rule>) -> Result<Vec<ArgDecl>> {
-   pairs
+    pairs
         .into_inner()
         .map(|pair| {
             match pair.as_rule() {
-                Rule::arg_decl => { parse_arg_decl(pair) }
-                _ => { return Err(anyhow!("Failed to parse arg decl")); }  // todo span
+                Rule::arg_decl => parse_arg_decl(pair),
+                _ => {
+                    return Err(anyhow!("Failed to parse arg decl"));
+                } // todo span
             }
         })
         .collect::<Result<Vec<_>>>()
@@ -55,68 +59,54 @@ fn parse_arg_decl(pair: Pair<Rule>) -> Result<ArgDecl> {
 
     Ok(ArgDecl {
         name: parse_ident(inner_iter.next().unwrap())?,
-        typ: parse_type(inner_iter.next().unwrap())?
+        typ: parse_type(inner_iter.next().unwrap())?,
     })
 }
 
 fn parse_func_decl(pair: Pair<Rule>) -> Result<FuncDecl> {
     let mut decl_iter = pair.into_inner();
 
-    Ok( FuncDecl {
+    Ok(FuncDecl {
         name: parse_ident(decl_iter.next().unwrap())?,
         args: parse_args_decl(decl_iter.next().unwrap())?,
         return_type: parse_type(decl_iter.next().unwrap().into_inner().next().unwrap())?,
-        body: parse_block(decl_iter.next().unwrap())?
-    } )
+        body: parse_block(decl_iter.next().unwrap())?,
+    })
 }
 
 fn parse_ident(pair: Pair<Rule>) -> Result<String> {
-    // dbg!(&pair.as_span().as_str());
-    // dbg!(&pair.as_rule());
-    // dbg!(&pair);
     Ok(pair.as_span().as_str().to_string())
 }
 
 fn parse_type(pair: Pair<Rule>) -> Result<Type> {
-    // dbg!(&pair.as_span().as_str());
-    // dbg!(&pair.as_rule());
-    // dbg!(&pair);
-
     Ok(match pair.as_rule() {
+        Rule::str_type => Type::Str,
         Rule::i64_type => Type::I64,
         Rule::f64_type => Type::F64,
         Rule::bool_type => Type::Bool,
         Rule::char_type => Type::Char,
         Rule::void_type => Type::Void,
-        Rule::custom_type => Type::Custom(
-            parse_ident(pair)?
-        ),
+        Rule::custom_type => Type::Custom(parse_ident(pair)?),
         Rule::array_type => {
             let mut p_iter = pair.into_inner();
-            Type::Array(Box::new(
-            parse_type(p_iter.next().unwrap())?),
-              p_iter.next().unwrap().as_str().parse::<usize>()?
+            Type::Array(
+                Box::new(parse_type(p_iter.next().unwrap())?),
+                p_iter.next().unwrap().as_str().parse::<usize>()?,
             )
-        },
-        Rule::ref_type => Type::Ref(Box::new(
-            parse_type(
-                pair.into_inner().next().unwrap()
-            )?
-        )),
-        Rule::vec_type  => Type::Vec(Box::new(
-            parse_type(
-                pair.into_inner().next().unwrap()
-            )?
-        )),
-        _ => { return Err(anyhow!("Failed to parse type '{:?}'", pair.as_rule())) } // todo span
+        }
+        Rule::ref_type => Type::Ref(Box::new(parse_type(pair.into_inner().next().unwrap())?)),
+        Rule::vec_type => Type::Vec(Box::new(parse_type(pair.into_inner().next().unwrap())?)),
+        _ => return Err(anyhow!("Failed to parse type '{:?}'", pair.as_rule())), // todo span
     })
 }
 
 fn parse_block(pair: Pair<Rule>) -> Result<Block> {
-    Ok(Block { stmts: pair
-        .into_inner()
-        .map(|p| parse_stmt(p))
-        .collect::<Result<Vec<_>>>()? })
+    Ok(Block {
+        stmts: pair
+            .into_inner()
+            .map(|p| parse_stmt(p))
+            .collect::<Result<Vec<_>>>()?,
+    })
 }
 
 fn parse_stmt(pair: Pair<Rule>) -> Result<Stmt> {
@@ -132,10 +122,9 @@ fn parse_stmt(pair: Pair<Rule>) -> Result<Stmt> {
         Rule::if_else => parse_if_else(pair).map(Stmt::IfElse),
         Rule::while_loop => parse_while_loop(pair).map(Stmt::Loop),
         _ => Err(anyhow::anyhow!(
-                    "Failed to parse block stmt '{:?}'",    // todo scope
-                    pair.as_rule()
-                )
-        )
+            "Failed to parse block stmt '{:?}'", // todo scope
+            pair.as_rule()
+        )),
     }
 }
 
@@ -148,66 +137,102 @@ fn parse_return_body(pair: Pair<Rule>) -> Result<Option<Expr>> {
         return Ok(None);
     }
     // dbg!(&pair);
-    Ok(Some(parse_expr(pair)?))
+    Ok(Some(parse_expr(pair.into_inner().next().unwrap())?))
 }
 
 fn parse_assignment(pair: Pair<Rule>) -> Result<Assignment> {
     let mut inner_iter = pair.into_inner();
-    dbg!(&inner_iter);
     let var_name = parse_ident(inner_iter.next().unwrap())?;
-    dbg!(&var_name);
     let sth = inner_iter.next().unwrap();
-    dbg!(&sth);
     let (typ, expr) = match sth.as_rule() {
-        Rule::r#type => (Some(parse_type(sth)?), parse_expr(inner_iter.next().unwrap())?),
-        _ => (None, parse_expr(sth)?),  // can have only expr_s, be careful here
+        Rule::str_type
+        | Rule::vec_type
+        | Rule::ref_type
+        | Rule::array_type
+        | Rule::custom_type
+        | Rule::char_type
+        | Rule::bool_type
+        | Rule::i64_type
+        | Rule::f64_type => (
+            Some(parse_type(sth)?),
+            parse_expr(inner_iter.next().unwrap())?,
+        ),
+        _ => (None, parse_expr(sth)?),
     };
 
-    Ok(Assignment { var_name, typ, expr })
+    Ok(Assignment {
+        var_name,
+        typ,
+        expr,
+    })
 }
 
 fn parse_assign(pair: Pair<Rule>) -> Result<Assign> {
     let mut inner_iter = pair.into_inner();
     let lhs = parse_expr(inner_iter.next().unwrap())?;
-    let op = inner_iter.next().unwrap();
+    let op = inner_iter.next().unwrap().into_inner().next().unwrap();
     let right_hand = parse_expr(inner_iter.next().unwrap())?;
 
     Ok(match op.as_rule() {
-        Rule::assign_base => Assign { lhs, rhs: right_hand },
-        Rule::assign_add => Assign { lhs: lhs.clone(), rhs: Expr::MathExpr(MathExpr::Additive(
-            Box::new(MathExpr::Primary(Box::new(lhs))),
-            AddOp::Add,
-            Box::new(MathExpr::Primary(Box::new(right_hand)))
-        ))},
-        Rule::assign_sub => Assign { lhs: lhs.clone(), rhs: Expr::MathExpr(MathExpr::Additive(
-            Box::new(MathExpr::Primary(Box::new(lhs))),
-            AddOp::Sub,
-            Box::new(MathExpr::Primary(Box::new(right_hand)))
-        ))},
-        Rule::assign_mul => Assign { lhs: lhs.clone(), rhs: Expr::MathExpr(MathExpr::Multiplicative(
-            Box::new(MathExpr::Primary(Box::new(lhs))),
-            MulOp::Mul,
-            Box::new(MathExpr::Primary(Box::new(right_hand)))
-        ))},
-        Rule::assign_div => Assign { lhs: lhs.clone(), rhs: Expr::MathExpr(MathExpr::Multiplicative(
-            Box::new(MathExpr::Primary(Box::new(lhs))),
-            MulOp::Div,
-            Box::new(MathExpr::Primary(Box::new(right_hand)))
-        ))},
-        Rule::assign_div_floor => Assign { lhs: lhs.clone(), rhs: Expr::MathExpr(MathExpr::Multiplicative(
-            Box::new(MathExpr::Primary(Box::new(lhs))),
-            MulOp::DivFloor,
-            Box::new(MathExpr::Primary(Box::new(right_hand)))
-        ))},
-        Rule::assign_mod => Assign { lhs: lhs.clone(), rhs: Expr::MathExpr(MathExpr::Multiplicative(
-            Box::new(MathExpr::Primary(Box::new(lhs))),
-            MulOp::Mod,
-            Box::new(MathExpr::Primary(Box::new(right_hand)))
-        ))},
-        Rule::assign_pow => Assign { lhs: lhs.clone(), rhs: Expr::MathExpr(MathExpr::Power(
-            Box::new(MathExpr::Primary(Box::new(lhs))),
-            Box::new(MathExpr::Primary(Box::new(right_hand)))
-        ))},
+        Rule::assign_base => Assign {
+            lhs,
+            rhs: right_hand,
+        },
+        Rule::assign_add => Assign {
+            lhs: lhs.clone(),
+            rhs: Expr::MathExpr(MathExpr::Additive(
+                Box::new(MathExpr::Primary(Box::new(lhs))),
+                AddOp::Add,
+                Box::new(MathExpr::Primary(Box::new(right_hand))),
+            )),
+        },
+        Rule::assign_sub => Assign {
+            lhs: lhs.clone(),
+            rhs: Expr::MathExpr(MathExpr::Additive(
+                Box::new(MathExpr::Primary(Box::new(lhs))),
+                AddOp::Sub,
+                Box::new(MathExpr::Primary(Box::new(right_hand))),
+            )),
+        },
+        Rule::assign_mul => Assign {
+            lhs: lhs.clone(),
+            rhs: Expr::MathExpr(MathExpr::Multiplicative(
+                Box::new(MathExpr::Primary(Box::new(lhs))),
+                MulOp::Mul,
+                Box::new(MathExpr::Primary(Box::new(right_hand))),
+            )),
+        },
+        Rule::assign_div => Assign {
+            lhs: lhs.clone(),
+            rhs: Expr::MathExpr(MathExpr::Multiplicative(
+                Box::new(MathExpr::Primary(Box::new(lhs))),
+                MulOp::Div,
+                Box::new(MathExpr::Primary(Box::new(right_hand))),
+            )),
+        },
+        Rule::assign_div_floor => Assign {
+            lhs: lhs.clone(),
+            rhs: Expr::MathExpr(MathExpr::Multiplicative(
+                Box::new(MathExpr::Primary(Box::new(lhs))),
+                MulOp::DivFloor,
+                Box::new(MathExpr::Primary(Box::new(right_hand))),
+            )),
+        },
+        Rule::assign_mod => Assign {
+            lhs: lhs.clone(),
+            rhs: Expr::MathExpr(MathExpr::Multiplicative(
+                Box::new(MathExpr::Primary(Box::new(lhs))),
+                MulOp::Mod,
+                Box::new(MathExpr::Primary(Box::new(right_hand))),
+            )),
+        },
+        Rule::assign_pow => Assign {
+            lhs: lhs.clone(),
+            rhs: Expr::MathExpr(MathExpr::Power(
+                Box::new(MathExpr::Primary(Box::new(lhs))),
+                Box::new(MathExpr::Primary(Box::new(right_hand))),
+            )),
+        },
         _ => panic!("Failed to parse assignment rule"), // todo scope
     })
 }
@@ -217,20 +242,23 @@ fn parse_func_call(pair: Pair<Rule>) -> Result<FuncCall> {
 
     Ok(FuncCall {
         name: parse_ident(inner_iter.next().unwrap())?,
-        args: parse_func_args_to_call(inner_iter.next().unwrap())?
+        args: parse_func_args_to_call(inner_iter.next().unwrap())?,
     })
 }
 
 fn parse_func_args_to_call(pair: Pair<Rule>) -> Result<Vec<Expr>> {
-    Ok(pair.into_inner().map(|p| parse_expr(p)).collect::<Result<Vec<_>>>()?)
+    Ok(pair
+        .into_inner()
+        .map(|p| parse_expr(p))
+        .collect::<Result<Vec<_>>>()?)
 }
 
 fn parse_expr(pair: Pair<Rule>) -> Result<Expr> {
-
+    // dbg!(&pair);
     match pair.as_rule() {
         Rule::cast_type => parse_cast_type(pair).map(Expr::CastType),
-        Rule::reference => Ok(Expr::Reference(Box::new(parse_reference(pair)?))),
-        Rule::dereference => Ok(Expr::Dereference(Box::new(parse_deref(pair)?))),
+        Rule::reference => Ok(parse_reference(pair)?),
+        Rule::dereference => Ok(parse_deref(pair)?),
         Rule::func_call => parse_func_call(pair).map(Expr::FuncCall),
         Rule::array_decl => parse_arr_decl(pair).map(Expr::ArrayDecl),
         Rule::mem_lookup => parse_mem_look(pair).map(Expr::MemLookup),
@@ -239,9 +267,9 @@ fn parse_expr(pair: Pair<Rule>) -> Result<Expr> {
         Rule::while_loop => parse_while_loop(pair).map(Expr::Loop),
         Rule::struct_field_call => parse_struct_field_call(pair).map(Expr::StructFieldCall),
         Rule::logical_expr => parse_logical_expr(pair).map(Expr::LogicalExpr),
-        // Rule::logical_or_expr => parse_logical_or_expr(pair).map(Expr::LogicalExpr),
         Rule::math_expr => parse_math_expr(pair).map(Expr::MathExpr),
-        _ => Err(anyhow!("Failed to parse function call rule: {:?}", pair.as_rule())),
+        Rule::identifier => parse_ident(pair).map(Expr::Identifier),
+        _ => Err(anyhow!("Failed to parse expr rule: {:?}", pair.as_rule())),
     }
 }
 
@@ -255,24 +283,42 @@ fn parse_struct_field_call(pair: Pair<Rule>) -> Result<StructFieldCall> {
 }
 
 fn parse_mem_look(pair: Pair<Rule>) -> Result<MemLookup> {
-    dbg!(&pair);
-    unimplemented!()
+    let mut inner_iter = pair.into_inner();
+    let identifier = parse_ident(inner_iter.next().unwrap())?;
+    let indices = inner_iter
+        .map(|p| parse_expr(p))
+        .collect::<Result<Vec<_>>>()?;
+    Ok(MemLookup {
+        identifier,
+        indices,
+    })
 }
 
-fn parse_arr_decl(_pair: Pair<Rule>) -> Result<Vec<Expr>> {
-    unimplemented!()
+fn parse_arr_decl(pair: Pair<Rule>) -> Result<Vec<Expr>> {
+    Ok(pair
+        .into_inner()
+        .map(|p| parse_expr(p))
+        .collect::<Result<Vec<_>>>()?)
 }
 
-fn parse_deref(_pair: Pair<Rule>) -> Result<Expr> {
-    unimplemented!()
+fn parse_deref(pair: Pair<Rule>) -> Result<Expr> {
+    Ok(Expr::Dereference(Box::new(parse_expr(
+        pair.into_inner().next().unwrap(),
+    )?)))
 }
 
-fn parse_reference(_pair: Pair<Rule>) -> Result<Expr> {
-    unimplemented!()
+fn parse_reference(pair: Pair<Rule>) -> Result<Expr> {
+    Ok(Expr::Reference(Box::new(parse_expr(
+        pair.into_inner().next().unwrap(),
+    )?)))
 }
 
-fn parse_cast_type(_pair: Pair<Rule>) -> Result<CastType> {
-    unimplemented!()
+fn parse_cast_type(pair: Pair<Rule>) -> Result<CastType> {
+    let mut inner_iter = pair.into_inner();
+    Ok(CastType {
+        cast_to: Box::new(parse_type(inner_iter.next().unwrap())?),
+        expr: Box::new(parse_expr(inner_iter.next().unwrap())?),
+    })
 }
 
 fn parse_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
@@ -296,13 +342,13 @@ fn parse_logical_or_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
 
     exprs.reverse();
 
-    let mut second = exprs.pop().unwrap();
     let mut first = exprs.pop().unwrap();
+    let mut second = exprs.pop().unwrap();
     let mut res = LogicalExpr::Or(Box::new(first), Box::new(second));
 
     while !exprs.is_empty() {
-        second = res;
-        first = exprs.pop().unwrap();
+        first = res;
+        second = exprs.pop().unwrap();
         res = LogicalExpr::Or(Box::new(first), Box::new(second));
     }
 
@@ -326,13 +372,13 @@ fn parse_logical_and_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
 
     exprs.reverse();
 
-    let mut second = exprs.pop().unwrap();
     let mut first = exprs.pop().unwrap();
+    let mut second = exprs.pop().unwrap();
     let mut res = LogicalExpr::And(Box::new(first), Box::new(second));
 
     while !exprs.is_empty() {
-        second = res;
-        first = exprs.pop().unwrap();
+        first = res;
+        second = exprs.pop().unwrap();
         res = LogicalExpr::And(Box::new(first), Box::new(second));
     }
 
@@ -346,9 +392,9 @@ fn parse_logical_not_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
     }
     inner_iter.next().unwrap();
 
-    Ok(LogicalExpr::Not(Box::new(
-        parse_primary_logical_expr(inner_iter.next().unwrap())?
-    )))
+    Ok(LogicalExpr::Not(Box::new(parse_primary_logical_expr(
+        inner_iter.next().unwrap(),
+    )?)))
 }
 
 fn parse_primary_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
@@ -411,14 +457,14 @@ fn parse_additive_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     operations.reverse();
     numbers.reverse();
 
-    let mut second = numbers.pop().unwrap();
     let mut first = numbers.pop().unwrap();
+    let mut second = numbers.pop().unwrap();
     let mut op = operations.pop().unwrap();
     let mut res = MathExpr::Additive(Box::new(first), op, Box::new(second));
 
     while !operations.is_empty() {
-        second = res;
-        first = numbers.pop().unwrap();
+        first = res;
+        second = numbers.pop().unwrap();
         op = operations.pop().unwrap();
         res = MathExpr::Additive(Box::new(first), op, Box::new(second));
     }
@@ -449,14 +495,14 @@ fn parse_multiplicative_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     operations.reverse();
     numbers.reverse();
 
-    let mut second = numbers.pop().unwrap();
     let mut first = numbers.pop().unwrap();
+    let mut second = numbers.pop().unwrap();
     let mut op = operations.pop().unwrap();
     let mut res = MathExpr::Multiplicative(Box::new(first), op, Box::new(second));
 
     while !operations.is_empty() {
-        second = res;
-        first = numbers.pop().unwrap();
+        first = res;
+        second = numbers.pop().unwrap();
         op = operations.pop().unwrap();
         res = MathExpr::Multiplicative(Box::new(first), op, Box::new(second));
     }
@@ -482,13 +528,13 @@ fn parse_power_expr(pair: Pair<Rule>) -> Result<MathExpr> {
 
     numbers.reverse();
 
-    let mut exp = numbers.pop().unwrap();
     let mut base = numbers.pop().unwrap();
+    let mut exp = numbers.pop().unwrap();
     let mut res = MathExpr::Power(Box::new(base), Box::new(exp));
 
     while !numbers.is_empty() {
-        exp = res;
-        base = numbers.pop().unwrap();
+        base = res;
+        exp = numbers.pop().unwrap();
         res = MathExpr::Power(Box::new(base), Box::new(exp));
     }
 
@@ -498,12 +544,12 @@ fn parse_power_expr(pair: Pair<Rule>) -> Result<MathExpr> {
 fn parse_primary_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     let inner = pair.into_inner().next().unwrap();
     Ok(match inner.as_rule() {
-        Rule::literal => MathExpr::Primary(Box::new(
-            Expr::Literal(parse_literal(inner)?)
-        )),
-        Rule::identifier => MathExpr::Primary(Box::new(
-            Expr::Identifier(parse_ident(inner)?),
-        )),
+        Rule::literal => MathExpr::Primary(Box::new(Expr::Literal(parse_literal(inner)?))),
+        Rule::identifier => MathExpr::Primary(Box::new(Expr::Identifier(parse_ident(inner)?))),
+        Rule::struct_field_call => MathExpr::Primary(Box::new(Expr::StructFieldCall(
+            parse_struct_field_call(inner)?,
+        ))),
+        Rule::dereference => MathExpr::Primary(Box::new(parse_deref(inner)?)),
         Rule::math_expr => parse_math_expr(inner)?,
         _ => panic!("Failed to parse primary expr"),
     })
@@ -513,11 +559,12 @@ fn parse_while_loop(pair: Pair<Rule>) -> Result<WhileLoop> {
     let mut inner = pair.into_inner();
     Ok(WhileLoop {
         condition: Box::new(parse_expr(inner.next().unwrap())?),
-        body: parse_block(inner.next().unwrap())?
+        body: parse_block(inner.next().unwrap())?,
     })
 }
 
 fn parse_if_else(pair: Pair<Rule>) -> Result<IfElse> {
+    dbg!(&pair);
     let mut inner = pair.into_inner();
     let condition = Box::new(parse_expr(inner.next().unwrap())?);
     let then_block = parse_block(inner.next().unwrap())?;
@@ -526,18 +573,22 @@ fn parse_if_else(pair: Pair<Rule>) -> Result<IfElse> {
         else_block = Some(parse_block(block)?);
     }
 
-    Ok(IfElse { condition, then_block, else_block })
+    Ok(IfElse {
+        condition,
+        then_block,
+        else_block,
+    })
 }
 
 fn parse_literal(pair: Pair<Rule>) -> Result<Literal> {
     let inner = pair.into_inner().next().unwrap();
     Ok(match inner.as_rule() {
-        Rule::int_decl => { Literal::Int(inner.as_str().parse::<i64>()?) }
-        Rule::flt_decl => { Literal::Float(inner.as_str().parse::<f64>()?) }
-        Rule::bool_decl => { Literal::Bool(inner.as_str().parse::<bool>()?) }
-        Rule::str_decl => { Literal::Str(inner.as_str().replace("\"", "").to_string()) }
-        Rule::char_decl => { Literal::Char(inner.as_str().replace("'", "").parse::<char>()?) }
-        _ => { return Err(anyhow!("Failed to parse literal")) }  // todo impossible exception
+        Rule::int_decl => Literal::Int(inner.as_str().parse::<i64>()?),
+        Rule::flt_decl => Literal::Float(inner.as_str().parse::<f64>()?),
+        Rule::bool_decl => Literal::Bool(inner.as_str().parse::<bool>()?),
+        Rule::str_decl => Literal::Str(inner.as_str().replace("\"", "").to_string()),
+        Rule::char_decl => Literal::Char(inner.as_str().replace("'", "").parse::<char>()?),
+        _ => return Err(anyhow!("Failed to parse literal")), // todo impossible exception
     })
 }
 
@@ -546,13 +597,11 @@ fn parse_struct_init(pair: Pair<Rule>) -> Result<StructInit> {
 
     Ok(StructInit {
         name: parse_ident(inner_iter.next().unwrap())?,
-        fields: parse_struct_init_args(inner_iter.next().unwrap())?
+        fields: parse_struct_init_args(inner_iter.next().unwrap())?,
     })
 }
 
 fn parse_struct_init_args(pair: Pair<Rule>) -> Result<Vec<(String, Expr)>> {
-    println!("tht");
-    dbg!(&pair);
     Ok(pair
         .into_inner()
         .map(|p| parse_struct_init_arg(p).unwrap())
@@ -568,37 +617,25 @@ fn parse_struct_init_arg(pair: Pair<Rule>) -> Result<(String, Expr)> {
 
 #[test]
 fn liter_test() {
-    let string = "fn main() { var a = Hello {
+    let inp = "fn main() -> i64 {
+        var a = Hello {
           a: alpha,
           b: 42,
           c: true,
-        } }";
-    let mut it = MarsLangParser::parse(Rule::program, string).unwrap();
-    let mut prog = it.next().unwrap().into_inner();
-    prog.next().unwrap();
-    prog.next().unwrap();
-    let mut blk = prog.next().unwrap().into_inner();
-    // let mut ass = blk.next().unwrap().into_inner();
-    // ass.next().unwrap();
-    let mut dst = blk.next().unwrap().into_inner();
-    dst.next().unwrap();
-    let dst = dst.next().unwrap();
-
-    dbg!(&dst);
-    let tst = parse_struct_init(dst).unwrap();
-    dbg!(&tst);
+        };
+    }";
+    let out = build_ast(inp);
+    dbg!(&out);
 }
-
 
 #[test]
 fn test() {
     let binding = std::fs::read_to_string("notes").unwrap();
-    let f = binding.as_str();
-    let inp = r#"struct Hello { a: i64, b: Hello }"#;
-    // let inp = r#"fn hello() -> void {
-    //
-    // }"#;
+    let _f = binding.as_str();
+    let inp = r#"fn hello(a: i64, ) -> void {
+        a = hello;
+    }"#;
     let out = build_ast(inp);
 
-    dbg!(out);
+    dbg!(out).unwrap();
 }
