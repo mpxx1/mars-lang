@@ -71,7 +71,7 @@ pub struct Assignment {
 
 #[derive(Debug, Clone)]
 pub struct Assign {
-    pub lhs: Expr,      // ident, deref, mem
+    pub lhs: Expr, // ident, deref, mem
     pub rhs: Expr,
 }
 
@@ -110,7 +110,7 @@ pub struct StructFieldCall {
 #[derive(Debug, Clone)]
 pub struct CastType {
     pub cast_to: Box<Type>,
-    pub expr: Box<Expr>
+    pub expr: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]
