@@ -2,5 +2,13 @@
 name = "marsc_lir"
 version = "0.1.0"
 edition = "2021"
+license = "BSDv3"
+description = """
+Mars programming language compiler lir module
+"""
+
+[lib]
+name = "lir"
+path = "src/lib.rs"
 
 [dependencies]

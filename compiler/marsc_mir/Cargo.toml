@@ -13,3 +13,4 @@ path = "src/lib.rs"
 
 [dependencies]
 marsc_hir = { path = "../marsc_hir" }
+anyhow = "1.0.95"
