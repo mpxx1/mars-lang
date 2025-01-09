@@ -1,31 +1,34 @@
+use pest::Span;
+
 #[derive(Debug, Clone, Default)]
-pub struct AST {
-    pub program: Vec<ProgStmt>,
+pub struct AST<'ast> {
+    pub program: Vec<ProgStmt<'ast>>,
 }
 
 #[derive(Debug, Clone)]
-pub enum ProgStmt {
-    StructDecl(StructDecl),
-    FuncDecl(FuncDecl),
+pub enum ProgStmt<'ast> {
+    StructDecl(StructDecl<'ast>),
+    FuncDecl(FuncDecl<'ast>),
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct StructDecl {
-    pub name: String,
+#[derive(Debug, Clone)]
+pub struct StructDecl<'ast> {
+    pub ident: String,
     pub fields: Vec<ArgDecl>,
+    pub span: Span<'ast>,
 }
 
 #[derive(Debug, Clone)]
-pub struct FuncDecl {
-    pub name: String,
+pub struct FuncDecl<'ast> {
+    pub ident: String,
     pub args: Vec<ArgDecl>,
     pub return_type: Type,
-    pub body: Block,
+    pub body: Block<'ast>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ArgDecl {
-    pub name: String,
+    pub ident: String,
     pub typ: Type,
 }
 
@@ -44,73 +47,73 @@ pub enum Type {
 }
 
 #[derive(Debug, Clone)]
-pub struct Block {
-    pub stmts: Vec<Stmt>,
+pub struct Block<'ast> {
+    pub stmts: Vec<Stmt<'ast>>,
 }
 
 #[derive(Debug, Clone)]
-pub enum Stmt {
-    Block(Block),
-    Return(Option<Expr>),
+pub enum Stmt<'ast> {
+    Block(Block<'ast>),
+    Return(Option<Expr<'ast>>),
     Break,
-    StructDecl(StructDecl),
-    FuncDecl(FuncDecl),
-    Assignment(Assignment),
-    Assign(Assign),
-    FuncCall(FuncCall),
-    IfElse(IfElse),
-    Loop(WhileLoop),
+    StructDecl(StructDecl<'ast>),
+    FuncDecl(FuncDecl<'ast>),
+    Assignment(Assignment<'ast>),
+    Assign(Assign<'ast>),
+    FuncCall(FuncCall<'ast>),
+    IfElse(IfElse<'ast>),
+    Loop(WhileLoop<'ast>),
 }
 
 #[derive(Debug, Clone)]
-pub struct Assignment {
-    pub var_name: String,
+pub struct Assignment<'ast> {
+    pub ident: String,
     pub typ: Option<Type>,
-    pub expr: Expr,
+    pub expr: Expr<'ast>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Assign {
-    pub lhs: Expr, // ident, deref, mem
-    pub rhs: Expr,
+pub struct Assign<'ast> {
+    pub lhs: Expr<'ast>, // ident, deref, mem
+    pub rhs: Expr<'ast>,
 }
 
 #[derive(Debug, Clone)]
-pub struct MemLookup {
-    pub identifier: String,
-    pub indices: Vec<Expr>,
+pub struct MemLookup<'ast> {
+    pub ident: String,
+    pub indices: Vec<Expr<'ast>>,
 }
 
 #[derive(Debug, Clone)]
-pub enum Expr {
+pub enum Expr<'ast> {
     Identifier(String),
-    FuncCall(FuncCall),
-    ArrayDecl(Vec<Expr>),
-    MemLookup(MemLookup),
+    FuncCall(FuncCall<'ast>),
+    ArrayDecl(Vec<Expr<'ast>>),
+    MemLookup(MemLookup<'ast>),
     StructFieldCall(StructFieldCall),
-    StructInit(StructInit),
-    IfElse(IfElse),
-    Loop(WhileLoop),
-    CastType(CastType),
-    Dereference(Box<Expr>),
-    Reference(Box<Expr>),
+    StructInit(StructInit<'ast>),
+    IfElse(IfElse<'ast>),
+    Loop(WhileLoop<'ast>),
+    CastType(CastType<'ast>),
+    Dereference(Box<Expr<'ast>>),
+    Reference(Box<Expr<'ast>>),
 
-    LogicalExpr(LogicalExpr),
-    MathExpr(MathExpr),
+    LogicalExpr(LogicalExpr<'ast>),
+    MathExpr(MathExpr<'ast>),
 
     Literal(Literal),
 }
 
 #[derive(Debug, Clone)]
 pub struct StructFieldCall {
-    pub name: String,
+    pub ident: String,
     pub field: String,
 }
 
 #[derive(Debug, Clone)]
-pub struct CastType {
+pub struct CastType<'ast> {
     pub cast_to: Box<Type>,
-    pub expr: Box<Expr>,
+    pub expr: Box<Expr<'ast>>,
 }
 
 #[derive(Debug, Clone)]
@@ -123,45 +126,45 @@ pub enum Literal {
 }
 
 #[derive(Debug, Clone)]
-pub struct FuncCall {
-    pub name: String,
-    pub args: Vec<Expr>,
+pub struct FuncCall<'ast> {
+    pub ident: String,
+    pub args: Vec<Expr<'ast>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct StructInit {
-    pub name: String,
-    pub fields: Vec<(String, Expr)>,
+pub struct StructInit<'ast> {
+    pub ident: String,
+    pub fields: Vec<(String, Expr<'ast>)>,
 }
 
 #[derive(Debug, Clone)]
-pub struct IfElse {
-    pub condition: Box<Expr>,
-    pub then_block: Block,
-    pub else_block: Option<Block>,
+pub struct IfElse<'ast> {
+    pub condition: Box<Expr<'ast>>,
+    pub then_block: Block<'ast>,
+    pub else_block: Option<Block<'ast>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct WhileLoop {
-    pub condition: Box<Expr>,
-    pub body: Block,
+pub struct WhileLoop<'ast> {
+    pub condition: Box<Expr<'ast>>,
+    pub body: Block<'ast>,
 }
 
 #[derive(Debug, Clone)]
-pub enum LogicalExpr {
-    Not(Box<LogicalExpr>),
-    Or(Box<LogicalExpr>, Box<LogicalExpr>),
-    And(Box<LogicalExpr>, Box<LogicalExpr>),
-    Comparison(Box<MathExpr>, CmpOp, Box<MathExpr>),
-    Primary(Box<Expr>),
+pub enum LogicalExpr<'ast> {
+    Not(Box<LogicalExpr<'ast>>),
+    Or(Box<LogicalExpr<'ast>>, Box<LogicalExpr<'ast>>),
+    And(Box<LogicalExpr<'ast>>, Box<LogicalExpr<'ast>>),
+    Comparison(Box<MathExpr<'ast>>, CmpOp, Box<MathExpr<'ast>>),
+    Primary(Box<Expr<'ast>>),
 }
 
 #[derive(Debug, Clone)]
-pub enum MathExpr {
-    Additive(Box<MathExpr>, AddOp, Box<MathExpr>),
-    Multiplicative(Box<MathExpr>, MulOp, Box<MathExpr>),
-    Power(Box<MathExpr>, Box<MathExpr>),
-    Primary(Box<Expr>),
+pub enum MathExpr<'ast> {
+    Additive(Box<MathExpr<'ast>>, AddOp, Box<MathExpr<'ast>>),
+    Multiplicative(Box<MathExpr<'ast>>, MulOp, Box<MathExpr<'ast>>),
+    Power(Box<MathExpr<'ast>>, Box<MathExpr<'ast>>),
+    Primary(Box<Expr<'ast>>),
 }
 
 #[derive(Debug, Clone)]

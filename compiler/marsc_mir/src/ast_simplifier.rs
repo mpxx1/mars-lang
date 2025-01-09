@@ -199,7 +199,7 @@ pub fn simplify(ast: AST) -> Result<AST> {
 
     fn simplify_func_decl(func: FuncDecl) -> FuncDecl {
         FuncDecl {
-            name: func.name,
+            ident: func.ident,
             args: func.args,
             return_type: func.return_type,
             body: simplify_top_block(func.body),
@@ -225,6 +225,8 @@ fn simple_test() {
     use hir::parser::build_ast;
 
     let inp = r#"
+    struct Foo {}
+
     fn main() -> i64 {
         var a = 10 + b;
         {

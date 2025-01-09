@@ -32,11 +32,13 @@ pub fn build_ast(source_code: &str) -> Result<AST> {
 }
 
 fn parse_struct_decl(pair: Pair<Rule>) -> Result<StructDecl> {
+    let span = pair.clone().as_span();
     let mut decl_iter = pair.into_inner();
 
     Ok(StructDecl {
-        name: parse_ident(decl_iter.next().unwrap())?,
+        ident: parse_ident(decl_iter.next().unwrap())?,
         fields: parse_args_decl(decl_iter.next().unwrap())?,
+        span
     })
 }
 
@@ -58,7 +60,7 @@ fn parse_arg_decl(pair: Pair<Rule>) -> Result<ArgDecl> {
     let mut inner_iter = pair.into_inner();
 
     Ok(ArgDecl {
-        name: parse_ident(inner_iter.next().unwrap())?,
+        ident: parse_ident(inner_iter.next().unwrap())?,
         typ: parse_type(inner_iter.next().unwrap())?,
     })
 }
@@ -67,7 +69,7 @@ fn parse_func_decl(pair: Pair<Rule>) -> Result<FuncDecl> {
     let mut decl_iter = pair.into_inner();
 
     Ok(FuncDecl {
-        name: parse_ident(decl_iter.next().unwrap())?,
+        ident: parse_ident(decl_iter.next().unwrap())?,
         args: parse_args_decl(decl_iter.next().unwrap())?,
         return_type: parse_type(decl_iter.next().unwrap().into_inner().next().unwrap())?,
         body: parse_block(decl_iter.next().unwrap())?,
@@ -161,7 +163,7 @@ fn parse_assignment(pair: Pair<Rule>) -> Result<Assignment> {
     };
 
     Ok(Assignment {
-        var_name,
+        ident: var_name,
         typ,
         expr,
     })
@@ -241,7 +243,7 @@ fn parse_func_call(pair: Pair<Rule>) -> Result<FuncCall> {
     let mut inner_iter = pair.into_inner();
 
     Ok(FuncCall {
-        name: parse_ident(inner_iter.next().unwrap())?,
+        ident: parse_ident(inner_iter.next().unwrap())?,
         args: parse_func_args_to_call(inner_iter.next().unwrap())?,
     })
 }
@@ -277,7 +279,7 @@ fn parse_struct_field_call(pair: Pair<Rule>) -> Result<StructFieldCall> {
     let mut inner_iter = pair.into_inner();
 
     Ok(StructFieldCall {
-        name: parse_ident(inner_iter.next().unwrap())?,
+        ident: parse_ident(inner_iter.next().unwrap())?,
         field: parse_ident(inner_iter.into_iter().next().unwrap())?,
     })
 }
@@ -289,7 +291,7 @@ fn parse_mem_look(pair: Pair<Rule>) -> Result<MemLookup> {
         .map(|p| parse_expr(p))
         .collect::<Result<Vec<_>>>()?;
     Ok(MemLookup {
-        identifier,
+        ident: identifier,
         indices,
     })
 }
@@ -596,7 +598,7 @@ fn parse_struct_init(pair: Pair<Rule>) -> Result<StructInit> {
     let mut inner_iter = pair.into_inner();
 
     Ok(StructInit {
-        name: parse_ident(inner_iter.next().unwrap())?,
+        ident: parse_ident(inner_iter.next().unwrap())?,
         fields: parse_struct_init_args(inner_iter.next().unwrap())?,
     })
 }
@@ -632,9 +634,10 @@ fn liter_test() {
 fn test() {
     let binding = std::fs::read_to_string("notes").unwrap();
     let _f = binding.as_str();
-    let inp = r#"fn hello(a: i64, ) -> void {
-        a = hello;
-    }"#;
+    let inp = "struct Hello {\
+        a: i64,\
+        b: str\
+    }";
     let out = build_ast(inp);
 
     dbg!(out).unwrap();
