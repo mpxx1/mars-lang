@@ -564,7 +564,7 @@ fn parse_while_loop(pair: Pair<Rule>) -> Result<WhileLoop> {
 }
 
 fn parse_if_else(pair: Pair<Rule>) -> Result<IfElse> {
-    dbg!(&pair);
+    // dbg!(&pair);
     let mut inner = pair.into_inner();
     let condition = Box::new(parse_expr(inner.next().unwrap())?);
     let then_block = parse_block(inner.next().unwrap())?;
