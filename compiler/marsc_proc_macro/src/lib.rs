@@ -10,11 +10,9 @@ pub fn provider_method(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input_fn = parse_macro_input!(item as ItemFn);
     let fn_name = &input_fn.sig.ident;
 
-    // Извлечение аргументов функции
     let inputs = &input_fn.sig.inputs;
     let output = &input_fn.sig.output;
 
-    // Проверка, что у функции два аргумента
     if inputs.len() != 2 {
         return syn::Error::new_spanned(
             &input_fn.sig,
@@ -24,7 +22,6 @@ pub fn provider_method(_attr: TokenStream, item: TokenStream) -> TokenStream {
             .into();
     }
 
-    // Первый аргумент — `TypeContext`, второй — ключ (тип K)
     let key_type = match inputs.iter().nth(1) {
         Some(syn::FnArg::Typed(pat_type)) => &*pat_type.ty,
         _ => {
@@ -37,7 +34,6 @@ pub fn provider_method(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    // Получение возвращаемого типа функции
     let return_type = match output {
         syn::ReturnType::Type(_, ty) => ty,
         syn::ReturnType::Default => {
@@ -50,13 +46,11 @@ pub fn provider_method(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    // Имя трейта
     let trait_name = syn::Ident::new(
         &format!("{}Provider", fn_name.to_string().to_case(Case::Pascal)),
         fn_name.span(),
     );
 
-    // Генерация кода
     let expanded = quote! {
         #input_fn
 

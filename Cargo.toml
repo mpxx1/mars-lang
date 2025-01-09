@@ -11,4 +11,5 @@ members = [
     "compiler/marsc_session",
     "compiler/marsc_query_system",
     "compiler/marsc_proc_macro",
+    "compiler/marsc_resolve",
 ]
