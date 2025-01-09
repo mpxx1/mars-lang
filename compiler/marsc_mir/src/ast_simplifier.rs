@@ -45,14 +45,17 @@ pub fn simplify(ast: AST) -> Result<AST> {
 
             Expr::IfElse(mut if_else) => {
                 if_else.condition = Box::new(simplify_expr(*if_else.condition));
-                if_else.then_block = simplify_block(if_else.then_block);
-                if_else.else_block = if_else.else_block.map(simplify_block);
+                if_else.then_block = simplify_top_block(if_else.then_block);
+                if_else.else_block = if_else.else_block.map(simplify_top_block);
+                if if_else.else_block.as_ref().map_or(false, |b| b.stmts.is_empty()) {
+                    if_else.else_block = None;
+                }
                 Expr::IfElse(if_else)
             }
 
             Expr::Loop(mut while_loop) => {
                 while_loop.condition = Box::new(simplify_expr(*while_loop.condition));
-                while_loop.body = simplify_block(while_loop.body);
+                while_loop.body = simplify_top_block(while_loop.body);
                 Expr::Loop(while_loop)
             }
 
@@ -61,7 +64,23 @@ pub fn simplify(ast: AST) -> Result<AST> {
                 Expr::MemLookup(mem_lookup)
             }
 
-            other => other,
+            Expr::Dereference(inner) => {
+                if let Expr::Reference(inner_inner) = *inner {
+                    simplify_expr(*inner_inner)
+                } else {
+                    Expr::Dereference(Box::new(simplify_expr(*inner)))
+                }
+            }
+
+            Expr::Reference(inner) => {
+                if let Expr::Dereference(inner_inner) = *inner {
+                    simplify_expr(*inner_inner)
+                } else {
+                    Expr::Reference(Box::new(simplify_expr(*inner)))
+                }
+            }
+
+            _ => expr,
         }
     }
 
@@ -74,16 +93,19 @@ pub fn simplify(ast: AST) -> Result<AST> {
                     MathExpr::Primary(Box::new(simplify_expr(*inner_expr)))
                 }
             }
+
             MathExpr::Additive(lhs, op, rhs) => MathExpr::Additive(
                 Box::new(simplify_math_expr(*lhs)),
                 op,
                 Box::new(simplify_math_expr(*rhs)),
             ),
+
             MathExpr::Multiplicative(lhs, op, rhs) => MathExpr::Multiplicative(
                 Box::new(simplify_math_expr(*lhs)),
                 op,
                 Box::new(simplify_math_expr(*rhs)),
             ),
+
             MathExpr::Power(base, exp) => MathExpr::Power(
                 Box::new(simplify_math_expr(*base)),
                 Box::new(simplify_math_expr(*exp)),
@@ -93,42 +115,86 @@ pub fn simplify(ast: AST) -> Result<AST> {
 
     fn simplify_stmt(stmt: Stmt) -> Stmt {
         match stmt {
-            Stmt::Block(block) => Stmt::Block(Block {
-                stmts: block.stmts.into_iter().map(simplify_stmt).collect(),
-            }),
             Stmt::Return(Some(expr)) => Stmt::Return(Some(simplify_expr(expr))),
+
             Stmt::Assignment(mut assignment) => {
                 assignment.expr = simplify_expr(assignment.expr);
                 Stmt::Assignment(assignment)
             }
+
             Stmt::Assign(mut assign) => {
                 assign.lhs = simplify_expr(assign.lhs);
                 assign.rhs = simplify_expr(assign.rhs);
                 Stmt::Assign(assign)
             }
+
             Stmt::FuncCall(mut func_call) => {
                 func_call.args = func_call.args.into_iter().map(simplify_expr).collect();
                 Stmt::FuncCall(func_call)
             }
+
             Stmt::IfElse(mut if_else) => {
                 if_else.condition = Box::new(simplify_expr(*if_else.condition));
-                if_else.then_block = simplify_block(if_else.then_block);
-                if_else.else_block = if_else.else_block.map(simplify_block);
+                if_else.then_block = simplify_top_block(if_else.then_block);
+                if_else.else_block = if_else.else_block.map(simplify_top_block);
+                if if_else.else_block.as_ref().map_or(false, |b| b.stmts.is_empty()) {
+                    if_else.else_block = None;
+                }
                 Stmt::IfElse(if_else)
             }
+
             Stmt::Loop(mut while_loop) => {
                 while_loop.condition = Box::new(simplify_expr(*while_loop.condition));
-                while_loop.body = simplify_block(while_loop.body);
+                while_loop.body = simplify_top_block(while_loop.body);
                 Stmt::Loop(while_loop)
             }
+
             _ => stmt,
         }
     }
 
-    fn simplify_block(block: Block) -> Block {
-        Block {
-            stmts: block.stmts.into_iter().map(simplify_stmt).collect(),
+    fn simplify_block(block: Block) -> Vec<Stmt> {
+        if block.stmts.is_empty() {
+            return vec![];
         }
+
+        let mut contains_stmts = false;
+        let mut block_count = 0;
+        for stmt in &block.stmts {
+            if !matches!(stmt, Stmt::Block(_) | Stmt::Return(_)) {
+                contains_stmts = true;
+            } else if matches!(stmt, Stmt::Block(_)) {
+                block_count += 1;
+            } else {
+                continue
+            }
+        }
+        let mut stmts = vec![];
+
+        for stmt in block.stmts {
+            match stmt {
+                Stmt::Block(block) => {
+                    if block.stmts.is_empty() { continue; }
+                    let inner = simplify_block(block);
+
+                    if contains_stmts {
+                        if inner.is_empty() { continue; }
+                        stmts.push(Stmt::Block(Block{ stmts: inner }))
+                    } else {
+                        for s in inner {
+                            stmts.push(s);
+                        }
+                    }
+                },
+                x => stmts.push(simplify_stmt(x)),
+            }
+        }
+
+        stmts
+    }
+
+    fn simplify_top_block(block: Block) -> Block {
+        Block { stmts: simplify_block(block) }
     }
 
     fn simplify_func_decl(func: FuncDecl) -> FuncDecl {
@@ -136,7 +202,7 @@ pub fn simplify(ast: AST) -> Result<AST> {
             name: func.name,
             args: func.args,
             return_type: func.return_type,
-            body: simplify_block(func.body),
+            body: simplify_top_block(func.body),
         }
     }
 
@@ -160,15 +226,23 @@ fn simple_test() {
 
     let inp = r#"
     fn main() -> i64 {
-        var a = if true {
-            print("10");
-            return hello;
-        } else {
-            print("20");
-            return 50;
-        };
-        
-        var a: i64 = b;
+        var a = 10 + b;
+        {
+            {}
+            {
+                {}
+                var hello = hello();
+                {
+                    a += hello(halo(10, 30 + 4));
+                }
+            }
+        }
+
+        {
+            { a += 10; }
+        }
+
+        { var a = 10; }
 
         return 0;
     }
