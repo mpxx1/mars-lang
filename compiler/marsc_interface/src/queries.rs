@@ -1,23 +1,23 @@
 use crate::interface::{Compiler, Result};
 use crate::passes;
-use marsc_core::dep_graph::{DepGraph};
-use marsc_data_structures::steal::Steal;
+use marsc_context::context::GlobalContext;
 use marsc_hir::ast;
-use marsc_context::context::{GlobalContext, TypeContext};
-use std::any::Any;
 use std::cell::{RefCell, RefMut};
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 
 pub struct Query<T> {
-    result: RefCell<Option<Result<Steal<T>>>>,
+    result: RefCell<Option<Result<T>>>,
 }
 
 impl<T> Query<T> {
-    fn compute<F: FnOnce() -> Result<T>>(&self, f: F) -> Result<QueryResult<'_, T>> {
+    fn compute<F>(&self, f: F) -> Result<QueryResult<'_, T>>
+    where
+        F: FnOnce() -> Result<T>
+    {
         RefMut::filter_map(
             self.result.borrow_mut(),
-            |r: &mut Option<Result<Steal<T>>>| -> Option<&mut Steal<T>> {
-                r.get_or_insert_with(|| f().map(Steal::new)).as_mut().ok()
+            |r: &mut Option<Result<T>>| -> Option<&mut T> {
+                r.get_or_insert_with(|| f()).as_mut().ok()
             },
         )
         .map_err(|r| *r.as_ref().unwrap().as_ref().map(|_| ()).unwrap_err())
@@ -25,14 +25,12 @@ impl<T> Query<T> {
     }
 }
 
-pub struct QueryResult<'a, T>(RefMut<'a, Steal<T>>);
+#[derive(Debug)]
+pub struct QueryResult<'a, T>(RefMut<'a, T>);
 
 pub struct Queries<'tcx> {
     compiler: &'tcx Compiler,
     global_context_cell: OnceLock<GlobalContext<'tcx>>,
-
-    /* arena: WorkerLocal<Arena<'tcx>>,
-    hir_arena: WorkerLocal<rustc_hir::Arena<'tcx>>,*/
     parse: Query<ast::AST>,
     global_context: Query<&'tcx GlobalContext<'tcx>>,
 }
@@ -42,8 +40,6 @@ impl<'tcx> Queries<'tcx> {
         Queries {
             compiler,
             global_context_cell: OnceLock::new(),
-            /*arena: WorkerLocal::new(|_| Arena::default()),
-            hir_arena: WorkerLocal::new(|_| rustc_hir::Arena::default()),*/
             parse: Query {
                 result: RefCell::new(None),
             },
@@ -52,24 +48,19 @@ impl<'tcx> Queries<'tcx> {
             },
         }
     }
+    
+    pub fn parse(&self) -> Result<QueryResult<'_, ast::AST>> {
+        self.parse.compute(|| passes::parse(&self.compiler.session))
+    }
 
-//    pub fn parse(&self) -> Result<QueryResult<'_, ast::AST>> {
-//        self.parse.compute(|| passes::parse(&self.compiler.session))
-//    }
-
-//    pub fn global_context(&'tcx self) -> Result<QueryResult<'tcx, &'tcx GlobalContext<'tcx>>> {
-//        self.global_context.compute(|| {
-//            let project = self.parse()?.steal();
-//
-//            passes::create_global_context(
-//                self.compiler,
-//                project,
-//                &self.global_context_cell,
-//                /*&self.arena,
-//                &self.hir_arena,*/
-//            )
-//        })
-//    }
+    pub fn global_context(&'tcx self) -> Result<QueryResult<'tcx, &'tcx GlobalContext<'tcx>>> {
+        self.global_context.compute(|| {
+            passes::create_global_context(
+                self.compiler, 
+                &self.global_context_cell,
+            )
+        })
+    }
 }
 
 pub struct Linker {

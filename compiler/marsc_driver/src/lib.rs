@@ -5,7 +5,8 @@ use clap::{Arg, Parser};
 use marsc_interface::interface;
 use std::process;
 use std::time::Instant;
-
+use clap::builder::TypedValueParser;
+use marsc_interface::queries::Linker;
 use crate::args::Args;
 use crate::config::build_config;
 
@@ -30,13 +31,16 @@ fn run_compiler(args: &Args) -> interface::Result<()> {
 
     interface::run_compiler(config, |compiler| {
         let session = &compiler.session;
-        let codegen_backend = &*compiler.codegen_backend;
+        // let codegen_backend = &*compiler.codegen_backend;
 
         let linker = compiler.enter(|queries| {
-            // queries.parse()?;
+            println!("{:#?}", queries.global_context());
+            
+            let ast = queries.parse().unwrap();
+            println!("{:#?}", ast);
 
             // queries.enter
-            Ok(())
+            Some(Linker {})
         });
 
         if let Some(linker) = linker {
@@ -48,8 +52,6 @@ fn run_compiler(args: &Args) -> interface::Result<()> {
 }
 
 pub fn main() -> ! {
-    let start_time = Instant::now();
-
     let args = Args::parse();
 
     RunCompiler::new(&args).run().expect(""); // TODO

@@ -6,6 +6,7 @@ members = [
     "compiler/marsc_context",
     "compiler/marsc_core",
     "compiler/marsc_data_structures",
+    "compiler/marsc_driver",
     "compiler/marsc_hir",
     "compiler/marsc_session",
     "compiler/marsc_query_system",

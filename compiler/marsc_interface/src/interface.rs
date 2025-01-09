@@ -1,11 +1,8 @@
-use marsc_codegen::codegen::CodegenBackend;
-use marsc_context::context::{CurrentGlobalContext, GlobalContext};
-use marsc_session::session::Session;
+use marsc_context::context::CurrentGlobalContext;
+use marsc_session::session::{CompilerIO, Session};
 use marsc_span::ErrorGuaranteed;
 use std::path::PathBuf;
-use std::process::Output;
 use std::result;
-use std::sync::Arc;
 
 pub type Result<T> = result::Result<T, ErrorGuaranteed>;
 
@@ -46,39 +43,47 @@ pub struct Config {
 
 pub struct Compiler {
     pub session: Session,
-    pub codegen_backend: Box<dyn CodegenBackend>,
+    // pub codegen_backend: Box<dyn CodegenBackend>,
     // pub(crate) override_queries: Option<fn(&Session, &mut Providers)>,
-    pub(crate) current_gcx: CurrentGlobalContext,
+    pub(crate) current_global_context: CurrentGlobalContext,
 }
 
-//pub fn run_compiler<R: Send>(config: Config, f: impl FnOnce(&Compiler) -> R + Send) -> R {
-//    // setup callbacks
-//
-//    // resolve target
-//    // create file loader
-//
-//    // run with new GlobalContext
-//    run_with_global_context(|global_context: GlobalContext| {
-//        // create codegen backend
-//
-//        // create session
-//        let mut session = Session {};
-//
-//        // init codegen with session
-//
-//        // create compiler
-//        let compiler = Compiler {};
-//
-//        let res = {
-//            let res = f(&compiler);
-//
-//            res
-//        };
-//
-//        res
-//    })
-//}
+pub fn run_compiler<R: Send>(config: Config, f: impl FnOnce(&Compiler) -> R + Send) -> R {
+   // setup callbacks
 
-//pub fn run_with_global_context<F: FnOnce(GlobalContext) -> R + Send, R: Send>(f: F) -> R {
-//    f(GlobalContext::new())
-//}
+   // resolve target
+   // create file loader
+
+   // run with new GlobalContext
+    run_with_current_global_context(|current_global_context: CurrentGlobalContext| {
+       // create codegen backend
+
+       // create session
+       let mut session = Session {
+           io: CompilerIO {
+               input_file: PathBuf::from(config.input),
+               output_file: PathBuf::from(config.output),
+           }
+       };
+
+       // init codegen with session
+
+       // create compiler
+       let compiler = Compiler {
+           session,
+           current_global_context,
+       };
+
+       let res = {
+           let res = f(&compiler);
+
+           res
+       };
+
+       res
+   })
+}
+
+pub fn run_with_current_global_context<F: FnOnce(CurrentGlobalContext) -> R + Send, R: Send>(f: F) -> R {
+   f(CurrentGlobalContext::new())
+}

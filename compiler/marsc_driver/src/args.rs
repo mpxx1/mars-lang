@@ -6,7 +6,7 @@ use clap::Parser;
 #[command(author = "mars-lang team")]
 #[command(about = "A simple compiler for demonstration purposes", long_about = None)]
 pub struct Args {
-    #[arg(value_hint = ValueHint::FilePath)]
+    #[arg()]
     pub input: String,
 
     #[arg(short, long)]

@@ -1,8 +1,17 @@
-use core::cell::Cell;
-use core::ptr;
 use marsc_session::session::Session;
 use std::cell::RefCell;
 use std::rc::Rc;
+
+#[derive(Debug)]
+pub struct CommonTypes {
+    
+}
+
+impl CommonTypes{
+    pub fn new() -> Self {
+        CommonTypes {}
+    }
+}
 
 pub struct TypeContext<'tcx> {
     global_context: &'tcx GlobalContext<'tcx>,
@@ -11,30 +20,27 @@ pub struct TypeContext<'tcx> {
 impl<'tcx> TypeContext<'tcx> {
     pub fn new(global_context: &'tcx GlobalContext) -> Self {
         TypeContext::<'tcx> {
-            global_context
+            global_context,
+        }
+    }
+    
+    pub fn create_global_context(
+        session: &'tcx Session,
+    ) -> GlobalContext<'tcx> {
+        let common_types = CommonTypes::new();
+        
+        GlobalContext {
+            session,
+            types: common_types,
         }
     }
 }
 
-#[warn(dead_code)]
+#[derive(Debug)]
 pub struct GlobalContext<'tcx> {
     pub session: &'tcx Session,
     // pub dep_graph: DepGraph,
-    current_global_context: CurrentGlobalContext,
-}
-
-impl<'tcx> GlobalContext<'tcx> {
-    pub fn new(session: &'tcx Session) -> Self {
-        GlobalContext {
-            session,
-            current_global_context: CurrentGlobalContext::default(),
-        }
-    }
-}
-
-#[derive(Clone, Default)]
-pub struct CurrentGlobalContext {
-    value: Rc<RefCell<Option<*const ()>>>,
+    types: CommonTypes,
 }
 
 impl<'tcx> GlobalContext<'tcx> {
@@ -42,51 +48,26 @@ impl<'tcx> GlobalContext<'tcx> {
     where
         F: FnOnce(TypeContext) -> R,
     {
-        let implicit_context = ImplicitContext::new(self);
-
-        /*let _on_drop = defer(move || {
-            *self.current_global_context.value.write() = None;
-        });*/
-
-        // enter_implicit_context(&implicit_context, || f(implicit_context.type_context))
-        panic!()
+        let type_context = TypeContext::new(self);
+        f(type_context)
     }
 }
 
-pub struct ImplicitContext<'tcx> {
-    pub type_context: TypeContext<'tcx>,
-    // pub query: Option<QueryJobId>,
-    pub query_depth: usize,
+#[derive(Clone, Default)]
+pub struct CurrentGlobalContext {
+    value: Rc<RefCell<Option<*const ()>>>
 }
 
-impl<'tcx> ImplicitContext<'tcx> {
-    pub fn new(global_context: &'tcx GlobalContext) -> Self {
-        let tcx = TypeContext::<'tcx> { global_context };
-        ImplicitContext::<'tcx> {
-            type_context: tcx,
-            // query: None,
-            query_depth: 0,
-        }
+impl CurrentGlobalContext {
+    pub fn new() -> Self {
+        Self { value: Rc::new(RefCell::new(None)) }
     }
-}
 
-#[cfg(not(parallel_compiler))]
-thread_local! {
-    static TREAD_LOCAL_IMPLICIT_CONTEXT: Cell<*const ()> = const { Cell::new(ptr::null()) };
-}
+    pub fn access<R>(&self, f: impl for<'tcx> FnOnce(&'tcx GlobalContext<'tcx>) -> R) -> R {
+        let borrow = self.value.borrow();
 
-#[inline]
-fn erase(context: &ImplicitContext) -> *const () {
-    context as *const _ as *const ()
-}
+        let gcx = borrow.unwrap() as *const _;
 
-pub fn enter_implicit_context<'a, 'tcx, F, R>(context: &ImplicitContext, f: F) -> R
-where
-    F: FnOnce() -> R,
-{
-    TREAD_LOCAL_IMPLICIT_CONTEXT.with(|tl_ctxt| {
-        let old_context = tl_ctxt.replace(erase(context));
-        /*let _reset = rustc_data_structures::defer(move || tl_ctxt.set(old_context));*/
-        f()
-    })
+        f(unsafe { &*gcx })
+    }
 }
