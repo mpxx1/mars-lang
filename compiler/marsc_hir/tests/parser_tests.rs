@@ -244,4 +244,34 @@ mod tests {
             panic!("Expected a function declaration for main");
         }
     }
+
+    #[test]
+    fn test_parse_while_in_main() {
+        let input = r#"
+            fn main() -> void {
+                while x < 5 {
+                    x = x + 1;
+                }
+            }
+        "#;
+
+        let result = build_ast(input);
+        assert!(result.is_ok());
+        let ast = result.unwrap();
+        assert_eq!(ast.program.len(), 1);
+
+        if let ProgStmt::FuncDecl(func_decl) = &ast.program[0] {
+            assert_eq!(func_decl.name, "main");
+            assert_eq!(func_decl.args.len(), 0);
+
+            if let Some(Stmt::Loop(while_stmt)) = func_decl.body.stmts.first() {
+                assert!(matches!(*while_stmt.condition, Expr::LogicalExpr(_)));
+                assert_eq!(while_stmt.body.stmts.len(), 1);
+            } else {
+                panic!("Expected a while statement in main");
+            }
+        } else {
+            panic!("Expected a function declaration for main");
+        }
+    }
 }
