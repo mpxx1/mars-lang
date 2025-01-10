@@ -180,4 +180,68 @@ mod tests {
             _ => panic!("Expected a struct declaration"),
         }
     }
+
+    #[test]
+    fn test_parse_if_else_in_main() {
+        let input = r#"
+            fn main() -> void {
+                if x > 10 {
+                    return;
+                } else {
+                    x = 20;
+                }
+            }
+        "#;
+
+        let result = build_ast(input);
+        assert!(result.is_ok());
+        let ast = result.unwrap();
+        assert_eq!(ast.program.len(), 1);
+
+        if let ProgStmt::FuncDecl(func_decl) = &ast.program[0] {
+            assert_eq!(func_decl.name, "main");
+            assert_eq!(func_decl.args.len(), 0);
+
+            if let Some(Stmt::IfElse(if_else)) = func_decl.body.stmts.first() {
+                assert!(matches!(*if_else.condition, Expr::LogicalExpr(_)));
+                assert_eq!(if_else.then_block.stmts.len(), 1);
+                assert_eq!(if_else.else_block.as_ref().unwrap().stmts.len(), 1);
+            } else {
+                panic!("Expected an if-else statement in main");
+            }
+        } else {
+            panic!("Expected a function declaration for main");
+        }
+    }
+
+    #[test]
+    fn test_parse_if_in_main() {
+        let input = r#"
+            fn main() -> void {
+                if x > 10 {
+                    return;
+                }
+            }
+        "#;
+
+        let result = build_ast(input);
+        assert!(result.is_ok());
+        let ast = result.unwrap();
+        assert_eq!(ast.program.len(), 1);
+
+        if let ProgStmt::FuncDecl(func_decl) = &ast.program[0] {
+            assert_eq!(func_decl.name, "main");
+            assert_eq!(func_decl.args.len(), 0);
+
+            if let Some(Stmt::IfElse(if_stmt)) = func_decl.body.stmts.first() {
+                assert!(matches!(*if_stmt.condition, Expr::LogicalExpr(_)));
+                assert_eq!(if_stmt.then_block.stmts.len(), 1);
+                assert!(if_stmt.else_block.is_none(), "Expected no else block");
+            } else {
+                panic!("Expected an if statement in main");
+            }
+        } else {
+            panic!("Expected a function declaration for main");
+        }
+    }
 }
