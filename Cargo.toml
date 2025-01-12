@@ -1,3 +1,18 @@
+[package]
+name = "mars-lang"
+version = "0.1.0"
+edition = "2021"
+license = "BSDv3"
+description = """
+Mars programming language compiler entry point
+"""
+
+[[bin]]
+name = "mars"
+path = "src/main.rs"
+
+[dependencies]
+
 [workspace]
 resolver = "2"
 members = [

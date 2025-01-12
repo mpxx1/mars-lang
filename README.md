@@ -6,10 +6,10 @@
 ### compiler building status 
 
 
-- [ ] parser
-- [ ] ast
+- [x] parser
+- [x] ast
 - [ ] print
 - [ ] codegen (inkwell/llvm)
-- [ ] hir
+- [x] hir
 - [ ] lir
 - [ ] mir
