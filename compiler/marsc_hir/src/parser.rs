@@ -3,13 +3,21 @@ use anyhow::{anyhow, Result};
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 
+static mut GLOBAL_COUNTER: u32 = 1000;
+
+// Глобальная функция
+pub fn gen_id() -> u32 {
+    unsafe {
+        GLOBAL_COUNTER += 1;
+        GLOBAL_COUNTER
+    }
+}
+
 #[derive(Parser)]
 #[grammar = "mars_grammar.pest"]
 struct MarsLangParser;
 
 pub fn build_ast(source_code: &str) -> Result<AST> {
-    let _src = source_code;
-
     let prog = MarsLangParser::parse(Rule::program, source_code)?;
 
     let mut ast = AST::default();
@@ -37,6 +45,7 @@ fn parse_struct_decl(pair: Pair<Rule>) -> Result<StructDecl> {
     let mut decl_iter = pair.into_inner();
 
     Ok(StructDecl {
+        node_id: gen_id(),
         ident: parse_name(decl_iter.next().unwrap())?,
         fields: parse_args_decl(decl_iter.next().unwrap())?,
         span,
@@ -62,6 +71,7 @@ fn parse_arg_decl(pair: Pair<Rule>) -> Result<ArgDecl> {
     let mut inner_iter = pair.into_inner();
 
     Ok(ArgDecl {
+        node_id: gen_id(),
         ident: parse_name(inner_iter.next().unwrap())?,
         ty: parse_type(inner_iter.next().unwrap())?,
         span,
@@ -73,6 +83,7 @@ fn parse_func_decl(pair: Pair<Rule>) -> Result<FuncDecl> {
     let mut decl_iter = pair.into_inner();
 
     Ok(FuncDecl {
+        node_id: gen_id(),
         ident: parse_name(decl_iter.next().unwrap())?,
         args: parse_args_decl(decl_iter.next().unwrap())?,
         return_type: parse_type(decl_iter.next().unwrap().into_inner().next().unwrap())?,
@@ -87,7 +98,7 @@ fn parse_name(pair: Pair<Rule>) -> Result<&str> {
 
 fn parse_ident(pair: Pair<Rule>) -> Result<Identifier> {
     let span = pair.as_span();
-    Ok(Identifier { ident: pair.as_span().as_str(), span, })
+    Ok(Identifier { node_id: gen_id(), ident: pair.as_span().as_str(), span, })
 }
 
 fn parse_type(pair: Pair<Rule>) -> Result<Type> {
@@ -115,6 +126,7 @@ fn parse_type(pair: Pair<Rule>) -> Result<Type> {
 fn parse_block(pair: Pair<Rule>) -> Result<Block> {
     let span = pair.as_span();
     Ok(Block {
+        node_id: gen_id(),
         stmts: pair
             .into_inner()
             .map(|p| parse_stmt(p))
@@ -127,7 +139,7 @@ fn parse_stmt(pair: Pair<Rule>) -> Result<Stmt> {
     let span = pair.as_span();
     match pair.as_rule() {
         Rule::block => parse_block(pair).map(Stmt::Block),
-        Rule::r#break => Ok(Stmt::Break { span, }),
+        Rule::r#break => Ok(Stmt::Break { node_id: gen_id(), span, }),
         Rule::struct_decl => parse_struct_decl(pair).map(Stmt::StructDecl),
         Rule::func_decl => parse_func_decl(pair).map(Stmt::FuncDecl),
         Rule::r#return => parse_return(pair),
@@ -146,6 +158,7 @@ fn parse_stmt(pair: Pair<Rule>) -> Result<Stmt> {
 fn parse_return(pair: Pair<Rule>) -> Result<Stmt> {
     let span = pair.as_span();
     Ok(Stmt::Return {
+        node_id: gen_id(),
         expr: parse_return_body(pair.into_inner().next().unwrap())?,
         span,
     })
@@ -181,6 +194,7 @@ fn parse_assignment(pair: Pair<Rule>) -> Result<Stmt> {
     };
 
     Ok(Stmt::Assignment {
+        node_id: gen_id(),
         ident,
         ty,
         expr,
@@ -194,16 +208,20 @@ fn parse_assign(pair: Pair<Rule>) -> Result<Stmt> {
     let lhs = parse_expr(inner_iter.next().unwrap())?;
     let op = inner_iter.next().unwrap().into_inner().next().unwrap();
     let rhs = parse_expr(inner_iter.next().unwrap())?;
+    let node_id = gen_id();
 
     Ok(match op.as_rule() {
         Rule::assign_base => Stmt::Assign {
+            node_id,
             lhs,
             rhs,
             span,
         },
         Rule::assign_add => Stmt::Assign {
+            node_id,
             lhs: lhs.clone(),
             rhs: Expr::MathExpr(MathExpr::Additive {
+                node_id: gen_id(),
                 left: Box::new(MathExpr::Primary(Box::new(lhs))),
                 right: Box::new(MathExpr::Primary(Box::new(rhs))),
                 op: AddOp::Add,
@@ -212,8 +230,10 @@ fn parse_assign(pair: Pair<Rule>) -> Result<Stmt> {
             span,
         },
         Rule::assign_sub => Stmt::Assign {
+            node_id,
             lhs: lhs.clone(),
             rhs: Expr::MathExpr(MathExpr::Additive {
+                node_id: gen_id(),
                 left: Box::new(MathExpr::Primary(Box::new(lhs))),
                 right: Box::new(MathExpr::Primary(Box::new(rhs))),
                 op: AddOp::Sub,
@@ -222,8 +242,10 @@ fn parse_assign(pair: Pair<Rule>) -> Result<Stmt> {
             span,
         },
         Rule::assign_mul => Stmt::Assign {
+            node_id,
             lhs: lhs.clone(),
             rhs: Expr::MathExpr(MathExpr::Multiplicative {
+                node_id: gen_id(),
                 left: Box::new(MathExpr::Primary(Box::new(lhs))),
                 right: Box::new(MathExpr::Primary(Box::new(rhs))),
                 op: MulOp::Mul,
@@ -232,8 +254,10 @@ fn parse_assign(pair: Pair<Rule>) -> Result<Stmt> {
             span,
         },
         Rule::assign_div => Stmt::Assign {
+            node_id,
             lhs: lhs.clone(),
             rhs: Expr::MathExpr(MathExpr::Multiplicative {
+                node_id: gen_id(),
                 left: Box::new(MathExpr::Primary(Box::new(lhs))),
                 right: Box::new(MathExpr::Primary(Box::new(rhs))),
                 op: MulOp::Div,
@@ -242,8 +266,10 @@ fn parse_assign(pair: Pair<Rule>) -> Result<Stmt> {
             span,
         },
         Rule::assign_div_floor => Stmt::Assign {
+            node_id,
             lhs: lhs.clone(),
             rhs: Expr::MathExpr(MathExpr::Multiplicative {
+                node_id: gen_id(),
                 left: Box::new(MathExpr::Primary(Box::new(lhs))),
                 right: Box::new(MathExpr::Primary(Box::new(rhs))),
                 op: MulOp::DivFloor,
@@ -252,8 +278,10 @@ fn parse_assign(pair: Pair<Rule>) -> Result<Stmt> {
             span,
         },
         Rule::assign_mod => Stmt::Assign {
+            node_id,
             lhs: lhs.clone(),
             rhs: Expr::MathExpr(MathExpr::Multiplicative {
+                node_id: gen_id(),
                 left: Box::new(MathExpr::Primary(Box::new(lhs))),
                 right: Box::new(MathExpr::Primary(Box::new(rhs))),
                 op: MulOp::Mod,
@@ -262,8 +290,10 @@ fn parse_assign(pair: Pair<Rule>) -> Result<Stmt> {
             span,
         },
         Rule::assign_pow => Stmt::Assign {
+            node_id,
             lhs: lhs.clone(),
             rhs: Expr::MathExpr(MathExpr::Power {
+                node_id: gen_id(),
                 base: Box::new(MathExpr::Primary(Box::new(lhs))),
                 exp: Box::new(MathExpr::Primary(Box::new(rhs))),
                 span,
@@ -279,6 +309,7 @@ fn parse_func_call(pair: Pair<Rule>) -> Result<FuncCall> {
     let mut inner_iter = pair.into_inner();
 
     Ok(FuncCall {
+        node_id: gen_id(),
         ident: parse_ident(inner_iter.next().unwrap())?,
         args: parse_func_args_to_call(inner_iter.next().unwrap())?,
         span,
@@ -315,6 +346,7 @@ fn parse_struct_field_call(pair: Pair<Rule>) -> Result<Expr> {
     let mut inner_iter = pair.into_inner();
 
     Ok(Expr::StructFieldCall {
+        node_id: gen_id(),
         ident: parse_ident(inner_iter.next().unwrap())?,
         field: parse_ident(inner_iter.into_iter().next().unwrap())?,
         span,
@@ -329,6 +361,7 @@ fn parse_mem_look(pair: Pair<Rule>) -> Result<Expr> {
         .map(|p| parse_expr(p))
         .collect::<Result<Vec<_>>>()?;
     Ok(Expr::MemLookup {
+        node_id: gen_id(),
         ident,
         indices,
         span,
@@ -338,6 +371,7 @@ fn parse_mem_look(pair: Pair<Rule>) -> Result<Expr> {
 fn parse_arr_decl(pair: Pair<Rule>) -> Result<Expr> {
     let span = pair.as_span();
     Ok(Expr::ArrayDecl {
+        node_id: gen_id(),
         list: pair
             .into_inner()
             .map(|p| parse_expr(p))
@@ -349,6 +383,7 @@ fn parse_arr_decl(pair: Pair<Rule>) -> Result<Expr> {
 fn parse_deref(pair: Pair<Rule>) -> Result<Expr> {
     let span = pair.as_span();
     Ok(Expr::Dereference {
+        node_id: gen_id(),
         inner: Box::new(parse_expr(
         pair.into_inner().next().unwrap(),
         )?),
@@ -359,6 +394,7 @@ fn parse_deref(pair: Pair<Rule>) -> Result<Expr> {
 fn parse_reference(pair: Pair<Rule>) -> Result<Expr> {
     let span = pair.as_span();
     Ok(Expr::Reference {
+        node_id: gen_id(),
         inner: Box::new(parse_expr(
         pair.into_inner().next().unwrap(),
         )?),
@@ -370,6 +406,7 @@ fn parse_cast_type(pair: Pair<Rule>) -> Result<Expr> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     Ok(Expr::CastType {
+        node_id: gen_id(),
         cast_to: Box::new(parse_type(inner_iter.next().unwrap())?),
         expr: Box::new(parse_expr(inner_iter.next().unwrap())?),
         span,
@@ -401,6 +438,7 @@ fn parse_logical_or_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
     let mut left = exprs.pop().unwrap();
     let mut right = exprs.pop().unwrap();
     let mut res = LogicalExpr::Or {
+        node_id: gen_id(),
         left: Box::new(left),
         right: Box::new(right),
         span,
@@ -410,6 +448,7 @@ fn parse_logical_or_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
         left = res;
         right = exprs.pop().unwrap();
         res = LogicalExpr::Or {
+            node_id: gen_id(),
             left: Box::new(left),
             right: Box::new(right),
             span,
@@ -440,6 +479,7 @@ fn parse_logical_and_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
     let mut left = exprs.pop().unwrap();
     let mut right = exprs.pop().unwrap();
     let mut res = LogicalExpr::And {
+        node_id: gen_id(),
         left: Box::new(left),
         right: Box::new(right),
         span,
@@ -449,6 +489,7 @@ fn parse_logical_and_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
         left = res;
         right = exprs.pop().unwrap();
         res = LogicalExpr::And {
+            node_id: gen_id(),
             left: Box::new(left),
             right: Box::new(right),
             span,
@@ -467,6 +508,7 @@ fn parse_logical_not_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
     inner_iter.next().unwrap();
 
     Ok(LogicalExpr::Not {
+        node_id: gen_id(),
         inner: Box::new(parse_primary_logical_expr(
         inner_iter.next().unwrap(),
         )?),
@@ -509,6 +551,7 @@ fn parse_cmp_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
     let op = operation.pop().unwrap();
 
     Ok(LogicalExpr::Comparison {
+        node_id: gen_id(),
         left: Box::new(fir),
         right: Box::new(sec),
         op,
@@ -544,13 +587,25 @@ fn parse_additive_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     let mut left = numbers.pop().unwrap();
     let mut right = numbers.pop().unwrap();
     let mut op = operations.pop().unwrap();
-    let mut res = MathExpr::Additive { left: Box::new(left), right: Box::new(right), op, span };
+    let mut res = MathExpr::Additive {
+        node_id: gen_id(),
+        left: Box::new(left),
+        right: Box::new(right),
+        op,
+        span,
+    };
 
     while !operations.is_empty() {
         left = res;
         right = numbers.pop().unwrap();
         op = operations.pop().unwrap();
-        res = MathExpr::Additive { left: Box::new(left), right: Box::new(right), op, span };
+        res = MathExpr::Additive {
+            node_id: gen_id(),
+            left: Box::new(left),
+            right: Box::new(right),
+            op,
+            span,
+        };
     }
 
     Ok(res)
@@ -583,13 +638,25 @@ fn parse_multiplicative_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     let mut left = numbers.pop().unwrap();
     let mut right = numbers.pop().unwrap();
     let mut op = operations.pop().unwrap();
-    let mut res = MathExpr::Multiplicative { left: Box::new(left), right: Box::new(right), op, span };
+    let mut res = MathExpr::Multiplicative {
+        node_id: gen_id(),
+        left: Box::new(left),
+        right: Box::new(right),
+        op,
+        span,
+    };
 
     while !operations.is_empty() {
         left = res;
         right = numbers.pop().unwrap();
         op = operations.pop().unwrap();
-        res = MathExpr::Multiplicative { left: Box::new(left), right: Box::new(right), op, span };
+        res = MathExpr::Multiplicative {
+            node_id: gen_id(),
+            left: Box::new(left),
+            right: Box::new(right),
+            op,
+            span,
+        };
     }
 
     Ok(res)
@@ -616,12 +683,22 @@ fn parse_power_expr(pair: Pair<Rule>) -> Result<MathExpr> {
 
     let mut base = numbers.pop().unwrap();
     let mut exp = numbers.pop().unwrap();
-    let mut res = MathExpr::Power { base: Box::new(base), exp: Box::new(exp), span };
+    let mut res = MathExpr::Power {
+        node_id: gen_id(),
+        base: Box::new(base),
+        exp: Box::new(exp),
+        span,
+    };
 
     while !numbers.is_empty() {
         base = res;
         exp = numbers.pop().unwrap();
-        res = MathExpr::Power { base: Box::new(base), exp: Box::new(exp), span };
+        res = MathExpr::Power {
+            node_id: gen_id(),
+            base: Box::new(base),
+            exp: Box::new(exp),
+            span,
+        };
     }
 
     Ok(res)
@@ -650,17 +727,17 @@ fn parse_while_loop(pair: Pair<Rule>) -> Result<Stmt> {
     let span = pair.as_span();
     let mut inner = pair.into_inner();
     Ok(Stmt::WhileLoop {
-        condition: Box::new(parse_expr(inner.next().unwrap())?),
+        node_id: gen_id(),
+        cond: Box::new(parse_expr(inner.next().unwrap())?),
         body: parse_block(inner.next().unwrap())?,
         span,
     })
 }
 
 fn parse_if_else(pair: Pair<Rule>) -> Result<Stmt> {
-    // dbg!(&pair);
     let span = pair.as_span();
     let mut inner = pair.into_inner();
-    let condition = Box::new(parse_expr(inner.next().unwrap())?);
+    let cond = Box::new(parse_expr(inner.next().unwrap())?);
     let then_block = parse_block(inner.next().unwrap())?;
     let mut else_block = None;
     if let Some(block) = inner.next() {
@@ -668,7 +745,8 @@ fn parse_if_else(pair: Pair<Rule>) -> Result<Stmt> {
     }
 
     Ok(Stmt::IfElse {
-        condition,
+        node_id: gen_id(),
+        cond,
         then_block,
         else_block,
         span,
@@ -680,26 +758,31 @@ fn parse_literal(pair: Pair<Rule>) -> Result<Literal> {
     let inner = pair.into_inner().next().unwrap();
     Ok(match inner.as_rule() {
         Rule::int_decl => Literal::Int {
+            node_id: gen_id(),
             lit: inner.as_str().parse::<i64>()?,
             span,
         },
 
         Rule::flt_decl => Literal::Float {
+            node_id: gen_id(),
             lit: inner.as_str().parse::<f64>()?,
             span,
         },
 
         Rule::bool_decl => Literal::Bool {
+            node_id: gen_id(),
             lit: inner.as_str().parse::<bool>()?,
             span,
         },
 
         Rule::str_decl => Literal::Str {
+            node_id: gen_id(),
             lit: inner.as_str().replace("\"", "").to_string(),
             span,
         },
 
         Rule::char_decl => Literal::Char {
+            node_id: gen_id(),
             lit: inner.as_str().replace("'", "").parse::<char>()?,
             span,
         },
@@ -713,6 +796,7 @@ fn parse_struct_init(pair: Pair<Rule>) -> Result<Expr> {
     let mut inner_iter = pair.into_inner();
 
     Ok(Expr::StructInit {
+        node_id: gen_id(),
         ident: parse_ident(inner_iter.next().unwrap())?,
         fields: parse_struct_init_args(inner_iter.next().unwrap())?,
         span,
@@ -731,7 +815,7 @@ fn parse_struct_init_arg(pair: Pair<Rule>) -> Result<StructFieldDecl> {
     let mut inner_iter = pair.into_inner();
     let ident = parse_ident(inner_iter.next().unwrap())?;
     let expr = parse_expr(inner_iter.next().unwrap())?;
-    Ok(StructFieldDecl { ident, expr, span })
+    Ok(StructFieldDecl { node_id: gen_id(), ident, expr, span })
 }
 
 #[test]
@@ -752,7 +836,47 @@ fn test() -> Result<()> {
     let inp = r#"struct Hello {
         a: helo,
         b: str
-    }"#;
+    }
+
+    struct Ola {
+        a: helo,
+        b: str
+    }
+    "#;
+
+    let out = build_ast(inp)?;
+    println!("{out:#?}");
+
+    Ok(())
+}
+
+
+#[test]
+fn scopes_test() -> Result<()> {
+    let inp = r#"struct Foo {}
+
+    fn main() -> i64 {
+        var a = 10 + b;
+        {
+            {}
+            {
+                {}
+                var hello = hello();
+                {
+                    a += hello(halo(10, 30 + 4));
+                }
+            }
+        }
+
+        {
+            { a += 10; }
+        }
+
+        { var a = 10; }
+
+        return 0;
+    }
+    "#;
 
     let out = build_ast(inp)?;
     println!("{out:#?}");
