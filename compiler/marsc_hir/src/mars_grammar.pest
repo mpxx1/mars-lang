@@ -23,10 +23,11 @@ break = { "break" ~ ";"? }
 comment            = _{ multi_line_comment }
 multi_line_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
+resurved =   _{ "i64" | "f64" | "u8" | "str" | "char" | "bool" | "fn" | "size" | "null" | "if" |
+                "else" | "while" | "for" | "loop" | "false" | "var" | "struct" | "break" | "as" |
+                "const" | "true" | "Vec" | "String" | "self" }
 identifier = @{
-    !"i64" ~ !"f64" ~ !"u8" ~ !"str" ~ !"char" ~ !"bool" ~ !"fn" ~ !"size" ~ !"null" ~ !"if" ~
-    !"else" ~ !"while" ~ !"for" ~ !"loop" ~ !"false" ~ !"var" ~ !"struct" ~ !"break" ~ !"as" ~
-    !"const" ~ !"true" ~ !"Vec" ~ !"String" ~ (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC)*)
+    !resurved ~ "_"? ~ ASCII_ALPHA ~ ( "_" | ASCII_ALPHANUMERIC )*
 }
 literal    =  { flt_decl | int_decl | char_decl | str_decl | bool_decl }
 block      =  { stmt* }
@@ -99,22 +100,13 @@ assign_div_floor = { "//=" }
 assign_pow       = { "**=" }
 
 expr = _{
-    cast_type
-  | reference
-  | func_call
-  | array_decl
-  | mem_lookup
-  | struct_init
-  | if_else
-  | loop
-  | logical_expr
-}
+//    cast_type   // can be in math
+//  | func_call   // can be in math
+//  | mem_lookup  // can be in math
 
-condition_expr = _{
-    dereference
-  | func_call
-  | mem_lookup
-  | struct_field_call
+    reference
+  | array_decl
+  | struct_init
   | logical_expr
 }
 
@@ -135,7 +127,7 @@ struct_field_call = { identifier ~ "." ~ identifier }
 func_call         = { identifier ~ "(" ~ func_args_to_call ~ ")"  }
 func_args_to_call = { (expr ~ ",")* ~ (expr)? }
 
-condition = _{ condition_expr }
+condition = _{ logical_expr }
 if_else   = {
     "if" ~ condition ~ "{" ~ block ~ "}" ~
     ("else" ~ "{" ~ block ~ "}")?
@@ -170,7 +162,7 @@ math_expr            = { additive_expr }
 additive_expr        = { multiplicative_expr ~ ((add_op | sub_op) ~ multiplicative_expr)* }
 multiplicative_expr  = { power_expr ~ ((div_floor_op | mul_op | div_op | mod_op) ~ power_expr)* }
 power_expr           = { primary_math_expr ~ (pow_op ~ primary_math_expr)* }
-primary_math_expr    = { dereference | struct_field_call | identifier | literal | "(" ~ math_expr ~ ")" }
+primary_math_expr    = { dereference | func_call | mem_lookup | cast_type | struct_field_call | identifier | literal | "(" ~ math_expr ~ ")" }
 
 
 loop       = _{ while_loop }

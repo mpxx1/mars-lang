@@ -1,167 +1,287 @@
-#[derive(Debug, Clone, Default)]
-pub struct AST {
-    pub program: Vec<ProgStmt>,
-}
-
-#[derive(Debug, Clone)]
-pub enum ProgStmt {
-    StructDecl(StructDecl),
-    FuncDecl(FuncDecl),
-}
+use pest::Span;
 
 #[derive(Debug, Clone, Default)]
-pub struct StructDecl {
-    pub name: String,
-    pub fields: Vec<ArgDecl>,
+pub struct AST<'ast> {
+    pub program: Vec<ProgStmt<'ast>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct FuncDecl {
-    pub name: String,
-    pub args: Vec<ArgDecl>,
-    pub return_type: Type,
-    pub body: Block,
+pub enum ProgStmt<'ast> {
+    StructDecl(StructDecl<'ast>),
+    FuncDecl(FuncDecl<'ast>),
 }
 
 #[derive(Debug, Clone)]
-pub struct ArgDecl {
-    pub name: String,
-    pub typ: Type,
+pub struct StructDecl<'ast> {
+    pub node_id: u32,
+    pub ident: &'ast str,
+    pub fields: Vec<ArgDecl<'ast>>,
+    pub span: Span<'ast>,
 }
 
 #[derive(Debug, Clone)]
-pub enum Type {
+pub struct FuncDecl<'ast> {
+    pub node_id: u32,
+    pub ident: &'ast str,
+    pub args: Vec<ArgDecl<'ast>>,
+    pub return_type: Type<'ast>,
+    pub body: Block<'ast>,
+    pub span: Span<'ast>
+}
+
+#[derive(Debug, Clone)]
+pub struct ArgDecl<'ast> {
+    pub node_id: u32,
+    pub ident: &'ast str,
+    pub ty: Type<'ast>,
+    pub span: Span<'ast>,
+}
+
+#[derive(Debug, Clone)]
+pub enum Type<'ast> {
     I64,
     F64,
     Str,
     Char,
     Bool,
     Void,
-    Custom(String),
-    Array(Box<Type>, usize),
-    Vec(Box<Type>),
-    Ref(Box<Type>),
+    Custom(Identifier<'ast>),
+    Array(Box<Type<'ast>>, usize),
+    Vec(Box<Type<'ast>>),
+    Ref(Box<Type<'ast>>),
 }
 
 #[derive(Debug, Clone)]
-pub struct Block {
-    pub stmts: Vec<Stmt>,
+pub struct Block<'ast> {
+    pub node_id: u32,
+    pub stmts: Vec<Stmt<'ast>>,
+    pub span: Span<'ast>,
 }
 
 #[derive(Debug, Clone)]
-pub enum Stmt {
-    Block(Block),
-    Return(Option<Expr>),
-    Break,
-    StructDecl(StructDecl),
-    FuncDecl(FuncDecl),
-    Assignment(Assignment),
-    Assign(Assign),
-    FuncCall(FuncCall),
-    IfElse(IfElse),
-    Loop(WhileLoop),
+pub enum Stmt<'ast> {
+    Block(Block<'ast>),
+
+    Return {
+        node_id: u32,
+        expr: Option<Expr<'ast>>,
+        span: Span<'ast>
+    },
+
+    Break {
+        node_id: u32,
+        span: Span<'ast>,
+    },
+
+    StructDecl(StructDecl<'ast>),
+
+    FuncDecl(FuncDecl<'ast>),
+
+    Assignment {
+        node_id: u32,
+        ident: &'ast str,
+        ty: Option<Type<'ast>>,
+        expr: Expr<'ast>,
+        span: Span<'ast>,
+    },
+
+    Assign {
+        node_id: u32,
+        lhs: Expr<'ast>, // ident, deref, mem
+        rhs: Expr<'ast>,
+        span: Span<'ast>,
+    },
+
+    FuncCall(FuncCall<'ast>),
+
+    IfElse {
+        node_id: u32,
+        cond: Box<Expr<'ast>>,
+        then_block: Block<'ast>,
+        else_block: Option<Block<'ast>>,
+        span: Span<'ast>,
+    },
+
+    WhileLoop {
+        node_id: u32,
+        cond: Box<Expr<'ast>>,
+        body: Block<'ast>,
+        span: Span<'ast>,
+    },
 }
 
 #[derive(Debug, Clone)]
-pub struct Assignment {
-    pub var_name: String,
-    pub typ: Option<Type>,
-    pub expr: Expr,
+pub enum Expr<'ast> {
+    Identifier(Identifier<'ast>),
+    FuncCall(FuncCall<'ast>),
+
+    ArrayDecl {
+        node_id: u32,
+        list: Vec<Expr<'ast>>,
+        span: Span<'ast>,
+    },
+
+    MemLookup {
+        node_id: u32,
+        ident: Identifier<'ast>,
+        indices: Vec<Expr<'ast>>,
+        span: Span<'ast>,
+    },
+
+    StructFieldCall {
+        node_id: u32,
+        ident: Identifier<'ast>,
+        field: Identifier<'ast>,
+        span: Span<'ast>,
+    },
+
+    StructInit {
+        node_id: u32,
+        ident: Identifier<'ast>,
+        fields: Vec<StructFieldDecl<'ast>>,
+        span: Span<'ast>,
+    },
+
+    CastType {
+        node_id: u32,
+        cast_to: Box<Type<'ast>>,
+        expr: Box<Expr<'ast>>,
+        span: Span<'ast>,
+    },
+
+    Dereference {
+        node_id: u32,
+        inner: Box<Expr<'ast>>,
+        span: Span<'ast>,
+    },
+
+    Reference {
+        node_id: u32,
+        inner: Box<Expr<'ast>>,
+        span: Span<'ast>,
+    },
+
+    LogicalExpr(LogicalExpr<'ast>),
+    MathExpr(MathExpr<'ast>),
+
+    Literal(Literal<'ast>),
 }
 
 #[derive(Debug, Clone)]
-pub struct Assign {
-    pub lhs: Expr, // ident, deref, mem
-    pub rhs: Expr,
+pub struct Identifier<'ast> {
+    pub node_id: u32,
+    pub ident: &'ast str,
+    pub span: Span<'ast>,
 }
 
 #[derive(Debug, Clone)]
-pub struct MemLookup {
-    pub identifier: String,
-    pub indices: Vec<Expr>,
+pub enum Literal<'ast> {
+    Int {
+        node_id: u32,
+        lit: i64,
+        span: Span<'ast>
+    },
+
+    Float {
+        node_id: u32,
+        lit: f64,
+        span: Span<'ast>
+    },
+
+    Str {
+        node_id: u32,
+        lit: String,
+        span: Span<'ast>
+    },
+
+    Char {
+        node_id: u32,
+        lit: char,
+        span: Span<'ast>
+    },
+
+    Bool {
+        node_id: u32,
+        lit: bool,
+        span: Span<'ast>
+    },
 }
 
 #[derive(Debug, Clone)]
-pub enum Expr {
-    Identifier(String),
-    FuncCall(FuncCall),
-    ArrayDecl(Vec<Expr>),
-    MemLookup(MemLookup),
-    StructFieldCall(StructFieldCall),
-    StructInit(StructInit),
-    IfElse(IfElse),
-    Loop(WhileLoop),
-    CastType(CastType),
-    Dereference(Box<Expr>),
-    Reference(Box<Expr>),
-
-    LogicalExpr(LogicalExpr),
-    MathExpr(MathExpr),
-
-    Literal(Literal),
+pub struct FuncCall<'ast> {
+    pub node_id: u32,
+    pub ident: Identifier<'ast>,
+    pub args: Vec<Expr<'ast>>,
+    pub span: Span<'ast>,
 }
 
 #[derive(Debug, Clone)]
-pub struct StructFieldCall {
-    pub name: String,
-    pub field: String,
+pub struct StructFieldDecl<'ast> {
+    pub node_id: u32,
+    pub ident: Identifier<'ast>,
+    pub expr: Expr<'ast>,
+    pub span: Span<'ast>,
 }
 
 #[derive(Debug, Clone)]
-pub struct CastType {
-    pub cast_to: Box<Type>,
-    pub expr: Box<Expr>,
+pub enum LogicalExpr<'ast> {
+    Not {
+        node_id: u32,
+        inner: Box<LogicalExpr<'ast>>,
+        span: Span<'ast>
+    },
+
+    Or {
+        node_id: u32,
+        left: Box<LogicalExpr<'ast>>,
+        right: Box<LogicalExpr<'ast>>,
+        span: Span<'ast>,
+    },
+
+    And {
+        node_id: u32,
+        left: Box<LogicalExpr<'ast>>,
+        right: Box<LogicalExpr<'ast>>,
+        span: Span<'ast>,
+    },
+
+    Comparison {
+        node_id: u32,
+        left: Box<MathExpr<'ast>>,
+        right: Box<MathExpr<'ast>>,
+        op: CmpOp,
+        span: Span<'ast>,
+    },
+
+    Primary(Box<Expr<'ast>>),
 }
 
 #[derive(Debug, Clone)]
-pub enum Literal {
-    Int(i64),
-    Float(f64),
-    Str(String),
-    Char(char),
-    Bool(bool),
-}
+pub enum MathExpr<'ast> {
+    Additive {
+        node_id: u32,
+        left: Box<MathExpr<'ast>>,
+        right: Box<MathExpr<'ast>>,
+        op: AddOp,
+        span: Span<'ast>,
+    },
 
-#[derive(Debug, Clone)]
-pub struct FuncCall {
-    pub name: String,
-    pub args: Vec<Expr>,
-}
+    Multiplicative {
+        node_id: u32,
+        left: Box<MathExpr<'ast>>,
+        right: Box<MathExpr<'ast>>,
+        op: MulOp,
+        span: Span<'ast>,
+    },
 
-#[derive(Debug, Clone)]
-pub struct StructInit {
-    pub name: String,
-    pub fields: Vec<(String, Expr)>,
-}
+    Power {
+        node_id: u32,
+        base: Box<MathExpr<'ast>>,
+        exp: Box<MathExpr<'ast>>,
+        span: Span<'ast>,
+    },
 
-#[derive(Debug, Clone)]
-pub struct IfElse {
-    pub condition: Box<Expr>,
-    pub then_block: Block,
-    pub else_block: Option<Block>,
-}
-
-#[derive(Debug, Clone)]
-pub struct WhileLoop {
-    pub condition: Box<Expr>,
-    pub body: Block,
-}
-
-#[derive(Debug, Clone)]
-pub enum LogicalExpr {
-    Not(Box<LogicalExpr>),
-    Or(Box<LogicalExpr>, Box<LogicalExpr>),
-    And(Box<LogicalExpr>, Box<LogicalExpr>),
-    Comparison(Box<MathExpr>, CmpOp, Box<MathExpr>),
-    Primary(Box<Expr>),
-}
-
-#[derive(Debug, Clone)]
-pub enum MathExpr {
-    Additive(Box<MathExpr>, AddOp, Box<MathExpr>),
-    Multiplicative(Box<MathExpr>, MulOp, Box<MathExpr>),
-    Power(Box<MathExpr>, Box<MathExpr>),
-    Primary(Box<Expr>),
+    Primary(Box<Expr<'ast>>),
 }
 
 #[derive(Debug, Clone)]
