@@ -2,6 +2,7 @@ use crate::ast::*;
 use anyhow::{anyhow, Context, Result};
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
+use rand::random;
 
 #[derive(Parser)]
 #[grammar = "mars_grammar.pest"]
@@ -35,6 +36,7 @@ fn parse_struct_decl(pair: Pair<Rule>) -> Result<StructDecl> {
     let mut decl_iter = pair.into_inner();
 
     Ok(StructDecl {
+        id: NodeId(random::<u32>()),
         name: parse_ident(decl_iter.next().unwrap())?,
         fields: parse_args_decl(decl_iter.next().unwrap())?,
     })
@@ -58,6 +60,7 @@ fn parse_arg_decl(pair: Pair<Rule>) -> Result<ArgDecl> {
     let mut inner_iter = pair.into_inner();
 
     Ok(ArgDecl {
+        id: NodeId(random::<u32>()),
         name: parse_ident(inner_iter.next().unwrap())?,
         typ: parse_type(inner_iter.next().unwrap())?,
     })
@@ -67,6 +70,7 @@ fn parse_func_decl(pair: Pair<Rule>) -> Result<FuncDecl> {
     let mut decl_iter = pair.into_inner();
 
     Ok(FuncDecl {
+        id: NodeId(random::<u32>()),
         name: parse_ident(decl_iter.next().unwrap())?,
         args: parse_args_decl(decl_iter.next().unwrap())?,
         return_type: parse_type(decl_iter.next().unwrap().into_inner().next().unwrap())?,
@@ -161,6 +165,7 @@ fn parse_assignment(pair: Pair<Rule>) -> Result<Assignment> {
     };
 
     Ok(Assignment {
+        id: NodeId(random::<u32>()),
         var_name,
         typ,
         expr,

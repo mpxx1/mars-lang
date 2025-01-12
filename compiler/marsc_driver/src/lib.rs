@@ -1,14 +1,23 @@
+extern crate marsc_proc_macro;
+extern crate marsc_resolve;
+extern crate marsc_query_system;
+
 mod args;
 mod config;
 
-use clap::{Arg, Parser};
-use marsc_interface::interface;
-use std::process;
-use std::time::Instant;
-use clap::builder::TypedValueParser;
-use marsc_interface::queries::Linker;
 use crate::args::Args;
 use crate::config::build_config;
+use clap::builder::TypedValueParser;
+use clap::Parser;
+use marsc_interface::{interface, passes};
+use marsc_interface::linker::Linker;
+use std::process;
+use marsc_interface::passes::create_and_enter_global_context;
+use marsc_resolve::resolve_names;
+use marsc_query_system::provider;
+use marsc_query_system::{context::TypeContextProviders};
+use marsc_resolve::ResolveNamesProvider;
+use marsc_proc_macro::provider_method;
 
 pub struct RunCompiler<'a> {
     args: &'a Args,
@@ -32,14 +41,14 @@ fn run_compiler(args: &Args) -> interface::Result<()> {
     interface::run_compiler(config, |compiler| {
         let session = &compiler.session;
         // let codegen_backend = &*compiler.codegen_backend;
-
-        let linker = compiler.enter(|queries| {
-            println!("{:#?}", queries.global_context());
-            
-            let ast = queries.parse().unwrap();
+        
+        let ast = passes::parse(session);
+        
+        let linker = create_and_enter_global_context(compiler, |type_context| {
             println!("{:#?}", ast);
-
-            // queries.enter
+            
+            type_context.providers().resolve_names(&ast.unwrap());
+            
             Some(Linker {})
         });
 

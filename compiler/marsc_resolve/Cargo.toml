@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 marsc_context = { path = "../marsc_context" }
 marsc_hir = { path = "../marsc_hir" }
-uuid = { version = "1.11.0", features = ["v4"] }
+marsc_proc_macro = { path = "../marsc_proc_macro" }
+marsc_query_system = { path = "../marsc_query_system" }

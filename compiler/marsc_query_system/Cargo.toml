@@ -5,5 +5,4 @@ edition = "2021"
 
 [dependencies]
 marsc_context = { path = "../marsc_context" }
-lazy_static = "1.5.0"
 syn = "2.0.95"

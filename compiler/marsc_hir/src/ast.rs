@@ -1,3 +1,6 @@
+#[derive(Copy, Clone, Debug, Default)]
+pub struct NodeId(pub u32);
+
 #[derive(Debug, Clone, Default)]
 pub struct AST {
     pub program: Vec<ProgStmt>,
@@ -11,12 +14,14 @@ pub enum ProgStmt {
 
 #[derive(Debug, Clone, Default)]
 pub struct StructDecl {
+    pub id: NodeId,
     pub name: String,
     pub fields: Vec<ArgDecl>,
 }
 
 #[derive(Debug, Clone)]
 pub struct FuncDecl {
+    pub id: NodeId,
     pub name: String,
     pub args: Vec<ArgDecl>,
     pub return_type: Type,
@@ -25,6 +30,7 @@ pub struct FuncDecl {
 
 #[derive(Debug, Clone)]
 pub struct ArgDecl {
+    pub id: NodeId,
     pub name: String,
     pub typ: Type,
 }
@@ -64,6 +70,7 @@ pub enum Stmt {
 
 #[derive(Debug, Clone)]
 pub struct Assignment {
+    pub id: NodeId,
     pub var_name: String,
     pub typ: Option<Type>,
     pub expr: Expr,

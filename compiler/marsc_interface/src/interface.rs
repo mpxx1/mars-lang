@@ -59,7 +59,7 @@ pub fn run_compiler<R: Send>(config: Config, f: impl FnOnce(&Compiler) -> R + Se
        // create codegen backend
 
        // create session
-       let mut session = Session {
+       let session = Session {
            io: CompilerIO {
                input_file: PathBuf::from(config.input),
                output_file: PathBuf::from(config.output),

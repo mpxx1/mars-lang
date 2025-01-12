@@ -1,3 +1,3 @@
 pub mod interface;
-mod passes;
-pub mod queries;
+pub mod passes;
+pub mod linker;

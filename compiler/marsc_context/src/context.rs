@@ -1,6 +1,7 @@
 use marsc_session::session::Session;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::OnceLock;
 
 #[derive(Debug)]
 pub struct CommonTypes {
@@ -24,15 +25,23 @@ impl<'tcx> TypeContext<'tcx> {
         }
     }
     
-    pub fn create_global_context(
+    pub fn create_global_context<T>(
+        global_context_cell: &'tcx OnceLock<GlobalContext<'tcx>>,
         session: &'tcx Session,
-    ) -> GlobalContext<'tcx> {
+        // DepGraph, QuerySystem TODO
+        current_global_context: CurrentGlobalContext,
+        f: impl FnOnce(TypeContext<'tcx>) -> T,
+    ) -> T {
         let common_types = CommonTypes::new();
         
-        GlobalContext {
+        let global_context = global_context_cell.get_or_init(|| GlobalContext {
             session,
             types: common_types,
-        }
+        });
+        
+        let type_context = TypeContext::new(global_context);
+        
+        f(type_context)
     }
 }
 
