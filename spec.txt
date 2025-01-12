@@ -19,7 +19,7 @@
     var x: i32 = 0
     var arr: [i32; 3] = [4; 3]      // [4, 4, 4]
     var ara: [i32; 3] = [1, 2, 3]   // [1, 2, 3]
-    var str: String = "hello"
+    var str: str = "hello"
     
 // operations
 
@@ -34,20 +34,17 @@
     -
     *
     /
+    //
+    %
+    **
 
     // comparison
     ==
     !=
     <=
     >=
-    >
-    <
-    
-
-// it would be better not to have semicolens (;) in the and of line
-
-// does not have classes and oop (too hard to implement)
-// should have template classes
+     >
+     <
 
 // structs
 
@@ -56,94 +53,37 @@ struct Hello {
     sth_else: f64,
 }
 
-impl Hello {
-    fun hello() -> void {
-        print("hello")
-    }
-
-    fun sth(
-        a: i64,
-        b: i64,
-        f: fun(x: i64, y: i64) -> i64
-    ) -> i64 {
-
-        return f(a, b)
-    }
-}
-
-// or
-
-var hello = Hello { hello: 0, sth_else: 0.0 }
-
-struct Hello {
-    var hello:    i64
-    var sth_else: f64
-
-    fun hello() -> void {
-        print("hello")
-    }
-
-    fun sth(
-        a: i64,
-        b: i64,
-        f: fun(x: i64, y: i64) -> i64
-    ) -> i64 {
-
-        return f(a, b)
-    }
-}
+var hello = Hello { hello: 0, sth_else: 0.0, }
 
 
 // functions
 
-no typeclasses for functions
-simple types
-
-function type: fun (i32, i32) -> i32
-
-fun min(a: i32, b: i32) -> i32 {
+fn min(a: i32, b: i32) -> i32 {
     if a < b {
-        return a
+        return a;
     } else {
-        return b 
+        return b;
     }
 }
 
-fun overflow_sum(start: i32) -> void {
-    overflow_sum(start + 1)
+fn overflow_sum(start: i32) -> i64 {
+    return overflow_sum(start + 1);
 }
-
-var func: fun(i32) -> void = overflow_sum;
-
-
-
 
 // main()
 
-fun main() -> void {
+fn main() -> void {
 
 }
-
 
 // loops
 
 base: 
-    loop {
+    while x + 10 < y {
         if x == y { break }
         else { continue }
     }
     
-above it:
-    for, while
-    
-    // bool operation
-    while x > y {
-        ...
-    }
-    
-    // think about beautiful for and does we need it
-
-
 // output
 
 var a = 10
@@ -151,7 +91,7 @@ var c = 'h'
 print("base string" + "digit: " + a + " and char: " + c)
 
 
-fun pow(base: f64, exp: f64) -> f64 {
+fn pow(base: f64, exp: f64) -> f64 {
     result = 1
     if exp < 0 {
         base = 1 / base
@@ -159,13 +99,13 @@ fun pow(base: f64, exp: f64) -> f64 {
     }
 
     for (var i = 0; i < exp; i = i + 1) {
-        result = result * base
+        result = result * base;
     }
 
-    return result
+    return result;
 }
 
 fun modulo(dividend: i64, divisor: i64) -> f64 {
-    var quotient = dividend / divisor
-    return dividend - (quotient * divisor)
+    var quotient = dividend / divisor;
+    return dividend - (quotient * divisor);
 }
