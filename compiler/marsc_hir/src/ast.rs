@@ -1,5 +1,8 @@
 use pest::Span;
 
+#[derive(Debug, Copy, Clone, Default)]
+pub struct NodeId(pub u32);
+
 #[derive(Debug, Clone, Default)]
 pub struct AST<'ast> {
     pub program: Vec<ProgStmt<'ast>>,
@@ -13,7 +16,7 @@ pub enum ProgStmt<'ast> {
 
 #[derive(Debug, Clone)]
 pub struct StructDecl<'ast> {
-    pub node_id: u32,
+    pub node_id: NodeId,
     pub ident: &'ast str,
     pub fields: Vec<ArgDecl<'ast>>,
     pub span: Span<'ast>,
@@ -21,7 +24,7 @@ pub struct StructDecl<'ast> {
 
 #[derive(Debug, Clone)]
 pub struct FuncDecl<'ast> {
-    pub node_id: u32,
+    pub node_id: NodeId,
     pub ident: &'ast str,
     pub args: Vec<ArgDecl<'ast>>,
     pub return_type: Type<'ast>,
@@ -31,7 +34,7 @@ pub struct FuncDecl<'ast> {
 
 #[derive(Debug, Clone)]
 pub struct ArgDecl<'ast> {
-    pub node_id: u32,
+    pub node_id: NodeId,
     pub ident: &'ast str,
     pub ty: Type<'ast>,
     pub span: Span<'ast>,
@@ -53,7 +56,7 @@ pub enum Type<'ast> {
 
 #[derive(Debug, Clone)]
 pub struct Block<'ast> {
-    pub node_id: u32,
+    pub node_id: NodeId,
     pub stmts: Vec<Stmt<'ast>>,
     pub span: Span<'ast>,
 }
@@ -63,13 +66,13 @@ pub enum Stmt<'ast> {
     Block(Block<'ast>),
 
     Return {
-        node_id: u32,
+        node_id: NodeId,
         expr: Option<Expr<'ast>>,
         span: Span<'ast>
     },
 
     Break {
-        node_id: u32,
+        node_id: NodeId,
         span: Span<'ast>,
     },
 
@@ -78,7 +81,7 @@ pub enum Stmt<'ast> {
     FuncDecl(FuncDecl<'ast>),
 
     Assignment {
-        node_id: u32,
+        node_id: NodeId,
         ident: &'ast str,
         ty: Option<Type<'ast>>,
         expr: Expr<'ast>,
@@ -86,7 +89,7 @@ pub enum Stmt<'ast> {
     },
 
     Assign {
-        node_id: u32,
+        node_id: NodeId,
         lhs: Expr<'ast>, // ident, deref, mem
         rhs: Expr<'ast>,
         span: Span<'ast>,
@@ -95,7 +98,7 @@ pub enum Stmt<'ast> {
     FuncCall(FuncCall<'ast>),
 
     IfElse {
-        node_id: u32,
+        node_id: NodeId,
         cond: Box<Expr<'ast>>,
         then_block: Block<'ast>,
         else_block: Option<Block<'ast>>,
@@ -103,7 +106,7 @@ pub enum Stmt<'ast> {
     },
 
     WhileLoop {
-        node_id: u32,
+        node_id: NodeId,
         cond: Box<Expr<'ast>>,
         body: Block<'ast>,
         span: Span<'ast>,
@@ -116,47 +119,47 @@ pub enum Expr<'ast> {
     FuncCall(FuncCall<'ast>),
 
     ArrayDecl {
-        node_id: u32,
+        node_id: NodeId,
         list: Vec<Expr<'ast>>,
         span: Span<'ast>,
     },
 
     MemLookup {
-        node_id: u32,
+        node_id: NodeId,
         ident: Identifier<'ast>,
         indices: Vec<Expr<'ast>>,
         span: Span<'ast>,
     },
 
     StructFieldCall {
-        node_id: u32,
+        node_id: NodeId,
         ident: Identifier<'ast>,
         field: Identifier<'ast>,
         span: Span<'ast>,
     },
 
     StructInit {
-        node_id: u32,
+        node_id: NodeId,
         ident: Identifier<'ast>,
         fields: Vec<StructFieldDecl<'ast>>,
         span: Span<'ast>,
     },
 
     CastType {
-        node_id: u32,
+        node_id: NodeId,
         cast_to: Box<Type<'ast>>,
         expr: Box<Expr<'ast>>,
         span: Span<'ast>,
     },
 
     Dereference {
-        node_id: u32,
+        node_id: NodeId,
         inner: Box<Expr<'ast>>,
         span: Span<'ast>,
     },
 
     Reference {
-        node_id: u32,
+        node_id: NodeId,
         inner: Box<Expr<'ast>>,
         span: Span<'ast>,
     },
@@ -169,7 +172,7 @@ pub enum Expr<'ast> {
 
 #[derive(Debug, Clone)]
 pub struct Identifier<'ast> {
-    pub node_id: u32,
+    pub node_id: NodeId,
     pub ident: &'ast str,
     pub span: Span<'ast>,
 }
@@ -177,31 +180,31 @@ pub struct Identifier<'ast> {
 #[derive(Debug, Clone)]
 pub enum Literal<'ast> {
     Int {
-        node_id: u32,
+        node_id: NodeId,
         lit: i64,
         span: Span<'ast>
     },
 
     Float {
-        node_id: u32,
+        node_id: NodeId,
         lit: f64,
         span: Span<'ast>
     },
 
     Str {
-        node_id: u32,
+        node_id: NodeId,
         lit: String,
         span: Span<'ast>
     },
 
     Char {
-        node_id: u32,
+        node_id: NodeId,
         lit: char,
         span: Span<'ast>
     },
 
     Bool {
-        node_id: u32,
+        node_id: NodeId,
         lit: bool,
         span: Span<'ast>
     },
@@ -209,7 +212,7 @@ pub enum Literal<'ast> {
 
 #[derive(Debug, Clone)]
 pub struct FuncCall<'ast> {
-    pub node_id: u32,
+    pub node_id: NodeId,
     pub ident: Identifier<'ast>,
     pub args: Vec<Expr<'ast>>,
     pub span: Span<'ast>,
@@ -217,7 +220,7 @@ pub struct FuncCall<'ast> {
 
 #[derive(Debug, Clone)]
 pub struct StructFieldDecl<'ast> {
-    pub node_id: u32,
+    pub node_id: NodeId,
     pub ident: Identifier<'ast>,
     pub expr: Expr<'ast>,
     pub span: Span<'ast>,
@@ -226,27 +229,27 @@ pub struct StructFieldDecl<'ast> {
 #[derive(Debug, Clone)]
 pub enum LogicalExpr<'ast> {
     Not {
-        node_id: u32,
+        node_id: NodeId,
         inner: Box<LogicalExpr<'ast>>,
         span: Span<'ast>
     },
 
     Or {
-        node_id: u32,
+        node_id: NodeId,
         left: Box<LogicalExpr<'ast>>,
         right: Box<LogicalExpr<'ast>>,
         span: Span<'ast>,
     },
 
     And {
-        node_id: u32,
+        node_id: NodeId,
         left: Box<LogicalExpr<'ast>>,
         right: Box<LogicalExpr<'ast>>,
         span: Span<'ast>,
     },
 
     Comparison {
-        node_id: u32,
+        node_id: NodeId,
         left: Box<MathExpr<'ast>>,
         right: Box<MathExpr<'ast>>,
         op: CmpOp,
@@ -259,7 +262,7 @@ pub enum LogicalExpr<'ast> {
 #[derive(Debug, Clone)]
 pub enum MathExpr<'ast> {
     Additive {
-        node_id: u32,
+        node_id: NodeId,
         left: Box<MathExpr<'ast>>,
         right: Box<MathExpr<'ast>>,
         op: AddOp,
@@ -267,7 +270,7 @@ pub enum MathExpr<'ast> {
     },
 
     Multiplicative {
-        node_id: u32,
+        node_id: NodeId,
         left: Box<MathExpr<'ast>>,
         right: Box<MathExpr<'ast>>,
         op: MulOp,
@@ -275,7 +278,7 @@ pub enum MathExpr<'ast> {
     },
 
     Power {
-        node_id: u32,
+        node_id: NodeId,
         base: Box<MathExpr<'ast>>,
         exp: Box<MathExpr<'ast>>,
         span: Span<'ast>,

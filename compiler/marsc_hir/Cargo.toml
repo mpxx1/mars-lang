@@ -8,7 +8,6 @@ Mars programming language compiler hir module: contains parser and ast builder
 """
 
 [lib]
-name = "hir"
 path = "src/lib.rs"
 
 [dependencies]

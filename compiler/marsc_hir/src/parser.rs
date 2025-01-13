@@ -6,10 +6,10 @@ use pest_derive::Parser;
 static mut GLOBAL_COUNTER: u32 = 1000;
 
 // Глобальная функция
-pub fn gen_id() -> u32 {
+pub fn gen_id() -> NodeId {
     unsafe {
         GLOBAL_COUNTER += 1;
-        GLOBAL_COUNTER
+        NodeId(GLOBAL_COUNTER)
     }
 }
 

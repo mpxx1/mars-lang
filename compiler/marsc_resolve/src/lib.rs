@@ -1,10 +1,12 @@
-use marsc_hir::ast::{Assignment, Block, Expr, FuncCall, FuncDecl, Literal, LogicalExpr, MathExpr, NodeId, ProgStmt, Stmt, StructDecl, StructInit, AST};
+use marsc_hir::ast::{Block, Expr, FuncCall, FuncDecl, Identifier, Literal, LogicalExpr, MathExpr, NodeId, ProgStmt, Stmt, StructDecl, AST};
+use std::collections::VecDeque;
 use std::collections::HashMap;
 use marsc_context::context::TypeContext;
 use marsc_proc_macro::provider_method;
 
 pub enum ScopeKind {
-    Normal
+    Normal,
+    Function,
 }
 
 #[derive(Copy, Clone)]
@@ -63,18 +65,20 @@ impl<'ast> Scope<'ast> {
 
 pub struct Resolver<'ast> {
     scopes: Vec<Scope<'ast>>,
+    visit_queue: VecDeque<dyn FnOnce()>
 }
 
 impl<'ast> Resolver<'ast> {
     pub fn new() -> Self {
         Resolver {
             scopes: vec![],
+            visit_queue: VecDeque::new(),
         }
     }
 }
 
 impl <'ast> Resolver<'ast> {
-    fn get_last_scope_binding(&self, name: &'ast String, binding_type: BindingType) -> Option<&NodeId> {
+    fn get_last_scope_binding(&self, name: &'ast str, binding_type: BindingType) -> Option<&NodeId> {
         match self.scopes.last() {
             None => None,
             Some(scope) => {
@@ -82,10 +86,11 @@ impl <'ast> Resolver<'ast> {
             }
         }
     }
-    fn get_binding(&self, name: &'ast String, binding_type: BindingType) -> Option<&NodeId> {
+
+    fn get_binding(&self, name: &'ast str, binding_type: BindingType) -> Option<&NodeId> {
         for scope in self.scopes.iter().rev() {
             match scope.kind {
-                ScopeKind::Normal => {
+                ScopeKind::Normal | ScopeKind::Function => {
                     if scope.bindings[binding_type].contains_key(name.as_str()) {
                         return scope.bindings[binding_type].get(name.as_str());
                     }
@@ -96,7 +101,7 @@ impl <'ast> Resolver<'ast> {
         None
     }
     
-    fn add_binding(&mut self, name: &'ast String, node_id: NodeId, binding_type: BindingType) {
+    fn add_binding(&mut self, name: &'ast str, node_id: NodeId, binding_type: BindingType) {
         if let Some(last_scope) = self.scopes.last_mut() {
             last_scope.bindings[binding_type.clone()].insert(name.as_str(), node_id);
         }
@@ -106,35 +111,35 @@ impl <'ast> Resolver<'ast> {
 impl<'ast> Resolver<'ast> {
     fn resolve_literal(&mut self, literal: &'ast Literal) {
         match literal {
-            Literal::Int(int_value) => {}
-            Literal::Float(float_value) => {}
-            Literal::Str(str_value) => {}
-            Literal::Char(char_value) => {}
-            Literal::Bool(bool_value) => {}
+            Literal::Int { .. } => {}
+            Literal::Float { .. } => {}
+            Literal::Str { .. } => {}
+            Literal::Char { .. } => {}
+            Literal::Bool { .. } => {}
         }
     }
 
     fn resolve_math_expr(&mut self, math_expr: &'ast MathExpr) {
         match math_expr {
-            MathExpr::Additive(_, _, _) => todo!(),
-            MathExpr::Multiplicative(_, _, _) => todo!(),
-            MathExpr::Power(_, _) => todo!(),
+            MathExpr::Additive { .. } => {}
+            MathExpr::Multiplicative { .. } => {}
+            MathExpr::Power { .. } => {}
             MathExpr::Primary(expr) => self.resolve_expr(expr),
         }
     }
     
     fn resolve_logical_expr(&mut self, logical_expr: &'ast LogicalExpr) {
         match logical_expr {
-            LogicalExpr::Not(_) => todo!(),
-            LogicalExpr::Or(_, _) => todo!(),
-            LogicalExpr::And(_, _) => todo!(),
-            LogicalExpr::Comparison(_, _, _) => todo!(),
+            LogicalExpr::Not { .. } => {}
+            LogicalExpr::Or { .. } => {}
+            LogicalExpr::And { .. } => {}
+            LogicalExpr::Comparison { .. } => {}
             LogicalExpr::Primary(expr) => self.resolve_expr(expr),
         }
     }
     
-    fn resolve_identifier(&self, identifier: &'ast String) {
-        match self.get_binding(identifier, BindingType::Var) {
+    fn resolve_identifier(&self, identifier: &'ast Identifier) {
+        match self.get_binding(identifier.ident, BindingType::Var) {
             None => {
                 panic!("Identifier \"{}\" not found", identifier);
             }
@@ -146,15 +151,13 @@ impl<'ast> Resolver<'ast> {
         match expr {
             Expr::Identifier(identifier) => self.resolve_identifier(identifier),
             Expr::FuncCall(func_call) => self.resolve_func_call(func_call),
-            Expr::ArrayDecl(_) => todo!(),
-            Expr::MemLookup(_) => todo!(),
-            Expr::StructFieldCall(_) => todo!(),
-            Expr::StructInit(struct_init) => self.resolve_struct_init(struct_init),
-            Expr::IfElse(_) => todo!(),
-            Expr::Loop(_) => todo!(),
-            Expr::CastType(_) => todo!(),
-            Expr::Dereference(_) => todo!(),
-            Expr::Reference(_) => todo!(),
+            Expr::ArrayDecl { .. } => todo!(),
+            Expr::MemLookup { .. } => todo!(),
+            Expr::StructFieldCall { .. } => todo!(),
+            Expr::StructInit => self.resolve_struct_init(expr),
+            Expr::CastType( .. ) => todo!(),
+            Expr::Dereference { .. } => todo!(),
+            Expr::Reference { .. } => todo!(),
             Expr::LogicalExpr(logical_expr) => self.resolve_logical_expr(logical_expr),
             Expr::MathExpr(math_expr) => self.resolve_math_expr(math_expr),
             Expr::Literal(literal) => self.resolve_literal(literal),
@@ -215,7 +218,7 @@ impl<'ast> Resolver<'ast> {
         }
     }
 
-    fn resolve_struct_init(&mut self, struct_init: &'ast StructInit) {
+    fn resolve_struct_init(&mut self, struct_init: &'ast Expr::StructInit) {
         match self.get_binding(&struct_init.name, BindingType::Struct) {
             None => {
                 panic!("Struct with name \"{}\" not found", struct_init.name);
@@ -225,8 +228,7 @@ impl<'ast> Resolver<'ast> {
     }
     
     fn resolve_func_decl(&mut self, func_decl: &'ast FuncDecl) {
-        println!("enter func {}", func_decl.name);
-        match self.get_last_scope_binding(&func_decl.name, BindingType::Func) {
+        match self.get_last_scope_binding(func_decl.ident, BindingType::Func) {
             None => {
                 self.add_binding(&func_decl.name, func_decl.id, BindingType::Func)
             }
@@ -236,11 +238,10 @@ impl<'ast> Resolver<'ast> {
         }
         
         self.resolve_block(&func_decl.body);
-        println!("exit func {}", func_decl.name);
     }
 
     fn resolve_func_call(&mut self, func_call: &'ast FuncCall) {
-        match self.get_binding(&func_call.name, BindingType::Func) {
+        match self.get_binding(func_call.ident., BindingType::Func) {
             None => {
                 panic!("Function with name \"{}\" not found", func_call.name);
             }
