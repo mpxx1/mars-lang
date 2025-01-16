@@ -1,11 +1,12 @@
-use crate::ast::*;
+use ast::*;
+use crate::Hir;
 use anyhow::{anyhow, Result};
+use marsc_error::CompileError;
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 
 static mut GLOBAL_COUNTER: u32 = 1000;
 
-// Глобальная функция
 pub fn gen_id() -> u32 {
     unsafe {
         GLOBAL_COUNTER += 1;
@@ -17,13 +18,12 @@ pub fn gen_id() -> u32 {
 #[grammar = "mars_grammar.pest"]
 struct MarsLangParser;
 
-pub fn build_ast(source_code: &str) -> Result<AST> {
-    let prog = MarsLangParser::parse(Rule::program, source_code)?;
-
-    let mut ast = AST::default();
-
+pub fn compile_hir<'src>(source_code: &'src str) -> Result<Hir<'src>> {  // , CompileError<'src, 'msg>
+    let mut hir = Hir { ast: AST::default(), code: source_code, };
+    let prog = MarsLangParser::parse( Rule::program, hir.code, )?;
+    
     for pair in prog {
-        ast.program.push(match pair.as_rule() {
+        hir.ast.program.push(match pair.as_rule() {
             Rule::struct_decl => ProgStmt::StructDecl(parse_struct_decl(pair)?),
             Rule::func_decl => ProgStmt::FuncDecl(parse_func_decl(pair)?),
             Rule::EOI => {
@@ -36,9 +36,32 @@ pub fn build_ast(source_code: &str) -> Result<AST> {
             }
         })
     }
-
-    Ok(ast)
+        
+    Ok(hir)
 }
+
+// pub fn build_ast(source_code: &str) -> Result<AST> {
+//     let prog = MarsLangParser::parse(Rule::program, source_code)?;
+
+//     let mut ast = AST::default();
+
+//     for pair in prog {
+//         ast.program.push(match pair.as_rule() {
+//             Rule::struct_decl => ProgStmt::StructDecl(parse_struct_decl(pair)?),
+//             Rule::func_decl => ProgStmt::FuncDecl(parse_func_decl(pair)?),
+//             Rule::EOI => {
+//                 break;
+//             }
+//             _ => {
+//                 return Err(
+//                     anyhow!("Failed to parse element '{:?}'", pair.as_rule()), // todo span
+//                 );
+//             }
+//         })
+//     }
+
+//     Ok(ast)
+// }
 
 fn parse_struct_decl(pair: Pair<Rule>) -> Result<StructDecl> {
     let span = pair.as_span();
@@ -60,7 +83,7 @@ fn parse_args_decl(pairs: Pair<Rule>) -> Result<Vec<ArgDecl>> {
                 Rule::arg_decl => parse_arg_decl(pair),
                 _ => {
                     return Err(anyhow!("Failed to parse arg decl"));
-                } // todo span
+                }
             }
         })
         .collect::<Result<Vec<_>>>()
@@ -825,8 +848,8 @@ fn liter_test() -> Result<()> {
         var a = 22;
 
     }";
-    let out = build_ast(inp)?;
-    println!("{out:#?}");
+    let out = compile_hir(inp)?;
+    println!("{:#?}", out.ast);
 
     Ok(())
 }
@@ -844,8 +867,8 @@ fn test() -> Result<()> {
     }
     "#;
 
-    let out = build_ast(inp)?;
-    println!("{out:#?}");
+    let out = compile_hir(inp)?;
+    println!("{:#?}", out.ast);
 
     Ok(())
 }
@@ -853,6 +876,7 @@ fn test() -> Result<()> {
 
 #[test]
 fn scopes_test() -> Result<()> {
+    
     let inp = r#"struct Foo {}
 
     fn main() -> i64 {
@@ -878,8 +902,53 @@ fn scopes_test() -> Result<()> {
     }
     "#;
 
-    let out = build_ast(inp)?;
-    println!("{out:#?}");
+    let out = compile_hir(inp)?;
+    println!("{:#?}", out.ast);
 
+    Ok(())
+}
+
+#[test]
+fn third_test() -> Result<()> {
+    struct MirTest<'src> {
+        ast: AST<'src>,
+        code: &'src str,
+        example: i32,
+    }
+    
+    fn translate<'src>(hir: Hir<'src>) -> Result<MirTest<'src>> {
+        Ok(MirTest { ast: hir.ast, code: hir.code, example: 11, })
+    }
+    
+    let inp = r#"struct Foo {}
+
+    fn main() -> i64 {
+        var a = 10 + b;
+        {
+            {}
+            {
+                {}
+                var hello = hello();
+                {
+                    a += hello(halo(10, 30 + 4));
+                }
+            }
+        }
+
+        {
+            { a += 10; }
+        }
+
+        { var a = 10; }
+
+        return 0;
+    }
+    "#;
+    
+    let hir = compile_hir(inp)?;
+    let mir = translate(hir)?;
+    
+    println!("{:#?}", mir.ast);
+    
     Ok(())
 }

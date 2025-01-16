@@ -15,4 +15,5 @@ path = "src/lib.rs"
 pest = "2.7.14"
 pest_derive = "2.7.14"
 anyhow = "1.0.95"
-#marsc_error = { path = "../marsc_error" }
+marsc_ast = { path = "../marsc_ast" }
+marsc_error = { path = "../marsc_error" }
