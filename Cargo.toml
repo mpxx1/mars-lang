@@ -16,6 +16,7 @@ path = "src/main.rs"
 [workspace]
 members = [
     "compiler/marsc",
+    "compiler/marsc_ast",
     "compiler/marsc_hir",
     "compiler/marsc_mir",
     "compiler/marsc_lir",

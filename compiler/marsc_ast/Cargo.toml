@@ -1,15 +1,15 @@
 [package]
-name = "marsc_mir"
+name = "marsc_ast"
 version = "0.1.0"
 edition = "2021"
 license = "BSDv3"
 description = """
-Mars programming language compiler mir module
+Mars programming language compiler ast
 """
 
 [lib]
-name = "mir"
+name = "ast"
 path = "src/lib.rs"
 
 [dependencies]
-marsc_hir = { path = "../marsc_hir" }
+pest = "2.7.14"

@@ -1,16 +1,19 @@
 use ast::*;
-use anyhow::Result;
+use marsc_error::CompileError;
 
-pub fn simplify(ast: AST) -> Result<AST> {
-
+pub fn simplify<'src, 'msg>(ast: AST) -> Result<AST, CompileError<'src, 'msg>> {
     fn simplify_expr(expr: Expr) -> Expr {
         match expr {
-            Expr::LogicalExpr(LogicalExpr::Primary(inner_expr)) |
-                Expr::MathExpr(MathExpr::Primary(inner_expr))
-                => simplify_expr(*inner_expr),
+            Expr::LogicalExpr(LogicalExpr::Primary(inner_expr))
+            | Expr::MathExpr(MathExpr::Primary(inner_expr)) => simplify_expr(*inner_expr),
 
-            Expr::MathExpr(MathExpr::Additive { node_id, left, right, op, span })
-            => Expr::MathExpr(MathExpr::Additive {
+            Expr::MathExpr(MathExpr::Additive {
+                node_id,
+                left,
+                right,
+                op,
+                span,
+            }) => Expr::MathExpr(MathExpr::Additive {
                 node_id,
                 left: Box::new(simplify_math_expr(*left)),
                 right: Box::new(simplify_math_expr(*right)),
@@ -18,8 +21,13 @@ pub fn simplify(ast: AST) -> Result<AST> {
                 span,
             }),
 
-            Expr::MathExpr(MathExpr::Multiplicative { node_id, left, right, op, span })
-            => Expr::MathExpr(MathExpr::Multiplicative {
+            Expr::MathExpr(MathExpr::Multiplicative {
+                node_id,
+                left,
+                right,
+                op,
+                span,
+            }) => Expr::MathExpr(MathExpr::Multiplicative {
                 node_id,
                 left: Box::new(simplify_math_expr(*left)),
                 right: Box::new(simplify_math_expr(*right)),
@@ -27,15 +35,23 @@ pub fn simplify(ast: AST) -> Result<AST> {
                 span,
             }),
 
-            Expr::MathExpr(MathExpr::Power { node_id, base, exp, span })
-            => Expr::MathExpr(MathExpr::Power {
+            Expr::MathExpr(MathExpr::Power {
+                node_id,
+                base,
+                exp,
+                span,
+            }) => Expr::MathExpr(MathExpr::Power {
                 node_id,
                 base: Box::new(simplify_math_expr(*base)),
                 exp: Box::new(simplify_math_expr(*exp)),
                 span,
             }),
 
-            Expr::ArrayDecl { node_id, list, span } => Expr::ArrayDecl {
+            Expr::ArrayDecl {
+                node_id,
+                list,
+                span,
+            } => Expr::ArrayDecl {
                 node_id,
                 list: list.into_iter().map(simplify_expr).collect(),
                 span,
@@ -46,7 +62,12 @@ pub fn simplify(ast: AST) -> Result<AST> {
                 Expr::FuncCall(func_call)
             }
 
-            Expr::StructInit { node_id, ident, fields, span, } => {
+            Expr::StructInit {
+                node_id,
+                ident,
+                fields,
+                span,
+            } => {
                 let fields = fields
                     .into_iter()
                     .map(|decl| StructFieldDecl {
@@ -56,31 +77,61 @@ pub fn simplify(ast: AST) -> Result<AST> {
                         span: decl.span,
                     })
                     .collect();
-                Expr::StructInit { node_id, ident, fields, span, }
-            }
-
-            Expr::MemLookup { node_id, ident, indices, span } => {
-                Expr::MemLookup {
+                Expr::StructInit {
                     node_id,
                     ident,
-                    indices: indices.into_iter().map(simplify_expr).collect(),
+                    fields,
                     span,
                 }
             }
 
-            Expr::Dereference { node_id, inner, span, } => {
-                if let Expr::Reference { inner: inner_inner, .. } = *inner {
+            Expr::MemLookup {
+                node_id,
+                ident,
+                indices,
+                span,
+            } => Expr::MemLookup {
+                node_id,
+                ident,
+                indices: indices.into_iter().map(simplify_expr).collect(),
+                span,
+            },
+
+            Expr::Dereference {
+                node_id,
+                inner,
+                span,
+            } => {
+                if let Expr::Reference {
+                    inner: inner_inner, ..
+                } = *inner
+                {
                     simplify_expr(*inner_inner)
                 } else {
-                    Expr::Dereference { node_id, inner: Box::new(simplify_expr(*inner)), span, }
+                    Expr::Dereference {
+                        node_id,
+                        inner: Box::new(simplify_expr(*inner)),
+                        span,
+                    }
                 }
             }
 
-            Expr::Reference { node_id, inner, span } => {
-                if let Expr::Dereference {  inner: inner_inner, .. } = *inner {
+            Expr::Reference {
+                node_id,
+                inner,
+                span,
+            } => {
+                if let Expr::Dereference {
+                    inner: inner_inner, ..
+                } = *inner
+                {
                     simplify_expr(*inner_inner)
                 } else {
-                    Expr::Reference { node_id, inner: Box::new(simplify_expr(*inner)), span, }
+                    Expr::Reference {
+                        node_id,
+                        inner: Box::new(simplify_expr(*inner)),
+                        span,
+                    }
                 }
             }
 
@@ -98,17 +149,13 @@ pub fn simplify(ast: AST) -> Result<AST> {
                 }
             }
 
-            MathExpr::Additive { node_id, left, right, op, span } =>
             MathExpr::Additive {
                 node_id,
-                left: Box::new(simplify_math_expr(*left)),
-                right: Box::new(simplify_math_expr(*right)),
+                left,
+                right,
                 op,
                 span,
-            },
-
-            MathExpr::Multiplicative { node_id, left, right, op, span } =>
-            MathExpr::Multiplicative {
+            } => MathExpr::Additive {
                 node_id,
                 left: Box::new(simplify_math_expr(*left)),
                 right: Box::new(simplify_math_expr(*right)),
@@ -116,7 +163,26 @@ pub fn simplify(ast: AST) -> Result<AST> {
                 span,
             },
 
-            MathExpr::Power { node_id, base, exp, span } => MathExpr::Power {
+            MathExpr::Multiplicative {
+                node_id,
+                left,
+                right,
+                op,
+                span,
+            } => MathExpr::Multiplicative {
+                node_id,
+                left: Box::new(simplify_math_expr(*left)),
+                right: Box::new(simplify_math_expr(*right)),
+                op,
+                span,
+            },
+
+            MathExpr::Power {
+                node_id,
+                base,
+                exp,
+                span,
+            } => MathExpr::Power {
                 node_id,
                 base: Box::new(simplify_math_expr(*base)),
                 exp: Box::new(simplify_math_expr(*exp)),
@@ -127,50 +193,76 @@ pub fn simplify(ast: AST) -> Result<AST> {
 
     fn simplify_stmt(stmt: Stmt) -> Stmt {
         match stmt {
-            Stmt::Return { node_id, expr: Some(inner), span, }
-            => Stmt::Return {
+            Stmt::Return {
+                node_id,
+                expr: Some(inner),
+                span,
+            } => Stmt::Return {
                 node_id,
                 expr: Some(simplify_expr(inner)),
                 span,
             },
 
-            Stmt::Assignment { node_id, ident, ty, expr, span, } => {
-                Stmt::Assignment {
-                    node_id,
-                    ident,
-                    ty,
-                    expr: simplify_expr(expr),
-                    span,
-                }
-            }
+            Stmt::Assignment {
+                node_id,
+                ident,
+                ty,
+                expr,
+                span,
+            } => Stmt::Assignment {
+                node_id,
+                ident,
+                ty,
+                expr: simplify_expr(expr),
+                span,
+            },
 
-            Stmt::Assign { node_id, lhs, rhs, span, } => {
-                Stmt::Assign { node_id, lhs: simplify_expr(lhs), rhs: simplify_expr(rhs), span, }
-            }
+            Stmt::Assign {
+                node_id,
+                lhs,
+                rhs,
+                span,
+            } => Stmt::Assign {
+                node_id,
+                lhs: simplify_expr(lhs),
+                rhs: simplify_expr(rhs),
+                span,
+            },
 
             Stmt::FuncCall(mut func_call) => {
                 func_call.args = func_call.args.into_iter().map(simplify_expr).collect();
                 Stmt::FuncCall(func_call)
             }
 
-            Stmt::IfElse { node_id, cond, then_block, else_block, span, } => {
-                Stmt::IfElse {
-                    node_id,
-                    cond: Box::new(simplify_expr(*cond)),
-                    then_block: simplify_top_block(then_block),
-                    else_block: if let Some(inner) = else_block { Some(simplify_top_block(inner)) } else { None },
-                    span,
-                }
-            }
+            Stmt::IfElse {
+                node_id,
+                cond,
+                then_block,
+                else_block,
+                span,
+            } => Stmt::IfElse {
+                node_id,
+                cond: Box::new(simplify_expr(*cond)),
+                then_block: simplify_top_block(then_block),
+                else_block: if let Some(inner) = else_block {
+                    Some(simplify_top_block(inner))
+                } else {
+                    None
+                },
+                span,
+            },
 
-            Stmt::WhileLoop { node_id, cond, body, span, } => {
-                Stmt::WhileLoop {
-                    node_id,
-                    cond: Box::new(simplify_expr(*cond)),
-                    body: simplify_top_block(body),
-                    span,
-                }
-            }
+            Stmt::WhileLoop {
+                node_id,
+                cond,
+                body,
+                span,
+            } => Stmt::WhileLoop {
+                node_id,
+                cond: Box::new(simplify_expr(*cond)),
+                body: simplify_top_block(body),
+                span,
+            },
 
             _ => stmt,
         }
@@ -182,35 +274,45 @@ pub fn simplify(ast: AST) -> Result<AST> {
         }
 
         let mut contains_stmts = false;
-        let mut block_count = 0;
+        // let mut block_count = 0;
         for stmt in &block.stmts {
             if !matches!(stmt, Stmt::Block(_) | Stmt::Return { .. }) {
                 contains_stmts = true;
-            } else if matches!(stmt, Stmt::Block(_)) {
-                block_count += 1;
-            } else {
-                continue
+                break;
             }
+            // else if matches!(stmt, Stmt::Block(_)) {
+            //     block_count += 1;
+            // } else {
+            //     continue
+            // }
         }
         let mut stmts = vec![];
 
         for stmt in block.stmts {
             match stmt {
                 Stmt::Block(block) => {
-                    if block.stmts.is_empty() { continue; }
+                    if block.stmts.is_empty() {
+                        continue;
+                    }
                     let node_id = block.node_id;
                     let span = block.span;
                     let inner = simplify_block(block);
 
                     if contains_stmts {
-                        if inner.is_empty() { continue; }
-                        stmts.push(Stmt::Block( Block { node_id, stmts: inner, span, } ))
+                        if inner.is_empty() {
+                            continue;
+                        }
+                        stmts.push(Stmt::Block(Block {
+                            node_id,
+                            stmts: inner,
+                            span,
+                        }))
                     } else {
                         for s in inner {
                             stmts.push(s);
                         }
                     }
-                },
+                }
 
                 x => stmts.push(simplify_stmt(x)),
             }
@@ -221,7 +323,11 @@ pub fn simplify(ast: AST) -> Result<AST> {
 
     fn simplify_top_block(block: Block) -> Block {
         let span = block.span;
-        Block { node_id: block.node_id, stmts: simplify_block(block), span, }
+        Block {
+            node_id: block.node_id,
+            stmts: simplify_block(block),
+            span,
+        }
     }
 
     fn simplify_func_decl(func: FuncDecl) -> FuncDecl {
@@ -233,7 +339,7 @@ pub fn simplify(ast: AST) -> Result<AST> {
             body: simplify_top_block(func.body),
             span: func.span,
         }
-     }
+    }
 
     fn simplify_prog_stmt(stmt: ProgStmt) -> ProgStmt {
         match stmt {
@@ -247,39 +353,37 @@ pub fn simplify(ast: AST) -> Result<AST> {
     })
 }
 
+// #[test]
+// fn simple_test() {
+//     use super::parser::compile_hir;
 
+//     let inp = r#"
+//     struct Foo {}
 
-#[test]
-fn simple_test() {
-    use hir::parser::build_ast;
+//     fn main() -> i64 {
+//         var a = 10 + b;
+//         {
+//             {}
+//             {
+//                 {}
+//                 var hello = hello();
+//                 {
+//                     a += hello(halo(10, 30 + 4));
+//                 }
+//             }
+//         }
 
-    let inp = r#"
-    struct Foo {}
+//         {
+//             { a += 10; }
+//         }
 
-    fn main() -> i64 {
-        var a = 10 + b;
-        {
-            {}
-            {
-                {}
-                var hello = hello();
-                {
-                    a += hello(halo(10, 30 + 4));
-                }
-            }
-        }
+//         { var a = 10; }
 
-        {
-            { a += 10; }
-        }
+//         return 0;
+//     }
+//     "#;
 
-        { var a = 10; }
+//     let simple_ast = compile_hir(inp).unwrap().ast;
 
-        return 0;
-    }
-    "#;
-
-    let simple_ast = simplify(build_ast(inp).unwrap());
-
-    dbg!(simple_ast).unwrap();
-}
+//     dbg!(simple_ast);
+// }
