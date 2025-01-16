@@ -1,6 +1,6 @@
 extern crate marsc_proc_macro;
-extern crate marsc_resolve;
 extern crate marsc_query_system;
+extern crate marsc_resolve;
 
 mod args;
 mod config;
@@ -9,15 +9,13 @@ use crate::args::Args;
 use crate::config::build_config;
 use clap::builder::TypedValueParser;
 use clap::Parser;
-use marsc_interface::{interface, passes};
 use marsc_interface::linker::Linker;
-use std::process;
 use marsc_interface::passes::create_and_enter_global_context;
-use marsc_resolve::resolve_names;
-use marsc_query_system::provider;
-use marsc_query_system::{context::TypeContextProviders};
+use marsc_interface::{interface, passes};
+use marsc_query_system::context::TypeContextProviders;
 use marsc_resolve::ResolveNamesProvider;
-use marsc_proc_macro::provider_method;
+use std::process;
+use anyhow::Result;
 
 pub struct RunCompiler<'a> {
     args: &'a Args,
@@ -30,12 +28,12 @@ impl<'a> RunCompiler<'a> {
         RunCompiler { args }
     }
 
-    pub fn run(&self) -> interface::Result<()> {
+    pub fn run(&self) -> Result<()> {
         run_compiler(self.args)
     }
 }
 
-fn run_compiler(args: &Args) -> interface::Result<()> {
+fn run_compiler(args: &Args) -> Result<()> {
     let config = build_config(args);
 
     interface::run_compiler(config, |compiler| {
@@ -47,7 +45,9 @@ fn run_compiler(args: &Args) -> interface::Result<()> {
         let linker = create_and_enter_global_context(compiler, |type_context| {
             println!("{:#?}", ast);
             
-            type_context.providers().resolve_names(&ast.unwrap());
+            let mir = type_context.providers().resolve_names(ast.unwrap());
+            
+            println!("{:#?}", mir);
             
             Some(Linker {})
         });

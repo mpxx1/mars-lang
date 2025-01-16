@@ -1,4 +1,4 @@
-use hir::ast::*;
+use crate::ast::*;
 use anyhow::Result;
 
 pub fn simplify(ast: AST) -> Result<AST> {
@@ -182,12 +182,12 @@ pub fn simplify(ast: AST) -> Result<AST> {
         }
 
         let mut contains_stmts = false;
-        let mut block_count = 0;
+        let mut _block_count = 0;
         for stmt in &block.stmts {
             if !matches!(stmt, Stmt::Block(_) | Stmt::Return { .. }) {
                 contains_stmts = true;
             } else if matches!(stmt, Stmt::Block(_)) {
-                block_count += 1;
+                _block_count += 1;
             } else {
                 continue
             }
@@ -251,7 +251,7 @@ pub fn simplify(ast: AST) -> Result<AST> {
 
 #[test]
 fn simple_test() {
-    use hir::parser::build_ast;
+    use crate::parser::build_ast;
 
     let inp = r#"
     struct Foo {}

@@ -12,9 +12,9 @@ path = "src/lib.rs"
 
 [dependencies]
 marsc_core = { path = "../marsc_core" }
-marsc_codegen = { path = "../marsc_codegen" }
 marsc_data_structures = { path = "../marsc_data_structures" }
 marsc_hir = { path = "../marsc_hir" }
 marsc_context = { path = "../marsc_context" }
 marsc_span = { path = "../marsc_span" }
 marsc_session = { path = "../marsc_session" }
+anyhow = "1.0.95"

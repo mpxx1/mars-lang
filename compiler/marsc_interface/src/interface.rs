@@ -1,10 +1,6 @@
 use marsc_context::context::CurrentGlobalContext;
 use marsc_session::session::{CompilerIO, Session};
-use marsc_span::ErrorGuaranteed;
 use std::path::PathBuf;
-use std::result;
-
-pub type Result<T> = result::Result<T, ErrorGuaranteed>;
 
 pub struct Config {
     pub input: String,

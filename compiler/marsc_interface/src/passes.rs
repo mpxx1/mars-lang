@@ -1,18 +1,15 @@
-use crate::interface::{Compiler, Result};
+use crate::interface::Compiler;
+use anyhow::Result;
 use marsc_context::context::{CurrentGlobalContext, GlobalContext, TypeContext};
 use marsc_hir::ast;
 use marsc_hir::parser::build_ast;
 use marsc_session::session::Session;
-use marsc_span::ErrorGuaranteed;
 use std::fs;
 use std::sync::OnceLock;
 
 pub fn parse(session: &Session) -> Result<ast::AST> {
-   let data = fs::read_to_string(session.io.input_file.to_path_buf()).unwrap();
-   match build_ast(data.as_str()) {
-      Ok(result) => Ok(result),
-      Err(_) => Err(ErrorGuaranteed {}),
-   }
+   let data = fs::read_to_string(session.io.input_file.to_path_buf())?;
+   build_ast(data)
 }
 
 pub fn create_and_enter_global_context<T, F: for<'tcx> FnOnce(TypeContext<'tcx>) -> T>(

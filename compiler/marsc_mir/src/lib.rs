@@ -1,1 +1,1 @@
-pub mod ast_simplifier;
+pub mod mir;

@@ -36,11 +36,11 @@ impl<'ctx> Codegen<'ctx> {
         //     .map(|arg| self.codegen_type(&arg.typ))
         //     .collect();
         
-        let return_type = self.codegen_type(&func_decl.return_type);
-        let fn_type = return_type.fn_type(&[], false);
-        let function = self.module.add_function(&func_decl.name, fn_type, None);
-        let entry = self.context.append_basic_block(function, "entry");
-        self.builder.position_at_end(entry);
+        // let return_type = self.codegen_type(&func_decl.return_type);
+        // let fn_type = return_type.fn_type(&[], false);
+        // let function = self.module.add_function(&func_decl.name, fn_type, None);
+        // let entry = self.context.append_basic_block(function, "entry");
+        // self.builder.position_at_end(entry);
         
         // self.codegen_block(&func_decl.body);
     }
@@ -50,23 +50,7 @@ impl<'ctx> Codegen<'ctx> {
     }
     
     fn codegen_stmt(&self, stmt: &Stmt) {
-        match stmt {
-            Stmt::Block(_) => todo!(),
-            Stmt::Return(Some(expr)) => {
-                todo!()
-            }
-            Stmt::Break => todo!(),
-            Stmt::StructDecl(_) => todo!(),
-            Stmt::FuncDecl(_) => todo!(),
-            Stmt::Assignment(assignment) => {
-                todo!()
-            } 
-            Stmt::Assign(_) => todo!(),
-            Stmt::FuncCall(_) => todo!(),
-            Stmt::IfElse(_) => todo!(),
-            Stmt::Loop(_) => todo!(),
-            _ => {}
-        }
+        todo!()
     }
     
     fn codegen_expr(&self, expr: Expr) -> BasicTypeEnum {
