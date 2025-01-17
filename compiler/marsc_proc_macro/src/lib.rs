@@ -55,11 +55,11 @@ pub fn provider_method(_attr: TokenStream, item: TokenStream) -> TokenStream {
         #input_fn
 
         pub trait #trait_name<'ctx> {
-            fn #fn_name(&self, key: #key_type) -> #return_type;
+            fn #fn_name(&self, key: #key_type<'ctx>) -> #return_type::<'ctx>;
         }
 
         impl<'ctx> #trait_name<'ctx> for marsc_query_system::provider::Providers<'ctx> {
-            fn #fn_name(&self, key: #key_type) -> #return_type {
+            fn #fn_name(&self, key: #key_type::<'ctx>) -> #return_type::<'ctx> {
                 #fn_name(self.type_context, key)
             }
         }

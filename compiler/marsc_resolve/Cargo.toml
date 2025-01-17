@@ -9,3 +9,5 @@ marsc_hir = { path = "../marsc_hir" }
 marsc_proc_macro = { path = "../marsc_proc_macro" }
 marsc_query_system = { path = "../marsc_query_system" }
 marsc_mir = { path = "../marsc_mir" }
+pest = "2.7.15"
+log = "0.4.25"

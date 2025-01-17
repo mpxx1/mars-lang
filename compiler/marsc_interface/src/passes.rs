@@ -7,9 +7,9 @@ use marsc_session::session::Session;
 use std::fs;
 use std::sync::OnceLock;
 
-pub fn parse(session: &Session) -> Result<ast::AST> {
+pub fn parse<'a>(session: &Session) -> Result<ast::AST<'a>> {
    let data = fs::read_to_string(session.io.input_file.to_path_buf())?;
-   build_ast(data)
+   build_ast(Box::leak(data.into_boxed_str()))
 }
 
 pub fn create_and_enter_global_context<T, F: for<'tcx> FnOnce(TypeContext<'tcx>) -> T>(

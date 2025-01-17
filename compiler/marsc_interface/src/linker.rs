@@ -1,6 +1,3 @@
-use crate::interface::Compiler;
-
-
 pub struct Linker {
 //    dep_graph: DepGraph,
 //    output_filenames: Arc<OutputFilenames>,

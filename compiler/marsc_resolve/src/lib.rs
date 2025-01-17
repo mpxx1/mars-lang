@@ -1,15 +1,15 @@
 use marsc_context::context::TypeContext;
 use marsc_hir::ast;
 use marsc_mir::mir;
-use marsc_proc_macro::provider_method;
 use std::collections::HashMap;
+use pest::Span;
 
 pub enum ScopeKind {
     Normal,
     Function,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum BindingType {
     Func,
     Struct,
@@ -111,12 +111,7 @@ impl<'ast> Resolver<'ast> {
         binding_type: BindingType,
     ) {
         if let Some(last_scope) = self.scopes.last_mut() {
-            last_scope.bindings[binding_type.clone()].insert(
-                ident, 
-                DefInfo {
-                    node_id,
-                    def_id
-                });
+            last_scope.bindings[binding_type.clone()].insert(ident, DefInfo { node_id, def_id });
         }
     }
 }
@@ -212,7 +207,10 @@ impl<'ast> Resolver<'ast> {
         }
     }
 
-    fn resolve_logical_expr(&mut self, logical_expr: ast::LogicalExpr<'ast>) -> mir::LogicalExpr<'ast> {
+    fn resolve_logical_expr(
+        &mut self,
+        logical_expr: ast::LogicalExpr<'ast>,
+    ) -> mir::LogicalExpr<'ast> {
         match logical_expr {
             ast::LogicalExpr::Not {
                 node_id,
@@ -279,76 +277,101 @@ impl<'ast> Resolver<'ast> {
             ast::Type::Char => mir::Type::Char,
             ast::Type::Bool => mir::Type::Bool,
             ast::Type::Void => mir::Type::Void,
-            ast::Type::Custom(identifier) => mir::Type::Custom(self.resolve_identifier(identifier)),
-            ast::Type::Array(ty, size) => mir::Type::Array(Box::new(self.resolve_type(*ty)), size.clone()),
+            ast::Type::Custom(identifier) => {
+                let error_span = identifier.span;
+                mir::Type::Custom(self.resolve_identifier(identifier, BindingType::Struct, error_span))
+            }
+            ast::Type::Array(ty, size) => {
+                mir::Type::Array(Box::new(self.resolve_type(*ty)), size.clone())
+            }
             ast::Type::Vec(ty) => mir::Type::Vec(Box::new(self.resolve_type(*ty))),
             ast::Type::Ref(ty) => mir::Type::Ref(Box::new(self.resolve_type(*ty))),
         }
     }
 
-    fn resolve_identifier(&self, identifier: ast::Identifier<'ast>) -> mir::Identifier<'ast> {
-        match self.get_binding(identifier.ident, BindingType::Var) {
+    fn resolve_identifier(
+        &self,
+        identifier: ast::Identifier<'ast>,
+        binding_type: BindingType,
+        error_span: Span<'ast>
+    ) -> mir::Identifier<'ast> {
+        match self.get_binding(identifier.ident, binding_type) {
             None => {
-                panic!("Identifier \"{}\" not found", identifier.ident);
+                panic!(
+                    "Identifier \"{}\" ({:?}) not found:\n{}",
+                    identifier.ident, binding_type, error_span.as_str()
+                );
             }
             Some(def_info) => mir::Identifier {
                 def_id: def_info.def_id,
                 node_id: convert_node_id(identifier.node_id),
-                ident: identifier.ident.clone(),
-                span: identifier.span.clone(),
+                ident: identifier.ident,
+                span: identifier.span,
             },
         }
     }
 
     fn resolve_expr(&mut self, expr: ast::Expr<'ast>) -> mir::Expr<'ast> {
         match expr {
-            ast::Expr::Identifier(identifier) => mir::Expr::Identifier(
-                self.resolve_identifier(identifier)
-            ),
-            ast::Expr::FuncCall(func_call) => mir::Expr::FuncCall(
-                self.resolve_func_call(func_call)
-            ),
-            ast::Expr::ArrayDecl { .. } => todo!(),
+            ast::Expr::Identifier(identifier) => {
+                let error_span = identifier.span;
+                mir::Expr::Identifier(self.resolve_identifier(identifier, BindingType::Var, error_span))
+            }
+            ast::Expr::FuncCall(func_call) => {
+                mir::Expr::FuncCall(self.resolve_func_call(func_call))
+            }
+            ast::Expr::ArrayDecl { node_id, list, span } => {
+                
+                let mut array_items_expr = vec![];
+                
+                for array_item_expr in list {
+                    array_items_expr.push(self.resolve_expr(array_item_expr));
+                }
+                
+                let array_decl = mir::Expr::ArrayDecl {
+                    node_id: convert_node_id(node_id),
+                    list: array_items_expr,
+                    span,
+                };
+                
+                array_decl
+            },
             ast::Expr::MemLookup { .. } => todo!(),
             ast::Expr::StructFieldCall { .. } => todo!(),
-            ast::Expr::StructInit { .. } => {
-                /*match self.get_binding(&struct_init.name, BindingType::Struct) {
-                    None => {
-                        panic!("Struct with name \"{}\" not found", struct_init.name);
-                    }
-                    Some(info) => {
-                        mir::Expr::StructInit {
-                            def_id: info.def_id,
-                            node_id: ,
-                            ident: Identifier {},
-                            fields: vec![],
-                            span: (),
-                        }
-                    }
-                }*/
-                todo!()
-            },
+            ast::Expr::StructInit {
+                node_id,
+                ident,
+                fields,
+                span,
+            } => {
+                mir::Expr::StructInit {
+                    node_id: convert_node_id(node_id),
+                    ident: self.resolve_identifier(ident, BindingType::Struct, span),
+                    fields: vec![], // TODO
+                    span,
+                }
+            }
             ast::Expr::CastType { .. } => todo!(),
             ast::Expr::Dereference { .. } => todo!(),
             ast::Expr::Reference { .. } => todo!(),
-            ast::Expr::LogicalExpr(logical_expr) => mir::Expr::LogicalExpr(
-                self.resolve_logical_expr(logical_expr)
-            ),
-            ast::Expr::MathExpr(math_expr) => mir::Expr::MathExpr(
-                self.resolve_math_expr(math_expr)
-            ),
-            ast::Expr::Literal(literal) => mir::Expr::Literal(
-                self.resolve_literal(literal)
-            ),
+            ast::Expr::LogicalExpr(logical_expr) => {
+                mir::Expr::LogicalExpr(self.resolve_logical_expr(logical_expr))
+            }
+            ast::Expr::MathExpr(math_expr) => {
+                mir::Expr::MathExpr(self.resolve_math_expr(math_expr))
+            }
+            ast::Expr::Literal(literal) => mir::Expr::Literal(self.resolve_literal(literal)),
         }
     }
 
     fn resolve_stmt(&mut self, stmt: ast::Stmt<'ast>) -> mir::Stmt<'ast> {
         match stmt {
-            ast::Stmt::Block(block) => mir::Stmt::Block(
-                self.resolve_block(block)
-            ),
-            ast::Stmt::Return { node_id, expr, span } => mir::Stmt::Return {
+            ast::Stmt::Block(block) => mir::Stmt::Block(self.resolve_block(block)),
+            ast::Stmt::Return {
+                node_id,
+                expr,
+                span,
+            } => mir::Stmt::Return {
                 node_id: convert_node_id(node_id),
                 expr: match expr {
                     None => None,
@@ -356,52 +379,64 @@ impl<'ast> Resolver<'ast> {
                 },
                 span: span.clone(),
             },
-            ast::Stmt::Break { node_id, span } => mir::Stmt::Break { 
+            ast::Stmt::Break { node_id, span } => mir::Stmt::Break {
                 node_id: convert_node_id(node_id),
                 span,
             },
-            ast::Stmt::StructDecl(struct_decl) => mir::Stmt::StructDecl(
-                self.resolve_struct_decl(struct_decl)
-            ),
-            ast::Stmt::FuncDecl(func_decl) => mir::Stmt::FuncDecl(
-                self.resolve_func_decl(func_decl)
-            ),
-            ast::Stmt::Assignment { node_id, ident, ty, expr, span} => {
-                match self.get_last_scope_binding(ident, BindingType::Var) {
-                    None => {
-                        let def_id = mir::gen_def_id();
-                        self.add_binding(ident, node_id, def_id, BindingType::Var);
+            ast::Stmt::StructDecl(struct_decl) => {
+                mir::Stmt::StructDecl(self.resolve_struct_decl(struct_decl))
+            }
+            ast::Stmt::FuncDecl(func_decl) => {
+                mir::Stmt::FuncDecl(self.resolve_func_decl(func_decl))
+            }
+            ast::Stmt::Assignment {
+                node_id,
+                ident,
+                ty,
+                expr,
+                span,
+            } => match self.get_last_scope_binding(ident, BindingType::Var) {
+                None => {
+                    let def_id = mir::gen_def_id();
+                    self.add_binding(ident, node_id, def_id, BindingType::Var);
 
-                        mir::Stmt::Assignment {
-                            def_id,
-                            node_id: convert_node_id(node_id),
-                            ident: ident.clone(),
-                            ty: match ty {
-                                None => None,
-                                Some(ty) => Some(self.resolve_type(ty)),
-                            },
-                            expr: self.resolve_expr(expr),
-                            span: span.clone(),
-                        }
-                    },
-                    Some(info) => {
-                        panic!(
-                            "Variable \"{}\" already exists ({:?})",
-                            ident, info.node_id
-                        )
+                    mir::Stmt::Assignment {
+                        def_id,
+                        node_id: convert_node_id(node_id),
+                        ident,
+                        ty: match ty {
+                            None => None,
+                            Some(ty) => Some(self.resolve_type(ty)),
+                        },
+                        expr: self.resolve_expr(expr),
+                        span: span.clone(),
                     }
                 }
+                Some(info) => {
+                    panic!("Variable \"{}\" already exists ({:?})", ident, info.node_id)
+                }
             },
-            ast::Stmt::Assign { node_id, lhs, rhs, span } => mir::Stmt::Assign {
+            ast::Stmt::Assign {
+                node_id,
+                lhs,
+                rhs,
+                span,
+            } => mir::Stmt::Assign {
                 node_id: convert_node_id(node_id),
                 lhs: self.resolve_expr(lhs),
                 rhs: self.resolve_expr(rhs),
                 span: span.clone(),
             },
-            ast::Stmt::FuncCall(func_call) => mir::Stmt::FuncCall(
-                self.resolve_func_call(func_call)
-            ),
-            ast::Stmt::IfElse { node_id, cond, then_block, else_block, span } => mir::Stmt::IfElse {
+            ast::Stmt::FuncCall(func_call) => {
+                mir::Stmt::FuncCall(self.resolve_func_call(func_call))
+            }
+            ast::Stmt::IfElse {
+                node_id,
+                cond,
+                then_block,
+                else_block,
+                span,
+            } => mir::Stmt::IfElse {
                 node_id: convert_node_id(node_id),
                 cond: Box::new(self.resolve_expr(*cond)),
                 then_block: self.resolve_block(then_block),
@@ -411,18 +446,23 @@ impl<'ast> Resolver<'ast> {
                 },
                 span,
             },
-            ast::Stmt::WhileLoop { node_id, cond, body, span } => mir::Stmt::WhileLoop {
+            ast::Stmt::WhileLoop {
+                node_id,
+                cond,
+                body,
+                span,
+            } => mir::Stmt::WhileLoop {
                 node_id: convert_node_id(node_id),
                 cond: Box::new(self.resolve_expr(*cond)),
                 body: self.resolve_block(body),
                 span,
-            }
+            },
         }
     }
 
     fn resolve_block<'tcx>(&mut self, block: ast::Block<'ast>) -> mir::Block<'ast> {
         self.scopes.push(Scope::new(ScopeKind::Normal));
-        
+
         let mut mir_block = mir::Block {
             node_id: convert_node_id(block.node_id),
             stmts: vec![],
@@ -448,16 +488,16 @@ impl<'ast> Resolver<'ast> {
                     fields: vec![], // TODO
                     span: struct_decl.span,
                 };
-                
+
                 self.add_binding(
                     struct_decl.ident,
                     struct_decl.node_id,
                     mir_struct_decl.def_id,
                     BindingType::Struct,
                 );
-                
+
                 mir_struct_decl
-            },
+            }
             Some(info) => {
                 panic!(
                     "Struct \"{}\" already exists ({:?})",
@@ -484,10 +524,11 @@ impl<'ast> Resolver<'ast> {
                     func_decl.ident,
                     func_decl.node_id,
                     mir_func_decl.def_id,
-                    BindingType::Func);
-                
+                    BindingType::Func,
+                );
+
                 mir_func_decl
-            },
+            }
             Some(info) => {
                 panic!(
                     "Function \"{}\" already exists ({:?})",
@@ -495,41 +536,31 @@ impl<'ast> Resolver<'ast> {
                 )
             }
         }
-
-       
     }
 
     fn resolve_func_call(&mut self, func_call: ast::FuncCall<'ast>) -> mir::FuncCall<'ast> {
-        match self.get_binding(func_call.ident.ident, BindingType::Func) {
-            None => {
-                panic!("Function with name \"{}\" not found", func_call.ident.ident)
-            }
-            Some(info) => {
-                let mut mir_func_call = mir::FuncCall {
-                    def_id: info.def_id,
-                    node_id: convert_node_id(func_call.node_id),
-                    ident: self.resolve_identifier(func_call.ident),
-                    args: vec![],
-                    span: func_call.span,
-                };
+        let mut mir_func_call = mir::FuncCall {
+            node_id: convert_node_id(func_call.node_id),
+            ident: self.resolve_identifier(func_call.ident, BindingType::Func, func_call.span),
+            args: vec![],
+            span: func_call.span,
+        };
 
-                for arg in func_call.args {
-                    mir_func_call.args.push(self.resolve_expr(arg));
-                }
-                
-                mir_func_call
-            }
+        for arg in func_call.args {
+            mir_func_call.args.push(self.resolve_expr(arg));
         }
+
+        mir_func_call
     }
 
     fn resolve_prog_stmt(&mut self, prog_stmt: ast::ProgStmt<'ast>) -> mir::ProgStmt<'ast> {
         match prog_stmt {
-            ast::ProgStmt::StructDecl(struct_decl) => mir::ProgStmt::StructDecl(
-                self.resolve_struct_decl(struct_decl)
-            ),
-            ast::ProgStmt::FuncDecl(func_decl) => mir::ProgStmt::FuncDecl(
-                self.resolve_func_decl(func_decl)
-            ),
+            ast::ProgStmt::StructDecl(struct_decl) => {
+                mir::ProgStmt::StructDecl(self.resolve_struct_decl(struct_decl))
+            }
+            ast::ProgStmt::FuncDecl(func_decl) => {
+                mir::ProgStmt::FuncDecl(self.resolve_func_decl(func_decl))
+            }
         }
     }
 
@@ -548,12 +579,21 @@ fn convert_node_id(ast_node_id: ast::NodeId) -> mir::NodeId {
     mir::NodeId(ast_node_id.0)
 }
 
-#[provider_method]
-pub fn resolve_names<'tcx, 'ast, 'a>(_type_context: &'tcx TypeContext<'tcx>, key: ast::AST<'ast>) -> mir::MIR<'a>
-where 
-    'ast: 'a
-{
-    let mut resolver = Resolver::new();
+pub fn resolve_names<'tcx, 'a>(
+    _type_context: &'tcx TypeContext<'tcx>,
+    key: ast::AST<'a>,
+) -> mir::MIR<'a> {
+    let mut resolver = Resolver::<'a>::new();
     let mir_tree = resolver.resolve_ast(key);
     mir_tree
+}
+
+pub trait ResolveNamesProvider<'ctx> {
+    fn resolve_names(&self, key: ast::AST<'ctx>) -> mir::MIR<'ctx>;
+}
+
+impl<'ctx> ResolveNamesProvider<'ctx> for marsc_query_system::provider::Providers<'ctx> {
+    fn resolve_names(&self, key: ast::AST<'ctx>) -> mir::MIR<'ctx> {
+        resolve_names(self.type_context, key)
+    }
 }

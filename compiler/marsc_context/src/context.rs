@@ -48,7 +48,6 @@ impl<'tcx> TypeContext<'tcx> {
 #[derive(Debug)]
 pub struct GlobalContext<'tcx> {
     pub session: &'tcx Session,
-    // pub dep_graph: DepGraph,
     types: CommonTypes,
 }
 

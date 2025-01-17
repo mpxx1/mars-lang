@@ -155,7 +155,6 @@ pub enum Expr<'a> {
     },
 
     StructInit {
-        def_id: DefId,
         node_id: NodeId,
         ident: Identifier<'a>,
         fields: Vec<StructFieldDecl<'a>>,
@@ -230,7 +229,6 @@ pub enum Literal<'a> {
 
 #[derive(Debug, Clone)]
 pub struct FuncCall<'a> {
-    pub def_id: DefId,
     pub node_id: NodeId,
     pub ident: Identifier<'a>,
     pub args: Vec<Expr<'a>>,

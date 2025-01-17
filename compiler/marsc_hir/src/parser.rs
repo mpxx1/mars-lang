@@ -17,10 +17,13 @@ pub fn gen_node_id() -> NodeId {
 #[grammar = "mars_grammar.pest"]
 struct MarsLangParser;
 
-pub fn build_ast(source_code: String) -> Result<AST> {
-    let prog = MarsLangParser::parse(Rule::program, source_code.as_str())?;
+pub fn build_ast<'input, 'ast>(source_code: &'input str) -> Result<AST<'ast>>
+where 
+    'input: 'ast
+{
+    let prog = MarsLangParser::parse(Rule::program, source_code)?;
 
-    let mut ast = AST::default();
+    let mut ast = AST::<'ast>::default();
 
     for pair in prog {
         ast.program.push(match pair.as_rule() {

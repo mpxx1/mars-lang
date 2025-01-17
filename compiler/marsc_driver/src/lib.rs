@@ -7,7 +7,6 @@ mod config;
 
 use crate::args::Args;
 use crate::config::build_config;
-use clap::builder::TypedValueParser;
 use clap::Parser;
 use marsc_interface::linker::Linker;
 use marsc_interface::passes::create_and_enter_global_context;
@@ -43,8 +42,6 @@ fn run_compiler(args: &Args) -> Result<()> {
         let ast = passes::parse(session);
         
         let linker = create_and_enter_global_context(compiler, |type_context| {
-            println!("{:#?}", ast);
-            
             let mir = type_context.providers().resolve_names(ast.unwrap());
             
             println!("{:#?}", mir);
@@ -52,7 +49,7 @@ fn run_compiler(args: &Args) -> Result<()> {
             Some(Linker {})
         });
 
-        if let Some(linker) = linker {
+        if let Some(_linker) = linker {
             // linker.link(session, codegen_backend) TODO
         }
 
