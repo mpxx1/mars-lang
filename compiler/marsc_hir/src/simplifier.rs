@@ -1,7 +1,7 @@
 use ast::*;
-use marsc_error::CompileError;
+use err::CompileError;
 
-pub fn simplify<'src, 'msg>(ast: AST) -> Result<AST, CompileError<'src, 'msg>> {
+pub fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
     fn simplify_expr(expr: Expr) -> Expr {
         match expr {
             Expr::LogicalExpr(LogicalExpr::Primary(inner_expr))
@@ -348,42 +348,7 @@ pub fn simplify<'src, 'msg>(ast: AST) -> Result<AST, CompileError<'src, 'msg>> {
         }
     }
 
-    Ok(AST {
+    Ok(Ast {
         program: ast.program.into_iter().map(simplify_prog_stmt).collect(),
     })
 }
-
-// #[test]
-// fn simple_test() {
-//     use super::parser::compile_hir;
-
-//     let inp = r#"
-//     struct Foo {}
-
-//     fn main() -> i64 {
-//         var a = 10 + b;
-//         {
-//             {}
-//             {
-//                 {}
-//                 var hello = hello();
-//                 {
-//                     a += hello(halo(10, 30 + 4));
-//                 }
-//             }
-//         }
-
-//         {
-//             { a += 10; }
-//         }
-
-//         { var a = 10; }
-
-//         return 0;
-//     }
-//     "#;
-
-//     let simple_ast = compile_hir(inp).unwrap().ast;
-
-//     dbg!(simple_ast);
-// }

@@ -1,7 +1,7 @@
 use pest::Span;
 
 #[derive(Debug, Clone, Default)]
-pub struct AST<'src> {
+pub struct Ast<'src> {
     pub program: Vec<ProgStmt<'src>>,
 }
 
@@ -13,7 +13,7 @@ pub enum ProgStmt<'src> {
 
 #[derive(Debug, Clone)]
 pub struct StructDecl<'src> {
-    pub node_id: u32,
+    pub node_id: usize,
     pub ident: &'src str,
     pub fields: Vec<ArgDecl<'src>>,
     pub span: Span<'src>,
@@ -21,7 +21,7 @@ pub struct StructDecl<'src> {
 
 #[derive(Debug, Clone)]
 pub struct FuncDecl<'src> {
-    pub node_id: u32,
+    pub node_id: usize,
     pub ident: &'src str,
     pub args: Vec<ArgDecl<'src>>,
     pub return_type: Type<'src>,
@@ -31,7 +31,7 @@ pub struct FuncDecl<'src> {
 
 #[derive(Debug, Clone)]
 pub struct ArgDecl<'src> {
-    pub node_id: u32,
+    pub node_id: usize,
     pub ident: &'src str,
     pub ty: Type<'src>,
     pub span: Span<'src>,
@@ -49,11 +49,20 @@ pub enum Type<'src> {
     Array(Box<Type<'src>>, usize),
     Vec(Box<Type<'src>>),
     Ref(Box<Type<'src>>),
+    
+    // checker only
+    Fn {
+        args: Vec<ArgDecl<'src>>,
+        return_type: Box<Type<'src>>,
+    },
+    Any,
+    Unresolved,
+    InnerBlock,
 }
 
 #[derive(Debug, Clone)]
 pub struct Block<'src> {
-    pub node_id: u32,
+    pub node_id: usize,
     pub stmts: Vec<Stmt<'src>>,
     pub span: Span<'src>,
 }
@@ -63,13 +72,13 @@ pub enum Stmt<'src> {
     Block(Block<'src>),
 
     Return {
-        node_id: u32,
+        node_id: usize,
         expr: Option<Expr<'src>>,
         span: Span<'src>,
     },
 
     Break {
-        node_id: u32,
+        node_id: usize,
         span: Span<'src>,
     },
 
@@ -78,7 +87,7 @@ pub enum Stmt<'src> {
     FuncDecl(FuncDecl<'src>),
 
     Assignment {
-        node_id: u32,
+        node_id: usize,
         ident: &'src str,
         ty: Option<Type<'src>>,
         expr: Expr<'src>,
@@ -86,7 +95,7 @@ pub enum Stmt<'src> {
     },
 
     Assign {
-        node_id: u32,
+        node_id: usize,
         lhs: Expr<'src>, // ident, deref, mem
         rhs: Expr<'src>,
         span: Span<'src>,
@@ -95,7 +104,7 @@ pub enum Stmt<'src> {
     FuncCall(FuncCall<'src>),
 
     IfElse {
-        node_id: u32,
+        node_id: usize,
         cond: Box<Expr<'src>>,
         then_block: Block<'src>,
         else_block: Option<Block<'src>>,
@@ -103,7 +112,7 @@ pub enum Stmt<'src> {
     },
 
     WhileLoop {
-        node_id: u32,
+        node_id: usize,
         cond: Box<Expr<'src>>,
         body: Block<'src>,
         span: Span<'src>,
@@ -116,47 +125,47 @@ pub enum Expr<'src> {
     FuncCall(FuncCall<'src>),
 
     ArrayDecl {
-        node_id: u32,
+        node_id: usize,
         list: Vec<Expr<'src>>,
         span: Span<'src>,
     },
 
     MemLookup {
-        node_id: u32,
+        node_id: usize,
         ident: Identifier<'src>,
         indices: Vec<Expr<'src>>,
         span: Span<'src>,
     },
 
     StructFieldCall {
-        node_id: u32,
+        node_id: usize,
         ident: Identifier<'src>,
         field: Identifier<'src>,
         span: Span<'src>,
     },
 
     StructInit {
-        node_id: u32,
+        node_id: usize,
         ident: Identifier<'src>,
         fields: Vec<StructFieldDecl<'src>>,
         span: Span<'src>,
     },
 
     CastType {
-        node_id: u32,
+        node_id: usize,
         cast_to: Box<Type<'src>>,
         expr: Box<Expr<'src>>,
         span: Span<'src>,
     },
 
     Dereference {
-        node_id: u32,
+        node_id: usize,
         inner: Box<Expr<'src>>,
         span: Span<'src>,
     },
 
     Reference {
-        node_id: u32,
+        node_id: usize,
         inner: Box<Expr<'src>>,
         span: Span<'src>,
     },
@@ -169,7 +178,7 @@ pub enum Expr<'src> {
 
 #[derive(Debug, Clone)]
 pub struct Identifier<'src> {
-    pub node_id: u32,
+    pub node_id: usize,
     pub ident: &'src str,
     pub span: Span<'src>,
 }
@@ -177,39 +186,44 @@ pub struct Identifier<'src> {
 #[derive(Debug, Clone)]
 pub enum Literal<'src> {
     Int {
-        node_id: u32,
+        node_id: usize,
         lit: i64,
         span: Span<'src>,
     },
 
     Float {
-        node_id: u32,
+        node_id: usize,
         lit: f64,
         span: Span<'src>,
     },
 
     Str {
-        node_id: u32,
+        node_id: usize,
         lit: String,
         span: Span<'src>,
     },
 
     Char {
-        node_id: u32,
+        node_id: usize,
         lit: char,
         span: Span<'src>,
     },
 
     Bool {
-        node_id: u32,
+        node_id: usize,
         lit: bool,
+        span: Span<'src>,
+    },
+    
+    NullRef {
+        node_id: usize,
         span: Span<'src>,
     },
 }
 
 #[derive(Debug, Clone)]
 pub struct FuncCall<'src> {
-    pub node_id: u32,
+    pub node_id: usize,
     pub ident: Identifier<'src>,
     pub args: Vec<Expr<'src>>,
     pub span: Span<'src>,
@@ -217,7 +231,7 @@ pub struct FuncCall<'src> {
 
 #[derive(Debug, Clone)]
 pub struct StructFieldDecl<'src> {
-    pub node_id: u32,
+    pub node_id: usize,
     pub ident: Identifier<'src>,
     pub expr: Expr<'src>,
     pub span: Span<'src>,
@@ -226,27 +240,27 @@ pub struct StructFieldDecl<'src> {
 #[derive(Debug, Clone)]
 pub enum LogicalExpr<'src> {
     Not {
-        node_id: u32,
+        node_id: usize,
         inner: Box<LogicalExpr<'src>>,
         span: Span<'src>,
     },
 
     Or {
-        node_id: u32,
+        node_id: usize,
         left: Box<LogicalExpr<'src>>,
         right: Box<LogicalExpr<'src>>,
         span: Span<'src>,
     },
 
     And {
-        node_id: u32,
+        node_id: usize,
         left: Box<LogicalExpr<'src>>,
         right: Box<LogicalExpr<'src>>,
         span: Span<'src>,
     },
 
     Comparison {
-        node_id: u32,
+        node_id: usize,
         left: Box<MathExpr<'src>>,
         right: Box<MathExpr<'src>>,
         op: CmpOp,
@@ -259,7 +273,7 @@ pub enum LogicalExpr<'src> {
 #[derive(Debug, Clone)]
 pub enum MathExpr<'src> {
     Additive {
-        node_id: u32,
+        node_id: usize,
         left: Box<MathExpr<'src>>,
         right: Box<MathExpr<'src>>,
         op: AddOp,
@@ -267,7 +281,7 @@ pub enum MathExpr<'src> {
     },
 
     Multiplicative {
-        node_id: u32,
+        node_id: usize,
         left: Box<MathExpr<'src>>,
         right: Box<MathExpr<'src>>,
         op: MulOp,
@@ -275,7 +289,7 @@ pub enum MathExpr<'src> {
     },
 
     Power {
-        node_id: u32,
+        node_id: usize,
         base: Box<MathExpr<'src>>,
         exp: Box<MathExpr<'src>>,
         span: Span<'src>,

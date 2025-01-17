@@ -1,13 +1,13 @@
 use pest::Span;
 use std::fmt::{Debug, Display};
 
-pub struct CompileError<'src, 'msg> {
+pub struct CompileError<'src> {
     span: Span<'src>,
-    msg: &'msg str,
+    msg: String,
 }
 
-impl<'src, 'msg> CompileError<'src, 'msg> {
-    pub fn new(span: Span<'src>, msg: &'msg str) -> Self {
+impl<'src> CompileError<'src> {
+    pub fn new(span: Span<'src>, msg: String) -> Self {
         Self { span, msg }
     }
 
@@ -44,7 +44,7 @@ impl<'src, 'msg> CompileError<'src, 'msg> {
     }
 }
 
-impl<'src, 'msg> Display for CompileError<'src, 'msg> {
+impl<'src> Display for CompileError<'src> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let line_idx = self.line_index();
         let col_idx = self.column_index();
@@ -73,7 +73,7 @@ impl<'src, 'msg> Display for CompileError<'src, 'msg> {
     }
 }
 
-impl<'src, 'msg> Debug for CompileError<'src, 'msg> {
+impl<'src> Debug for CompileError<'src> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self, f)
     }

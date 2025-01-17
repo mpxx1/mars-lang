@@ -2,6 +2,14 @@
 name = "marsc_error"
 version = "0.1.0"
 edition = "2021"
+license = "BSDv3"
+description = """
+Mars programming language compile error
+"""
+
+[lib]
+name = "err"
+path = "src/lib.rs"
 
 [dependencies]
-pest = "2.7.15"
+pest = "2.7.14"
