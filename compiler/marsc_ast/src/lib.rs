@@ -31,7 +31,7 @@ pub struct FuncDecl<'src> {
 
 #[derive(Debug, Clone)]
 pub struct ArgDecl<'src> {
-    pub node_id: usize,
+    pub node_id: usize, // excess
     pub ident: &'src str,
     pub ty: Type<'src>,
     pub span: Span<'src>,
@@ -68,13 +68,13 @@ pub enum Stmt<'src> {
     Block(Block<'src>),
 
     Return {
-        node_id: usize,
+        node_id: usize, // excess
         expr: Option<Expr<'src>>,
         span: Span<'src>,
     },
 
     Break {
-        node_id: usize,
+        node_id: usize, // excess
         span: Span<'src>,
     },
 
@@ -91,7 +91,7 @@ pub enum Stmt<'src> {
     },
 
     Assign {
-        node_id: usize,
+        node_id: usize,  // excess
         lhs: Expr<'src>, // ident, deref, mem
         rhs: Expr<'src>,
         span: Span<'src>,
@@ -100,6 +100,7 @@ pub enum Stmt<'src> {
     FuncCall(FuncCall<'src>),
 
     IfElse {
+        // pub parent_id: usize,
         node_id: usize,
         cond: Box<Expr<'src>>,
         then_block: Block<'src>,
@@ -108,6 +109,7 @@ pub enum Stmt<'src> {
     },
 
     WhileLoop {
+        // pub parent_id: usize,
         node_id: usize,
         cond: Box<Expr<'src>>,
         body: Block<'src>,

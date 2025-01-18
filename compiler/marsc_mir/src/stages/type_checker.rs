@@ -95,7 +95,7 @@ fn scope_push_struct<'src, 'sf>(
     }
 
     // 4 add struct to scope
-    scope_ref.structs.insert(struct_obj.ident, StructProto::from(struct_obj));
+    scope_ref.structs.insert(struct_obj.ident, StructProto::from(scope_id, struct_obj));
 
     Ok(())
 }
@@ -145,7 +145,7 @@ fn scope_push_func<'src, 'sf>(
     }
 
     // 4 add func to scope
-    let (fn_proto, logic_block) = func_decl_split(func_obj);
+    let (fn_proto, logic_block) = func_decl_split(scope_id, func_obj);
     let fn_id = fn_proto.node_id;
     let fn_args = fn_proto.args.clone();
     scope_ref.funs.insert(fn_proto.ident, fn_proto);
@@ -171,6 +171,7 @@ fn scope_push_func<'src, 'sf>(
             fn_id,
             mir,
             Variable {
+                parent_id: fn_id,
                 node_id: arg.node_id,
                 ident: arg.ident,
                 ty: arg.ty,
@@ -197,6 +198,7 @@ fn scope_push_func<'src, 'sf>(
                 span,
             } => {
                 vars.push(Variable {
+                    parent_id: fn_id,
                     node_id,
                     ident,
                     ty: ty.clone(),
@@ -300,12 +302,13 @@ fn scope_push_assignment<'src, 'sf>(
         .vars
         .remove(ident)
         .unwrap();
-    let expr_type = resolv_expr_type(scope_id, mir, &expr)?;
-
+    
     debug_assert_eq!(var.ty, ty);
-    if ty == Type::Unresolved {
+    let expr_type = resolv_expr_type(scope_id, mir, &expr, ty)?;
+    
+    if var.ty == Type::Unresolved {
         var.ty = expr_type;
-    } else if ty != expr_type {
+    } else if var.ty != expr_type {
         return Err(CompileError::new(
             span,
             format!(
@@ -333,6 +336,7 @@ fn resolv_expr_type<'src, 'sf>(
     scope_id: usize,
     mir: &mut Mir<'src, 'sf>,
     expr: &Expr<'src>,
+    opt_type: Type<'src>,
 ) -> Result<Type<'src>, CompileError<'src>> {
     let out_type = match expr {
         Expr::Identifier(x) => {
@@ -347,27 +351,52 @@ fn resolv_expr_type<'src, 'sf>(
         }
         
         Expr::Literal(x) => {
-            resolv_lit_type(x)
+            resolv_lit_type(x, opt_type)?
         }
         
-        // &Expr::FuncCall(x) => {
-        //     // 1 check fn args
-        //     // 2 check fn return type
-        //     let opt_type = resolv_fn_ret_type(scope_id, mir, x.ident);
-        //     if opt_type.is_none() {
-        //         return Err(CompileError::new(
-        //             x.span,
-        //             format!("Can not find function '{}'", x.ident.ident),
-        //         ));
-        //     }
-        //     opt_type.unwrap()
-        // }
+        Expr::FuncCall(x) => {
+            // 1 check fn args
+            
+            
+            // 2 check fn return type
+            let opt_type = resolv_fn_ret_type(scope_id, mir, x.ident.ident);
+            if opt_type.is_none() {
+                return Err(CompileError::new(
+                    x.span,
+                    format!("Can not find function '{}'", x.ident.ident),
+                ));
+            }
+            opt_type.unwrap()
+        }
 
         _ => unimplemented!(),
     };
 
     Ok(out_type)
 }
+
+fn resolv_fn_ret_type<'src, 'sf>(
+    scope_id: usize, 
+    mir: &mut Mir<'src, 'sf>,
+    fn_name: &'src str,
+) -> Option<Type<'src>> {
+    let mut current_scope_id = scope_id;
+
+    while let Some(scope) = mir.scopes.get(&current_scope_id) {
+        if let Some(func) = scope.funs.get(fn_name) {
+            return Some(func.return_type.clone());
+        }
+
+        if current_scope_id == 0 {
+            break;
+        }
+
+        current_scope_id = scope.parent_id;
+    }
+
+    None
+}
+
 
 fn resolv_ident_type<'src, 'sf>(
     scope_id: usize,
@@ -390,20 +419,31 @@ fn resolv_ident_type<'src, 'sf>(
     }
 }
 
-fn resolv_lit_type<'src>(lit: &Literal<'src>) -> Type<'src> {
+fn resolv_lit_type<'src>(lit: &Literal<'src>, possible_type: Type<'src>) -> Result<Type<'src>, CompileError<'src>> {
     match lit {
-        Literal::Int { .. } => Type::I64,
-        Literal::Float { .. } => Type::F64, 
-        Literal::Str { .. } => Type::Str,
-        Literal::Bool { .. } => Type::Bool,
-        Literal::Char { .. } => Type::Char,
-        _ => unimplemented!()
-        // Litearl::NullRef { .. } => Type::Ref(())
+        Literal::Int { .. } => Ok(Type::I64),
+        Literal::Float { .. } => Ok(Type::F64), 
+        Literal::Str { .. } => Ok(Type::Str),
+        Literal::Bool { .. } => Ok(Type::Bool),
+        Literal::Char { .. } => Ok(Type::Char),
+        Literal::NullRef { node_id: _, span } => {
+            if possible_type == Type::Unresolved { return Err(CompileError::new(
+                *span, "Must specify type of reference\n\tExample: var a: &A = null;".to_owned()
+            )); }
+            if let Type::Ref(x) = possible_type { 
+                return Ok(Type::Ref(x));
+            }
+            
+            return Err(CompileError::new(
+                *span, "Null can be used as refrence only".to_owned()
+            ));
+        }
     }
 }
 
-fn func_decl_split<'src>(func: FuncDecl<'src>) -> (FuncProto<'src>, Block<'src>) {
+fn func_decl_split<'src>(scope_id: usize, func: FuncDecl<'src>) -> (FuncProto<'src>, Block<'src>) {
     (FuncProto {
+            parent_id: scope_id,
             node_id: func.node_id,
             ident: func.ident,
             args: func.args,
@@ -422,12 +462,11 @@ fn get_span_line_index<'src>(span: pest::Span<'src>) -> usize {
 
 #[test]
 fn main_test<'src>() -> Result<(), CompileError<'src>> {
+    // для null нужно проверять, что тип переменной определен и ссылочный
     let inp = r#"
-    struct A {}
     
-    fn main() -> void {
-        var a = 10;
-        /*var b: &A = null; */
+    fn main() -> i64 {
+        var a: &i64 = null;
     }
     
     "#;
