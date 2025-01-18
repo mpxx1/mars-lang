@@ -35,6 +35,7 @@ pub struct FuncProto<'src> {
 
 #[derive(Debug, Clone)]
 pub struct Variable<'src> {
+    pub node_id: usize,
     pub ident: &'src str,
     pub ty: Type<'src>,
     pub is_used: bool,

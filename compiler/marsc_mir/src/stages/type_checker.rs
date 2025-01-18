@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use err::CompileError;
-use crate::{FuncProto, Mir, Scope};
-use ast::{Block, FuncDecl, StructDecl};
+use crate::{FuncProto, Mir, Scope, Variable};
+use ast::{Block, Expr, FuncDecl, StructDecl, Type, Stmt};
+
+use crate::GLOBAL_SCOPE_ID;
 
 static mut SYS_FN_COUNTER: usize = 0;
 
@@ -23,9 +25,9 @@ pub fn check_types<'src, 'sf>(
 ) -> Result<Mir<'src, 'sf>, CompileError<'src>> {
     
     let mut mir = Mir { code: hir.code, scopes: HashMap::new(), sys_funs: sys_funs_init() };
-    mir.scopes.insert(0, Scope {
-        parent_id: 0,
-        node_id: 0,
+    mir.scopes.insert(GLOBAL_SCOPE_ID, Scope {
+        parent_id: GLOBAL_SCOPE_ID,
+        node_id: GLOBAL_SCOPE_ID,
         structs: HashMap::new(),
         funs: HashMap::new(),
         vars: HashMap::new(),
@@ -35,10 +37,10 @@ pub fn check_types<'src, 'sf>(
     for stmt in hir.ast.program {
         match stmt {
             ast::ProgStmt::StructDecl(x) => {
-                scope_push_struct(0, &mut mir, x)?;
+                scope_push_struct(GLOBAL_SCOPE_ID, &mut mir, x)?;
             },
             ast::ProgStmt::FuncDecl(x) => {
-                scope_push_func(0, &mut mir, x)?;
+                scope_push_func(GLOBAL_SCOPE_ID, &mut mir, x)?;
             },
         }
     }
@@ -127,33 +129,86 @@ fn scope_push_func<'src, 'sf>(
             ));
     }
     
-    // 3 add struct to scope
+    // 3 check func args
+    let mut set = HashSet::new();
+    if !func_obj.args.iter().all(|x| set.insert(x.ident)) {
+        return Err(CompileError::new(func_obj.span, format!("Function '{}' arguments has duplicated names", func_obj.ident)));
+    }
+    
+    // 4 add func to scope
     let (fn_proto, logic_block) = func_decl_split(func_obj);
+    let fn_id = fn_proto.node_id;
     scope_ref.funs.insert(fn_proto.ident, fn_proto);
     
-    // 4 procceed with function body
-    // todo
+    // 5 procceed with function body
+    // create new scope
     // push fn args to new scope
     // push instructions of function to this scope
-    // 
-    // mir.scopes.insert(func_obj.node_id, Scope {
-    //     parent_id: 0,
-    //     node_id: 0,
-    //     structs: HashMap::new(),
-    //     funs: HashMap::new(),
-    //     vars: HashMap::new(),
-    //     instrs: vec![],
-    // });
+    mir.scopes.insert(fn_id, Scope {
+        parent_id: scope_id,
+        node_id: fn_id,
+        structs: HashMap::new(),
+        funs: HashMap::new(),
+        vars: HashMap::new(),
+        instrs: vec![],
+    });
+    
+    let mut structs = vec![];
+    let mut funs = vec![];
+    let mut vars = vec![];
+    let mut instrs = vec![];
+    for stmt in logic_block.stmts {
+        match stmt {
+            ast::Stmt::StructDecl(x) => structs.push(x),
+            ast::Stmt::FuncDecl(x) => funs.push(x),
+            ast::Stmt::Assignment { node_id, ident, ty, expr, span } => { 
+                vars.push(Variable { 
+                    node_id,
+                    ident,
+                    ty: if let Some(x) = ty.clone() { x } else { Type::Unresolved },
+                    is_used: false,
+                });
+                instrs.push(ast::Stmt::Assignment { node_id, ident, ty, expr, span })
+            },
+            x => instrs.push(x),
+        }
+    }
+    
+    for struct_obj in structs {
+        scope_push_struct(fn_id, mir, struct_obj)?;
+    }
+    
+    for fun in funs {
+        scope_push_func(fn_id, mir, fun)?;
+    }
+    
+    // 6 todo variables (check types of exprs)
+    for var in vars {
+        scope_push_var(fn_id, mir, var, &instrs)?;
+    }
+    
+    // 7 todo instructions + check funs return exprs
     
     Ok(())
 }
 
-fn scope_push_var() {
+fn scope_push_var<'src>(
+    scope_id: usize,
+    mir: &mut Mir,
+    var_obj: Variable,
+    instrs: &Vec<Stmt>
+) -> Result<(), CompileError<'src>> {
     
+    todo!()
+    
+    Ok(())
 }
 
-fn scope_push_inst() {}
+fn _scope_push_inst() {}
 
+fn _resolv_expr_type<'src, 'e>(_expr: &'e Expr) -> Result<Type<'src>, CompileError<'src>> {
+    unimplemented!()
+}
 
 fn func_decl_split<'src>(func: FuncDecl<'src>) -> (FuncProto<'src>, Block<'src>) {
     (FuncProto { 
@@ -177,14 +232,15 @@ fn get_span_line_index<'src>(span: pest::Span<'src>) -> usize {
 fn test_index1<'src>() -> Result<(), CompileError<'src>> {
     
     let inp = r#"
-        fn hello() -> i64 {
+        fn hello(a: i64, b: str) -> i64 {
+        
+            fn h2() -> void {
+                var a = null;
+                return;
+            }  
+        
             return 10;
         }
-        
-        fn print() -> void {
-          var a = null;
-          return;
-        }    
     "#;
     
     let hir = hir::parser::compile_hir(&inp)?;
@@ -201,8 +257,8 @@ fn test_index_struct<'src>() -> Result<(), CompileError<'src>> {
     
     let inp = r#"
         struct Hello {
-            a: i64,
-            b: Hello,
+            a: str,
+            b: &Hello,
         } 
     "#;
     
