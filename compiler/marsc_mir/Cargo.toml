@@ -13,4 +13,6 @@ path = "src/lib.rs"
 
 [dependencies]
 marsc_hir = { path = "../marsc_hir" }
-anyhow = "1.0.95"
+marsc_ast = { path = "../marsc_ast" }
+marsc_error = { path = "../marsc_error" }
+pest = "2.7.14"

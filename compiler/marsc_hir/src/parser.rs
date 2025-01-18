@@ -1,12 +1,12 @@
-use crate::ast::*;
-use anyhow::{anyhow, Result};
+use crate::{simplifier::simplify, Hir};
+use ast::*;
+use err::CompileError;
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 
-static mut GLOBAL_COUNTER: u32 = 1000;
+static mut GLOBAL_COUNTER: usize = 1_000;
 
-// Глобальная функция
-pub fn gen_id() -> u32 {
+pub fn gen_id() -> usize {
     unsafe {
         GLOBAL_COUNTER += 1;
         GLOBAL_COUNTER
@@ -17,30 +17,39 @@ pub fn gen_id() -> u32 {
 #[grammar = "mars_grammar.pest"]
 struct MarsLangParser;
 
-pub fn build_ast(source_code: &str) -> Result<AST> {
-    let prog = MarsLangParser::parse(Rule::program, source_code)?;
-
-    let mut ast = AST::default();
+pub fn compile_hir<'src>(
+    source_code: &'src str,
+) -> Result<Hir<'src>, CompileError<'src>> {
+    let mut hir = Hir {
+        ast: Ast::default(),
+        code: source_code,
+    };
+    let prog = MarsLangParser::parse(Rule::program, hir.code).unwrap_or_else(|e| {
+        println!("{e}");
+        std::process::exit(1)
+    });
 
     for pair in prog {
-        ast.program.push(match pair.as_rule() {
+        hir.ast.program.push(match pair.as_rule() {
             Rule::struct_decl => ProgStmt::StructDecl(parse_struct_decl(pair)?),
             Rule::func_decl => ProgStmt::FuncDecl(parse_func_decl(pair)?),
             Rule::EOI => {
                 break;
             }
             _ => {
-                return Err(
-                    anyhow!("Failed to parse element '{:?}'", pair.as_rule()), // todo span
-                );
+                return Err(CompileError::new(pair.as_span(), "Unexpected rule".to_owned()));
             }
         })
     }
 
-    Ok(ast)
+    hir.ast = simplify(hir.ast)?;
+
+    Ok(hir)
 }
 
-fn parse_struct_decl(pair: Pair<Rule>) -> Result<StructDecl> {
+fn parse_struct_decl<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<StructDecl<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut decl_iter = pair.into_inner();
 
@@ -52,21 +61,26 @@ fn parse_struct_decl(pair: Pair<Rule>) -> Result<StructDecl> {
     })
 }
 
-fn parse_args_decl(pairs: Pair<Rule>) -> Result<Vec<ArgDecl>> {
+fn parse_args_decl<'src>(
+    pairs: Pair<'src, Rule>,
+) -> Result<Vec<ArgDecl<'src>>, CompileError<'src>> {
     pairs
         .into_inner()
-        .map(|pair| {
-            match pair.as_rule() {
-                Rule::arg_decl => parse_arg_decl(pair),
-                _ => {
-                    return Err(anyhow!("Failed to parse arg decl"));
-                } // todo span
+        .map(|pair| match pair.as_rule() {
+            Rule::arg_decl => parse_arg_decl(pair),
+            _ => {
+                return Err(CompileError::new(
+                    pair.as_span(),
+                    "Failed to parse arg decl".to_owned(),
+                ));
             }
         })
-        .collect::<Result<Vec<_>>>()
+        .collect::<Result<Vec<_>, CompileError<'src>>>()
 }
 
-fn parse_arg_decl(pair: Pair<Rule>) -> Result<ArgDecl> {
+fn parse_arg_decl<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<ArgDecl<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
 
@@ -78,7 +92,9 @@ fn parse_arg_decl(pair: Pair<Rule>) -> Result<ArgDecl> {
     })
 }
 
-fn parse_func_decl(pair: Pair<Rule>) -> Result<FuncDecl> {
+fn parse_func_decl<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<FuncDecl<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut decl_iter = pair.into_inner();
 
@@ -92,16 +108,21 @@ fn parse_func_decl(pair: Pair<Rule>) -> Result<FuncDecl> {
     })
 }
 
-fn parse_name(pair: Pair<Rule>) -> Result<&str> {
+fn parse_name<'src>(pair: Pair<Rule>) -> Result<&str, CompileError<'src>> {
     Ok(pair.as_span().as_str())
 }
 
-fn parse_ident(pair: Pair<Rule>) -> Result<Identifier> {
+fn parse_ident<'src>(pair: Pair<Rule>) -> Result<Identifier, CompileError<'src>> {
     let span = pair.as_span();
-    Ok(Identifier { node_id: gen_id(), ident: pair.as_span().as_str(), span, })
+    Ok(Identifier {
+        node_id: gen_id(),
+        ident: pair.as_span().as_str(),
+        span,
+    })
 }
 
-fn parse_type(pair: Pair<Rule>) -> Result<Type> {
+fn parse_type<'src>(pair: Pair<'src, Rule>) -> Result<Type<'src>, CompileError<'src>> {
+    let span = pair.as_span();
     Ok(match pair.as_rule() {
         Rule::str_type => Type::Str,
         Rule::i64_type => Type::I64,
@@ -114,32 +135,42 @@ fn parse_type(pair: Pair<Rule>) -> Result<Type> {
             let mut p_iter = pair.into_inner();
             Type::Array(
                 Box::new(parse_type(p_iter.next().unwrap())?),
-                p_iter.next().unwrap().as_str().parse::<usize>()?,
+                p_iter
+                    .next()
+                    .unwrap()
+                    .as_str()
+                    .parse::<usize>()
+                    .map_err(|_| CompileError::new(span, "Can not parse length of array".to_owned()))?,
             )
         }
         Rule::ref_type => Type::Ref(Box::new(parse_type(pair.into_inner().next().unwrap())?)),
         Rule::vec_type => Type::Vec(Box::new(parse_type(pair.into_inner().next().unwrap())?)),
-        _ => return Err(anyhow!("Failed to parse type '{:?}'", pair.as_rule())), // todo span
+        _ => return Err(CompileError::new(span, format!("Failed to parse inner type: {:?}", pair.as_rule()))),
     })
 }
 
-fn parse_block(pair: Pair<Rule>) -> Result<Block> {
+fn parse_block<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Block<'src>, CompileError<'src>> {
     let span = pair.as_span();
     Ok(Block {
         node_id: gen_id(),
         stmts: pair
             .into_inner()
             .map(|p| parse_stmt(p))
-            .collect::<Result<Vec<_>>>()?,
+            .collect::<Result<Vec<_>, CompileError<'src>>>()?,
         span,
     })
 }
 
-fn parse_stmt(pair: Pair<Rule>) -> Result<Stmt> {
+fn parse_stmt<'src>(pair: Pair<'src, Rule>) -> Result<Stmt<'src>, CompileError<'src>> {
     let span = pair.as_span();
     match pair.as_rule() {
         Rule::block => parse_block(pair).map(Stmt::Block),
-        Rule::r#break => Ok(Stmt::Break { node_id: gen_id(), span, }),
+        Rule::r#break => Ok(Stmt::Break {
+            node_id: gen_id(),
+            span,
+        }),
         Rule::struct_decl => parse_struct_decl(pair).map(Stmt::StructDecl),
         Rule::func_decl => parse_func_decl(pair).map(Stmt::FuncDecl),
         Rule::r#return => parse_return(pair),
@@ -148,14 +179,13 @@ fn parse_stmt(pair: Pair<Rule>) -> Result<Stmt> {
         Rule::func_call => parse_func_call(pair).map(Stmt::FuncCall),
         Rule::if_else => parse_if_else(pair),
         Rule::while_loop => parse_while_loop(pair),
-        _ => Err(anyhow::anyhow!(
-            "Failed to parse block stmt '{:?}'", // todo scope
-            pair.as_rule()
-        )),
+        _ => Err(CompileError::new(span, "Faild to parse stmt block".to_owned())),
     }
 }
 
-fn parse_return(pair: Pair<Rule>) -> Result<Stmt> {
+fn parse_return<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Stmt<'src>, CompileError<'src>> {
     let span = pair.as_span();
     Ok(Stmt::Return {
         node_id: gen_id(),
@@ -164,7 +194,9 @@ fn parse_return(pair: Pair<Rule>) -> Result<Stmt> {
     })
 }
 
-fn parse_return_body(pair: Pair<Rule>) -> Result<Option<Expr>> {
+fn parse_return_body<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Option<Expr<'src>>, CompileError<'src>> {
     if pair.as_str().is_empty() {
         return Ok(None);
     }
@@ -172,7 +204,9 @@ fn parse_return_body(pair: Pair<Rule>) -> Result<Option<Expr>> {
     Ok(Some(parse_expr(pair.into_inner().next().unwrap())?))
 }
 
-fn parse_assignment(pair: Pair<Rule>) -> Result<Stmt> {
+fn parse_assignment<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Stmt<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     let ident = parse_name(inner_iter.next().unwrap())?;
@@ -193,6 +227,7 @@ fn parse_assignment(pair: Pair<Rule>) -> Result<Stmt> {
         _ => (None, parse_expr(sth)?),
     };
 
+    let ty = if ty.is_none() { Type::Unresolved } else { ty.unwrap() };
     Ok(Stmt::Assignment {
         node_id: gen_id(),
         ident,
@@ -202,7 +237,9 @@ fn parse_assignment(pair: Pair<Rule>) -> Result<Stmt> {
     })
 }
 
-fn parse_assign(pair: Pair<Rule>) -> Result<Stmt> {
+fn parse_assign<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Stmt<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     let lhs = parse_expr(inner_iter.next().unwrap())?;
@@ -300,11 +337,14 @@ fn parse_assign(pair: Pair<Rule>) -> Result<Stmt> {
             }),
             span,
         },
-        _ => panic!("Failed to parse assignment rule"), // todo scope
+
+        _ => return Err(CompileError::new(span, "Failed to parse assignment rule".to_owned())),
     })
 }
 
-fn parse_func_call(pair: Pair<Rule>) -> Result<FuncCall> {
+fn parse_func_call<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<FuncCall<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
 
@@ -316,15 +356,18 @@ fn parse_func_call(pair: Pair<Rule>) -> Result<FuncCall> {
     })
 }
 
-fn parse_func_args_to_call(pair: Pair<Rule>) -> Result<Vec<Expr>> {
+fn parse_func_args_to_call<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Vec<Expr<'src>>, CompileError<'src>> {
     Ok(pair
         .into_inner()
         .map(|p| parse_expr(p))
-        .collect::<Result<Vec<_>>>()?)
+        .collect::<Result<Vec<_>, CompileError<'src>>>()?)
 }
 
-fn parse_expr(pair: Pair<Rule>) -> Result<Expr> {
+fn parse_expr<'src>(pair: Pair<'src, Rule>) -> Result<Expr<'src>, CompileError<'src>> {
     // dbg!(&pair);
+    let span = pair.as_span();
     match pair.as_rule() {
         Rule::cast_type => parse_cast_type(pair),
         Rule::reference => Ok(parse_reference(pair)?),
@@ -337,11 +380,11 @@ fn parse_expr(pair: Pair<Rule>) -> Result<Expr> {
         Rule::logical_expr => parse_logical_expr(pair).map(Expr::LogicalExpr),
         Rule::math_expr => parse_math_expr(pair).map(Expr::MathExpr),
         Rule::identifier => parse_ident(pair).map(Expr::Identifier),
-        _ => Err(anyhow!("Failed to parse expr rule: {:?}", pair.as_rule())),
+        _ => return Err(CompileError::new(span, "Failed to parse expr".to_owned())),
     }
 }
 
-fn parse_struct_field_call(pair: Pair<Rule>) -> Result<Expr> {
+fn parse_struct_field_call<'src>(pair: Pair<Rule>) -> Result<Expr, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
 
@@ -353,13 +396,15 @@ fn parse_struct_field_call(pair: Pair<Rule>) -> Result<Expr> {
     })
 }
 
-fn parse_mem_look(pair: Pair<Rule>) -> Result<Expr> {
+fn parse_mem_look<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Expr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     let ident = parse_ident(inner_iter.next().unwrap())?;
     let indices = inner_iter
         .map(|p| parse_expr(p))
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>, CompileError<'src>>>()?;
     Ok(Expr::MemLookup {
         node_id: gen_id(),
         ident,
@@ -368,41 +413,43 @@ fn parse_mem_look(pair: Pair<Rule>) -> Result<Expr> {
     })
 }
 
-fn parse_arr_decl(pair: Pair<Rule>) -> Result<Expr> {
+fn parse_arr_decl<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Expr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     Ok(Expr::ArrayDecl {
         node_id: gen_id(),
         list: pair
             .into_inner()
             .map(|p| parse_expr(p))
-            .collect::<Result<Vec<_>>>()?,
+            .collect::<Result<Vec<_>, CompileError<'src>>>()?,
         span,
     })
 }
 
-fn parse_deref(pair: Pair<Rule>) -> Result<Expr> {
+fn parse_deref<'src>(pair: Pair<'src, Rule>) -> Result<Expr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     Ok(Expr::Dereference {
         node_id: gen_id(),
-        inner: Box::new(parse_expr(
-        pair.into_inner().next().unwrap(),
-        )?),
+        inner: Box::new(parse_expr(pair.into_inner().next().unwrap())?),
         span,
     })
 }
 
-fn parse_reference(pair: Pair<Rule>) -> Result<Expr> {
+fn parse_reference<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Expr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     Ok(Expr::Reference {
         node_id: gen_id(),
-        inner: Box::new(parse_expr(
-        pair.into_inner().next().unwrap(),
-        )?),
+        inner: Box::new(parse_expr(pair.into_inner().next().unwrap())?),
         span,
     })
 }
 
-fn parse_cast_type(pair: Pair<Rule>) -> Result<Expr> {
+fn parse_cast_type<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Expr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     Ok(Expr::CastType {
@@ -413,11 +460,15 @@ fn parse_cast_type(pair: Pair<Rule>) -> Result<Expr> {
     })
 }
 
-fn parse_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+fn parse_logical_expr<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<LogicalExpr<'src>, CompileError<'src>> {
     parse_logical_or_expr(pair.into_inner().next().unwrap())
 }
 
-fn parse_logical_or_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+fn parse_logical_or_expr<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<LogicalExpr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     if inner_iter.len() == 1 {
@@ -429,7 +480,12 @@ fn parse_logical_or_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
         match p.as_rule() {
             Rule::or_op => continue,
             Rule::logical_and_expr => exprs.push(parse_logical_and_expr(p)?),
-            _ => panic!("Failed to parse logical_or expr"),
+            _ => {
+                return Err(CompileError::new(
+                    p.as_span(),
+                    "failed to parse logical_or expr".to_owned(),
+                ))
+            }
         }
     }
 
@@ -458,7 +514,9 @@ fn parse_logical_or_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
     Ok(res)
 }
 
-fn parse_logical_and_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+fn parse_logical_and_expr<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<LogicalExpr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     if inner_iter.len() == 1 {
@@ -470,7 +528,12 @@ fn parse_logical_and_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
         match p.as_rule() {
             Rule::and_op => continue,
             Rule::logical_not_expr => exprs.push(parse_logical_not_expr(p)?),
-            _ => panic!("Failed to parse logical_or expr"),
+            _ => {
+                return Err(CompileError::new(
+                    p.as_span(),
+                    "Failed to parse logical_amd expr".to_owned(),
+                ))
+            }
         }
     }
 
@@ -499,7 +562,9 @@ fn parse_logical_and_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
     Ok(res)
 }
 
-fn parse_logical_not_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+fn parse_logical_not_expr<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<LogicalExpr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     if inner_iter.len() == 1 {
@@ -509,24 +574,31 @@ fn parse_logical_not_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
 
     Ok(LogicalExpr::Not {
         node_id: gen_id(),
-        inner: Box::new(parse_primary_logical_expr(
-        inner_iter.next().unwrap(),
-        )?),
+        inner: Box::new(parse_primary_logical_expr(inner_iter.next().unwrap())?),
         span,
     })
 }
 
-fn parse_primary_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+fn parse_primary_logical_expr<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<LogicalExpr<'src>, CompileError<'src>> {
     let inner = pair.into_inner().next().unwrap();
     Ok(LogicalExpr::Primary(match inner.as_rule() {
         Rule::comparison_expr => Box::new(Expr::LogicalExpr(parse_cmp_logical_expr(inner)?)),
         Rule::math_expr => Box::new(Expr::MathExpr(parse_math_expr(inner)?)),
         Rule::logical_expr => Box::new(Expr::LogicalExpr(parse_logical_expr(inner)?)),
-        _ => panic!("Failed to parse primary_logical_expr"),
+        _ => {
+            return Err(CompileError::new(
+                inner.as_span(),
+                "Failed to parse logical_primary expr".to_owned(),
+            ))
+        }
     }))
 }
 
-fn parse_cmp_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
+fn parse_cmp_logical_expr<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<LogicalExpr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let inner_iter = pair.into_inner();
 
@@ -542,7 +614,12 @@ fn parse_cmp_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
             Rule::more_op => operation.push(CmpOp::More),
             Rule::less_op => operation.push(CmpOp::Less),
             Rule::math_expr => nums.push(parse_math_expr(p)?),
-            _ => panic!("Failed to parse additive expr"),
+            _ => {
+                return Err(CompileError::new(
+                    p.as_span(),
+                    "Failed to parse logical_cmp expr".to_owned(),
+                ))
+            }
         }
     }
 
@@ -559,11 +636,15 @@ fn parse_cmp_logical_expr(pair: Pair<Rule>) -> Result<LogicalExpr> {
     })
 }
 
-fn parse_math_expr(pair: Pair<Rule>) -> Result<MathExpr> {
+fn parse_math_expr<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<MathExpr<'src>, CompileError<'src>> {
     parse_additive_expr(pair.into_inner().next().unwrap())
 }
 
-fn parse_additive_expr(pair: Pair<Rule>) -> Result<MathExpr> {
+fn parse_additive_expr<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<MathExpr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     if inner_iter.len() == 1 {
@@ -577,7 +658,12 @@ fn parse_additive_expr(pair: Pair<Rule>) -> Result<MathExpr> {
             Rule::add_op => operations.push(AddOp::Add),
             Rule::sub_op => operations.push(AddOp::Sub),
             Rule::multiplicative_expr => numbers.push(parse_multiplicative_expr(p)?),
-            _ => panic!("Failed to parse additive expr"),
+            _ => {
+                return Err(CompileError::new(
+                    p.as_span(),
+                    "Failed to parse additive expr".to_owned(),
+                ))
+            }
         }
     }
 
@@ -611,7 +697,9 @@ fn parse_additive_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     Ok(res)
 }
 
-fn parse_multiplicative_expr(pair: Pair<Rule>) -> Result<MathExpr> {
+fn parse_multiplicative_expr<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<MathExpr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     if inner_iter.len() == 1 {
@@ -628,7 +716,12 @@ fn parse_multiplicative_expr(pair: Pair<Rule>) -> Result<MathExpr> {
             Rule::div_floor_op => operations.push(MulOp::DivFloor),
             Rule::mod_op => operations.push(MulOp::Mod),
             Rule::power_expr => numbers.push(parse_power_expr(p)?),
-            _ => panic!("Failed to parse multiplicative expr"),
+            _ => {
+                return Err(CompileError::new(
+                    p.as_span(),
+                    "Failed to parse multiplicative expr".to_owned(),
+                ))
+            }
         }
     }
 
@@ -662,7 +755,9 @@ fn parse_multiplicative_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     Ok(res)
 }
 
-fn parse_power_expr(pair: Pair<Rule>) -> Result<MathExpr> {
+fn parse_power_expr<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<MathExpr<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     if inner_iter.len() == 1 {
@@ -675,7 +770,7 @@ fn parse_power_expr(pair: Pair<Rule>) -> Result<MathExpr> {
         match p.as_rule() {
             Rule::pow_op => continue,
             Rule::primary_math_expr => numbers.push(parse_primary_expr(p)?),
-            _ => panic!("Failed to parse power expr"),
+            _ => return Err(CompileError::new(p.as_span(), "Failed to parse power expr".to_owned())),
         }
     }
 
@@ -704,26 +799,31 @@ fn parse_power_expr(pair: Pair<Rule>) -> Result<MathExpr> {
     Ok(res)
 }
 
-fn parse_primary_expr(pair: Pair<Rule>) -> Result<MathExpr> {
+fn parse_primary_expr<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<MathExpr<'src>, CompileError<'src>> {
     let inner = pair.into_inner().next().unwrap();
     Ok(match inner.as_rule() {
         Rule::literal => MathExpr::Primary(Box::new(Expr::Literal(parse_literal(inner)?))),
         Rule::identifier => MathExpr::Primary(Box::new(Expr::Identifier(parse_ident(inner)?))),
-        Rule::struct_field_call => MathExpr::Primary(Box::new(
-            parse_struct_field_call(inner)?,
-        )),
+        Rule::struct_field_call => MathExpr::Primary(Box::new(parse_struct_field_call(inner)?)),
         Rule::dereference => MathExpr::Primary(Box::new(parse_deref(inner)?)),
         Rule::math_expr => parse_math_expr(inner)?,
         Rule::cast_type => MathExpr::Primary(Box::new(parse_cast_type(inner)?)),
-        Rule::func_call => MathExpr::Primary(Box::new(Expr::FuncCall(
-            parse_func_call(inner)?
-        ))),
+        Rule::func_call => MathExpr::Primary(Box::new(Expr::FuncCall(parse_func_call(inner)?))),
         Rule::mem_lookup => MathExpr::Primary(Box::new(parse_mem_look(inner)?)),
-        _ => panic!("Failed to parse primary expr"),
+        _ => {
+            return Err(CompileError::new(
+                inner.as_span(),
+                "Failed to parse primary expr".to_owned(),
+            ))
+        }
     })
 }
 
-fn parse_while_loop(pair: Pair<Rule>) -> Result<Stmt> {
+fn parse_while_loop<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Stmt<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner = pair.into_inner();
     Ok(Stmt::WhileLoop {
@@ -734,7 +834,9 @@ fn parse_while_loop(pair: Pair<Rule>) -> Result<Stmt> {
     })
 }
 
-fn parse_if_else(pair: Pair<Rule>) -> Result<Stmt> {
+fn parse_if_else<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Stmt<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner = pair.into_inner();
     let cond = Box::new(parse_expr(inner.next().unwrap())?);
@@ -753,25 +855,36 @@ fn parse_if_else(pair: Pair<Rule>) -> Result<Stmt> {
     })
 }
 
-fn parse_literal(pair: Pair<Rule>) -> Result<Literal> {
+fn parse_literal<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<Literal<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let inner = pair.into_inner().next().unwrap();
     Ok(match inner.as_rule() {
         Rule::int_decl => Literal::Int {
             node_id: gen_id(),
-            lit: inner.as_str().parse::<i64>()?,
+            lit: inner
+                .as_str()
+                .parse::<i64>()
+                .map_err(|_| CompileError::new(inner.as_span(), "faild to parse i64 literal".to_owned()))?,
             span,
         },
 
         Rule::flt_decl => Literal::Float {
             node_id: gen_id(),
-            lit: inner.as_str().parse::<f64>()?,
+            lit: inner
+                .as_str()
+                .parse::<f64>()
+                .map_err(|_| CompileError::new(inner.as_span(), "faild to parse f64 literal".to_owned()))?,
             span,
         },
 
         Rule::bool_decl => Literal::Bool {
             node_id: gen_id(),
-            lit: inner.as_str().parse::<bool>()?,
+            lit: inner
+                .as_str()
+                .parse::<bool>()
+                .map_err(|_| CompileError::new(inner.as_span(), "faild to parse bool literal".to_owned()))?,
             span,
         },
 
@@ -783,15 +896,21 @@ fn parse_literal(pair: Pair<Rule>) -> Result<Literal> {
 
         Rule::char_decl => Literal::Char {
             node_id: gen_id(),
-            lit: inner.as_str().replace("'", "").parse::<char>()?,
+            lit: inner
+                .as_str()
+                .replace("'", "")
+                .parse::<char>()
+                .map_err(|_| CompileError::new(inner.as_span(), "faild to parse char literal".to_owned()))?,
             span,
         },
+        
+        Rule::null_decl => Literal::NullRef { node_id: gen_id(), span, },
 
-        _ => return Err(anyhow!("Failed to parse literal")), // todo impossible exception
+        _ => return Err(CompileError::new(inner.as_span(), format!("Unknown literal rule: {:?}", inner.as_rule()))),
     })
 }
 
-fn parse_struct_init(pair: Pair<Rule>) -> Result<Expr> {
+fn parse_struct_init<'src>(pair: Pair<Rule>) -> Result<Expr, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
 
@@ -803,56 +922,68 @@ fn parse_struct_init(pair: Pair<Rule>) -> Result<Expr> {
     })
 }
 
-fn parse_struct_init_args(pair: Pair<Rule>) -> Result<Vec<StructFieldDecl>> {
+fn parse_struct_init_args<'src>(
+    pair: Pair<Rule>,
+) -> Result<Vec<StructFieldDecl>, CompileError<'src>> {
     Ok(pair
         .into_inner()
         .map(|p| parse_struct_init_arg(p).unwrap())
         .collect())
 }
 
-fn parse_struct_init_arg(pair: Pair<Rule>) -> Result<StructFieldDecl> {
+fn parse_struct_init_arg<'src>(
+    pair: Pair<'src, Rule>,
+) -> Result<StructFieldDecl<'src>, CompileError<'src>> {
     let span = pair.as_span();
     let mut inner_iter = pair.into_inner();
     let ident = parse_ident(inner_iter.next().unwrap())?;
     let expr = parse_expr(inner_iter.next().unwrap())?;
-    Ok(StructFieldDecl { node_id: gen_id(), ident, expr, span })
+    Ok(StructFieldDecl {
+        node_id: gen_id(),
+        ident,
+        expr,
+        span,
+    })
 }
 
 #[test]
-fn liter_test() -> Result<()> {
+fn liter_test<'src>() -> Result<(), CompileError<'src>> {
     let inp = "fn main() -> void {
 
         var a = 22;
 
     }";
-    let out = build_ast(inp)?;
-    println!("{out:#?}");
+    let out = compile_hir(inp)?;
+    println!("{:#?}", out.ast);
 
     Ok(())
 }
 
 #[test]
-fn test() -> Result<()> {
+fn test<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"struct Hello {
         a: helo,
-        b: str
     }
 
-    struct Ola {
-        a: helo,
-        b: str
+    fn main() -> void {
+        var a = 10;
+        print(a);
+
+        return;
     }
     "#;
 
-    let out = build_ast(inp)?;
-    println!("{out:#?}");
-
-    Ok(())
+    match compile_hir(inp) {
+        Ok(out) => {
+            println!("{:#?}", out.ast);
+            Ok(())
+        }
+        Err(err) => Err(err),
+    }
 }
 
-
 #[test]
-fn scopes_test() -> Result<()> {
+fn scopes_test<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"struct Foo {}
 
     fn main() -> i64 {
@@ -878,8 +1009,39 @@ fn scopes_test() -> Result<()> {
     }
     "#;
 
-    let out = build_ast(inp)?;
-    println!("{out:#?}");
+    let out = compile_hir(inp)?;
+    println!("{:#?}", out.ast);
+
+    Ok(())
+}
+
+#[test]
+fn third_test<'src>() -> Result<(), CompileError<'src>> {
+    #[allow(unused)]
+    struct MirTest<'src> {
+        ast: Ast<'src>,
+        code: &'src str,
+        example: i32,
+    }
+
+    fn translate<'src>(hir: Hir<'src>) -> Result<MirTest<'src>, CompileError<'src>> {
+        Ok(MirTest {
+            ast: hir.ast,
+            code: hir.code,
+            example: 11,
+        })
+    }
+
+    let inp = r#"fn hello() -> void {
+      var a = null;
+      return;
+    }
+    "#;
+
+    let hir = compile_hir(inp)?;
+    let mir = translate(hir)?;
+
+    println!("{:#?}", mir.ast.program);
 
     Ok(())
 }

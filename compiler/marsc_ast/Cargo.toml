@@ -1,14 +1,14 @@
 [package]
-name = "marsc_error"
+name = "marsc_ast"
 version = "0.1.0"
 edition = "2021"
 license = "BSDv3"
 description = """
-Mars programming language compile error
+Mars programming language compiler ast
 """
 
 [lib]
-name = "err"
+name = "ast"
 path = "src/lib.rs"
 
 [dependencies]
