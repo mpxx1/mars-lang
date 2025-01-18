@@ -37,7 +37,7 @@ pub struct ArgDecl<'src> {
     pub span: Span<'src>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type<'src> {
     I64,
     F64,
@@ -51,10 +51,6 @@ pub enum Type<'src> {
     Ref(Box<Type<'src>>),
     
     // checker only
-    Fn {
-        args: Vec<ArgDecl<'src>>,
-        return_type: Box<Type<'src>>,
-    },
     Any,
     Unresolved,
     InnerBlock,
@@ -89,7 +85,7 @@ pub enum Stmt<'src> {
     Assignment {
         node_id: usize,
         ident: &'src str,
-        ty: Option<Type<'src>>,
+        ty: Type<'src>,
         expr: Expr<'src>,
         span: Span<'src>,
     },
@@ -320,4 +316,10 @@ pub enum MulOp {
     Div,
     Mod,
     DivFloor,
+}
+
+impl<'src> PartialEq for Identifier<'src> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ident == other.ident
+    }
 }

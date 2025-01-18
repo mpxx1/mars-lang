@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use ast::{ArgDecl, Stmt, StructDecl, Type};
 use pest::Span;
-use ast::{FuncDecl, Stmt, StructDecl, Type, ArgDecl};
 
 pub mod stages;
 
@@ -18,10 +18,11 @@ pub struct Mir<'src, 'sf> {
 pub struct Scope<'src> {
     pub parent_id: usize,
     pub node_id: usize,
-    pub structs: HashMap<&'src str, StructDecl<'src>>,
+    pub structs: HashMap<&'src str, StructProto<'src>>,
     pub funs: HashMap<&'src str, FuncProto<'src>>,
     pub vars: HashMap<&'src str, Variable<'src>>,
     pub instrs: Vec<Stmt<'src>>,
+    pub scope_type: ScopeType,
 }
 
 #[derive(Debug, Clone)]
@@ -30,7 +31,17 @@ pub struct FuncProto<'src> {
     pub ident: &'src str,
     pub args: Vec<ArgDecl<'src>>,
     pub return_type: Type<'src>,
+    pub is_used: bool,
     pub span: Span<'src>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructProto<'src> {
+    pub node_id: usize,
+    pub ident: &'src str,
+    pub fields: Vec<ArgDecl<'src>>,
+    pub span: Span<'src>,
+    pub is_used: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -39,4 +50,24 @@ pub struct Variable<'src> {
     pub ident: &'src str,
     pub ty: Type<'src>,
     pub is_used: bool,
+    pub decl_span: Span<'src>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScopeType {
+    Function,
+    Block,
+    Global,
+}
+
+impl<'src> StructProto<'src> {
+    pub fn from(s: StructDecl<'src>) -> Self {
+        Self {
+            node_id: s.node_id,
+            ident: s.ident,
+            fields: s.fields,
+            span: s.span,
+            is_used: false,
+        }
+    }
 }

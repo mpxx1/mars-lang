@@ -227,6 +227,7 @@ fn parse_assignment<'src>(
         _ => (None, parse_expr(sth)?),
     };
 
+    let ty = if ty.is_none() { Type::Unresolved } else { ty.unwrap() };
     Ok(Stmt::Assignment {
         node_id: gen_id(),
         ident,
