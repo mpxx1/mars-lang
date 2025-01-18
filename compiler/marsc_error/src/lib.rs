@@ -1,14 +1,80 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use pest::Span;
+use std::fmt::{Debug, Display};
+
+pub struct CompileError<'src> {
+    span: Span<'src>,
+    msg: String,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl<'src> CompileError<'src> {
+    pub fn new(span: Span<'src>, msg: String) -> Self {
+        Self { span, msg }
+    }
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    fn line_index(&self) -> usize {
+        let input = self.span.get_input();
+        let start = self.span.start();
+        input[..start].chars().filter(|&c| c == '\n').count() + 1
+    }
+
+    fn column_index(&self) -> usize {
+        let input = self.span.get_input();
+        let start = self.span.start();
+
+        let line_start = input[..start].rfind('\n').map_or(0, |i| i + 1);
+        start - line_start + 1
+    }
+
+    fn first_line_content(&self) -> &str {
+        let input = self.span.get_input();
+        let start = self.span.start();
+
+        let line_start = input[..start].rfind('\n').map_or(0, |i| i + 1);
+        let line_end = input[start..].find('\n').map_or(input.len(), |i| start + i);
+
+        &input[line_start..line_end]
+    }
+
+    fn pointer_offset(&self) -> usize {
+        let input = self.span.get_input();
+        let start = self.span.start();
+        let line_start = input[..start].rfind('\n').map_or(0, |i| i + 1);
+
+        start - line_start
+    }
+}
+
+impl<'src> Display for CompileError<'src> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let line_idx = self.line_index();
+        let col_idx = self.column_index();
+        let line_content = self.first_line_content();
+        let line_number_width = line_idx.to_string().len();
+        let pointer_offset = self.pointer_offset();
+
+        writeln!(f, "--> {}:{}", line_idx, col_idx)?;
+        writeln!(f, "{:>width$} |", "", width = line_number_width)?;
+        writeln!(f, "{} | {}", line_idx, line_content)?;
+        writeln!(
+            f,
+            "{:>width$} | {:>offset$}^^^^^^^^^^",
+            "",
+            "",
+            width = line_number_width,
+            offset = pointer_offset
+        )?;
+        writeln!(
+            f,
+            "{:>width$} = {}",
+            "",
+            self.msg,
+            width = line_number_width
+        )
+    }
+}
+
+impl<'src> Debug for CompileError<'src> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
     }
 }

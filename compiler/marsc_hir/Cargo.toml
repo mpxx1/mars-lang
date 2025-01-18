@@ -8,10 +8,13 @@ Mars programming language compiler hir module: contains parser and ast builder
 """
 
 [lib]
+name = "hir"
 path = "src/lib.rs"
 
 [dependencies]
 pest = "2.7.14"
 pest_derive = "2.7.14"
+marsc_ast = { path = "../marsc_ast" }
+marsc_error = { path = "../marsc_error" }
 anyhow = "1.0.95"
 rand = "0.8.5"

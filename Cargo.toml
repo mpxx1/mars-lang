@@ -14,9 +14,9 @@ path = "src/main.rs"
 [dependencies]
 
 [workspace]
-resolver = "2"
 members = [
     "compiler/marsc",
+    "compiler/marsc_ast",
     "compiler/marsc_codegen",
     "compiler/marsc_context",
     "compiler/marsc_core",
