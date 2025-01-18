@@ -28,8 +28,6 @@ impl<'tcx> TypeContext<'tcx> {
     pub fn create_global_context<T>(
         global_context_cell: &'tcx OnceLock<GlobalContext<'tcx>>,
         session: &'tcx Session,
-        // DepGraph, QuerySystem TODO
-        current_global_context: CurrentGlobalContext,
         f: impl FnOnce(TypeContext<'tcx>) -> T,
     ) -> T {
         let common_types = CommonTypes::new();

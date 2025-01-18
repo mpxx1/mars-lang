@@ -27,7 +27,6 @@ pub fn create_and_enter_global_context<T, F: for<'tcx> FnOnce(TypeContext<'tcx>)
       TypeContext::create_global_context(
          global_context_cell,
          session,
-         current_global_context,
          |type_context| {
             let res = f(type_context);
             // type_context.finish - save depth graph

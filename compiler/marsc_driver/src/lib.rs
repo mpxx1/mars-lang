@@ -15,6 +15,7 @@ use marsc_query_system::context::TypeContextProviders;
 use marsc_resolve::ResolveNamesProvider;
 use std::process;
 use anyhow::Result;
+use marsc_codegen::codegen::codegen;
 
 pub struct RunCompiler<'a> {
     args: &'a Args,
@@ -45,6 +46,8 @@ fn run_compiler(args: &Args) -> Result<()> {
             let mir = type_context.providers().resolve_names(ast.unwrap());
             
             println!("{:#?}", mir);
+            
+            println!("{}", codegen(&mir));
             
             Some(Linker {})
         });

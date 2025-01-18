@@ -3,6 +3,7 @@ use marsc_hir::ast;
 use marsc_mir::mir;
 use std::collections::HashMap;
 use pest::Span;
+use marsc_proc_macro::provider_method;
 
 pub enum ScopeKind {
     Normal,

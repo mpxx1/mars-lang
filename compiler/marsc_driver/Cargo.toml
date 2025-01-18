@@ -16,4 +16,5 @@ marsc_interface = { path = "../marsc_interface" }
 marsc_proc_macro = { path = "../marsc_proc_macro"}
 marsc_query_system = { path = "../marsc_query_system"}
 marsc_resolve = { path = "../marsc_resolve" }
+marsc_codegen = { path = "../marsc_codegen" }
 anyhow = "1.0.95"
