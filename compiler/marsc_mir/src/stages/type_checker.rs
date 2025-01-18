@@ -1,4 +1,4 @@
-use crate::{FuncProto, Mir, Scope, ScopeType, Variable};
+use crate::{FuncProto, Mir, Scope, ScopeType, StructProto, Variable};
 use ast::{Block, Expr, FuncDecl, Stmt, StructDecl, Type};
 use err::CompileError;
 use std::collections::{HashMap, HashSet};
@@ -95,7 +95,7 @@ fn scope_push_struct<'src, 'sf>(
     }
 
     // 4 add struct to scope
-    scope_ref.structs.insert(struct_obj.ident, struct_obj);
+    scope_ref.structs.insert(struct_obj.ident, StructProto::from(struct_obj));
 
     Ok(())
 }
@@ -437,7 +437,7 @@ fn test_index_struct<'src>() -> Result<(), CompileError<'src>> {
         struct Hello {
             a: str,
             b: &Hello,
-        } 
+        }
     "#;
 
     let hir = hir::parser::compile_hir(&inp)?;
