@@ -1,5 +1,5 @@
 use crate::{FuncProto, Mir, Scope, ScopeType, StructProto, Variable};
-use ast::{Block, Expr, FuncDecl, Stmt, StructDecl, Type};
+use ast::{Block, Expr, FuncDecl, Stmt, StructDecl, Type, Literal};
 use err::CompileError;
 use std::collections::{HashMap, HashSet};
 
@@ -335,7 +335,7 @@ fn resolv_expr_type<'src, 'sf>(
     expr: &Expr<'src>,
 ) -> Result<Type<'src>, CompileError<'src>> {
     let out_type = match expr {
-        &Expr::Identifier(ref x) => {
+        Expr::Identifier(x) => {
             let opt_type = resolv_ident_type(scope_id, mir, x.ident);
             if opt_type.is_none() {
                 return Err(CompileError::new(
@@ -345,6 +345,24 @@ fn resolv_expr_type<'src, 'sf>(
             }
             opt_type.unwrap()
         }
+        
+        Expr::Literal(x) => {
+            resolv_lit_type(x)
+        }
+        
+        // &Expr::FuncCall(x) => {
+        //     // 1 check fn args
+        //     // 2 check fn return type
+        //     let opt_type = resolv_fn_ret_type(scope_id, mir, x.ident);
+        //     if opt_type.is_none() {
+        //         return Err(CompileError::new(
+        //             x.span,
+        //             format!("Can not find function '{}'", x.ident.ident),
+        //         ));
+        //     }
+        //     opt_type.unwrap()
+        // }
+
         _ => unimplemented!(),
     };
 
@@ -372,9 +390,20 @@ fn resolv_ident_type<'src, 'sf>(
     }
 }
 
+fn resolv_lit_type<'src>(lit: &Literal<'src>) -> Type<'src> {
+    match lit {
+        Literal::Int { .. } => Type::I64,
+        Literal::Float { .. } => Type::F64, 
+        Literal::Str { .. } => Type::Str,
+        Literal::Bool { .. } => Type::Bool,
+        Literal::Char { .. } => Type::Char,
+        _ => unimplemented!()
+        // Litearl::NullRef { .. } => Type::Ref(())
+    }
+}
+
 fn func_decl_split<'src>(func: FuncDecl<'src>) -> (FuncProto<'src>, Block<'src>) {
-    (
-        FuncProto {
+    (FuncProto {
             node_id: func.node_id,
             ident: func.ident,
             args: func.args,
@@ -382,14 +411,33 @@ fn func_decl_split<'src>(func: FuncDecl<'src>) -> (FuncProto<'src>, Block<'src>)
             is_used: false,
             span: func.span,
         },
-        func.body,
-    )
+        func.body,)
 }
 
 fn get_span_line_index<'src>(span: pest::Span<'src>) -> usize {
     let input = span.get_input();
     let start = span.start();
     input[..start].chars().filter(|&c| c == '\n').count() + 1
+}
+
+#[test]
+fn main_test<'src>() -> Result<(), CompileError<'src>> {
+    let inp = r#"
+    struct A {}
+    
+    fn main() -> void {
+        var a = 10;
+        /*var b: &A = null; */
+    }
+    
+    "#;
+    
+    let hir = hir::parser::compile_hir(&inp)?;
+    let mir = check_types(hir)?;
+
+    println!("{mir:#?}");
+    
+    Ok(())
 }
 
 #[test]
