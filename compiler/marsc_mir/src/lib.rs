@@ -27,6 +27,7 @@ pub struct Scope<'src> {
 
 #[derive(Debug, Clone)]
 pub struct FuncProto<'src> {
+    pub parent_id: usize,
     pub node_id: usize,
     pub ident: &'src str,
     pub args: Vec<ArgDecl<'src>>,
@@ -37,6 +38,7 @@ pub struct FuncProto<'src> {
 
 #[derive(Debug, Clone)]
 pub struct StructProto<'src> {
+    pub parent_id: usize,
     pub node_id: usize,
     pub ident: &'src str,
     pub fields: Vec<ArgDecl<'src>>,
@@ -46,6 +48,7 @@ pub struct StructProto<'src> {
 
 #[derive(Debug, Clone)]
 pub struct Variable<'src> {
+    pub parent_id: usize, 
     pub node_id: usize,
     pub ident: &'src str,
     pub ty: Type<'src>,
@@ -61,8 +64,9 @@ pub enum ScopeType {
 }
 
 impl<'src> StructProto<'src> {
-    pub fn from(s: StructDecl<'src>) -> Self {
+    pub fn from(scope_id: usize, s: StructDecl<'src>) -> Self {
         Self {
+            parent_id: scope_id,
             node_id: s.node_id,
             ident: s.ident,
             fields: s.fields,
