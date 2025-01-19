@@ -170,4 +170,4 @@ loop       = _{ while_loop }
 while_loop =  { "while" ~ condition ~ "{" ~ block ~ "}" }
 
 capacity   =  { (ASCII_DIGIT)+ }
-vec_type   =  { "Vec" ~ "<" ~ type ~ ( ";" ~ capacity )? ~ ">" }
+vec_type   =  { "Vec" ~ "<" ~ type ~ ">" }

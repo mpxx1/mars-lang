@@ -1,7 +1,7 @@
 use ast::*;
 use err::CompileError;
 
-pub fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
+pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
     fn simplify_expr(expr: Expr) -> Expr {
         match expr {
             Expr::LogicalExpr(LogicalExpr::Primary(inner_expr))
@@ -193,6 +193,11 @@ pub fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
 
     fn simplify_stmt(stmt: Stmt) -> Stmt {
         match stmt {
+            Stmt::FuncDecl(mut x) => {
+                x.body.stmts = x.body.stmts.into_iter().map(|s| simplify_stmt(s)).collect();
+                Stmt::FuncDecl(x)
+            }
+            
             Stmt::Return {
                 node_id,
                 expr: Some(inner),
@@ -351,4 +356,23 @@ pub fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
     Ok(Ast {
         program: ast.program.into_iter().map(simplify_prog_stmt).collect(),
     })
+}
+
+#[test]
+fn test1() -> () {
+    let inp = r#"
+    fn hello() -> void {
+        fn hello2() -> void {
+            var a = 10;
+        }
+        
+        /*struct A {
+            a: Str,
+            b: &A,
+        }*/
+    }
+    "#;
+    
+    let hir = crate::stages::parser::parse(inp);
+    println!("{:#?}", hir.unwrap().ast)
 }

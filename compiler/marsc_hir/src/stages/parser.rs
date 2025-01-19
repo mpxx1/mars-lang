@@ -1,4 +1,4 @@
-use crate::{simplifier::simplify, Hir};
+use crate::Hir;
 use ast::*;
 use err::CompileError;
 use pest::{iterators::Pair, Parser};
@@ -17,7 +17,7 @@ pub fn gen_id() -> usize {
 #[grammar = "mars_grammar.pest"]
 struct MarsLangParser;
 
-pub fn compile_hir<'src>(
+pub(crate) fn parse<'src>(
     source_code: &'src str,
 ) -> Result<Hir<'src>, CompileError<'src>> {
     let mut hir = Hir {
@@ -41,8 +41,6 @@ pub fn compile_hir<'src>(
             }
         })
     }
-
-    hir.ast = simplify(hir.ast)?;
 
     Ok(hir)
 }
@@ -349,6 +347,7 @@ fn parse_func_call<'src>(
     let mut inner_iter = pair.into_inner();
 
     Ok(FuncCall {
+        decl_scope_id: None,
         node_id: gen_id(),
         ident: parse_ident(inner_iter.next().unwrap())?,
         args: parse_func_args_to_call(inner_iter.next().unwrap())?,
@@ -953,7 +952,7 @@ fn liter_test<'src>() -> Result<(), CompileError<'src>> {
         var a = 22;
 
     }";
-    let out = compile_hir(inp)?;
+    let out = crate::compile_hir(inp)?;
     println!("{:#?}", out.ast);
 
     Ok(())
@@ -973,7 +972,7 @@ fn test<'src>() -> Result<(), CompileError<'src>> {
     }
     "#;
 
-    match compile_hir(inp) {
+    match crate::compile_hir(inp) {
         Ok(out) => {
             println!("{:#?}", out.ast);
             Ok(())
@@ -1009,7 +1008,7 @@ fn scopes_test<'src>() -> Result<(), CompileError<'src>> {
     }
     "#;
 
-    let out = compile_hir(inp)?;
+    let out = crate::compile_hir(inp)?;
     println!("{:#?}", out.ast);
 
     Ok(())
@@ -1038,7 +1037,7 @@ fn third_test<'src>() -> Result<(), CompileError<'src>> {
     }
     "#;
 
-    let hir = compile_hir(inp)?;
+    let hir = crate::compile_hir(inp)?;
     let mir = translate(hir)?;
 
     println!("{:#?}", mir.ast.program);
