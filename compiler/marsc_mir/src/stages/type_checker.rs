@@ -1,12 +1,13 @@
 use crate::{FuncProto, Mir, Scope, ScopeType, StructProto, Variable};
 use crate::stages::sys_funs::*;
 use ast::{Block, Expr, FuncDecl, Literal, Stmt, StructDecl, Type, FuncCall};
+use pest::Span;
 use err::CompileError;
 use std::collections::{HashMap, HashSet};
 
 use crate::GLOBAL_SCOPE_ID;
 
-pub fn check_types<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
+pub(crate) fn check_types<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
     let mut mir = Mir {
         code: hir.code,
         scopes: HashMap::new(),
@@ -239,9 +240,6 @@ fn scope_push_func<'src>(
         scope_push_inst(fn_id, mir, instr)?;
     }
 
-    // 8 check funs return exprs
-    // todo
-
     Ok(())
 }
 
@@ -357,6 +355,8 @@ pub(crate) fn resolv_expr_type<'src>(
     expr: &mut Expr<'src>,
     opt_type: Type<'src>,
 ) -> Result<Type<'src>, CompileError<'src>> {
+    
+    // dbg!("resolv_expr_type", &opt_type);
     let out_type = match expr {
         Expr::Identifier(x) => {
             let opt_type = resolv_ident_type(scope_id, mir, x.ident);
@@ -380,11 +380,79 @@ pub(crate) fn resolv_expr_type<'src>(
             // 2 check fn return type
             resolv_fn_ret_type(mir, x)
         }
+        
+        Expr::ArrayDecl { node_id: _, list, span } => {
+            let av_type = opt_type.clone();
+            let opt_type = if let Type::Array(x, _) = opt_type {
+                *x
+            } else if let Type::Vec(x) = opt_type {  
+                *x
+            } else {
+                Type::Unresolved
+            };
+            let vec_ty = resolv_vec_type(scope_id, mir, list, span, opt_type)?;
+            
+            // check arr or vec
+            if let Type::Array(_, 0) = av_type {
+                return Err(CompileError::new(*span, "Array can not have lenght = 0".to_owned()));
+            }
+           
+            if let Type::Array(ty, len) = av_type.clone() {
+                // проверить эти поля на совпадение
+                if len != list.len() {
+                    return Err(CompileError::new(*span, format!("Array lenght in declaration = {}, actual lenght = {}", len, list.len())))
+                }
+                
+                let Type::Vec(x) = vec_ty else { panic!("Something went wrong") };
+                if *ty != *x {
+                    return Err(CompileError::new(*span, "Type of expressions in array declaration does not match type in declareatoin".to_owned()))
+                }
+                
+                return Ok(Type::Array(ty, len));
+            }
+            
+            if av_type == Type::Unresolved && list.len() != 0 {
+                
+                let Type::Vec(x) = vec_ty else { panic!("Something went wrong") };
+                
+                return Ok(Type::Array(Box::new(*x), list.len()));
+                
+            } else if av_type == Type::Unresolved && list.len() == 0 {
+                
+                return Err(CompileError::new(*span, "Array can not have lenght = 0".to_owned()));
+            }
+            
+            vec_ty
+        }
 
-        x => {println!("{x:?}"); unimplemented!()},
+        x => { println!("{x:?}"); unimplemented!() },
     };
 
     Ok(out_type)
+}
+
+fn resolv_vec_type<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    list: &mut Vec<Expr<'src>>,
+    span: &mut Span<'src>,
+    opt_type: Type<'src>,
+) -> Result<Type<'src>, CompileError<'src>> {
+    
+    // dbg!("resolv_vec_type", &opt_type);
+    let len = list.len();
+    if len == 0 { 
+        return Ok(Type::Vec(Box::new(opt_type)));
+    }
+    let ty = resolv_expr_type(scope_id, mir, &mut list[0], opt_type.clone())?;
+    
+    for i in 1..len {
+        if resolv_expr_type(scope_id, mir, &mut list[i], opt_type.clone())? != ty {
+            return Err(CompileError::new(*span, "Expressions in array/vec must have single type".to_owned()));
+        }
+    }
+    
+    Ok(Type::Vec(Box::new(ty)))
 }
 
 fn check_fn_call_args<'src>(
@@ -434,7 +502,7 @@ fn check_fn_call_args<'src>(
     
     for (i, expr) in func.args.iter_mut().enumerate() {
         let actual_type = mir.scopes.get_mut(&func.decl_scope_id.unwrap()).unwrap().funs.get(func.ident.ident).unwrap().args[i].ty.clone();
-        if resolv_expr_type(scope_id, mir, expr, Type::Unresolved)? != actual_type {
+        if resolv_expr_type(scope_id, mir, expr, actual_type.clone())? != actual_type {
             return Err(CompileError::new(func.span,format!("Calling function '{}' with wrong arguments", func.ident.ident)));
         }
     }
@@ -523,7 +591,7 @@ fn main_test<'src>() -> Result<(), CompileError<'src>> {
     
     "#;
     
-    let hir = hir::parser::compile_hir(&inp)?;
+    let hir = hir::compile_hir(&inp)?;
     let mir = check_types(hir)?;
 
     println!("{mir:#?}");
@@ -540,7 +608,7 @@ fn test_index_fn<'src>() -> Result<(), CompileError<'src>> {
         }
     "#;
 
-    let hir = hir::parser::compile_hir(&inp)?;
+    let hir = hir::compile_hir(&inp)?;
     let mir = check_types(hir)?;
 
     println!("{mir:#?}");
@@ -561,7 +629,7 @@ fn test_index_inner_fn<'src>() -> Result<(), CompileError<'src>> {
         }
     "#;
 
-    let hir = hir::parser::compile_hir(&inp)?;
+    let hir = hir::compile_hir(&inp)?;
     let mir = check_types(hir)?;
 
     println!("{mir:#?}");
@@ -572,13 +640,13 @@ fn test_index_inner_fn<'src>() -> Result<(), CompileError<'src>> {
 #[test]
 fn test_index_struct<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"
-        struct Hello {
-            a: str,
-            b: &Hello,
+        fn main() -> void {
+            var b = 10;
+            var a: Vec<i64> = [0, b];
         }
     "#;
 
-    let hir = hir::parser::compile_hir(&inp)?;
+    let hir = hir::compile_hir(&inp)?;
     let mir = check_types(hir)?;
 
     println!("{mir:#?}");

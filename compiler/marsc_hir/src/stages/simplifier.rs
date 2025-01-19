@@ -1,7 +1,7 @@
 use ast::*;
 use err::CompileError;
 
-pub fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
+pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
     fn simplify_expr(expr: Expr) -> Expr {
         match expr {
             Expr::LogicalExpr(LogicalExpr::Primary(inner_expr))
@@ -373,6 +373,6 @@ fn test1() -> () {
     }
     "#;
     
-    let hir = crate::parser::compile_hir(inp);
+    let hir = crate::stages::parser::parse(inp);
     println!("{:#?}", hir.unwrap().ast)
 }

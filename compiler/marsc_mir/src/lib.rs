@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use ast::{ArgDecl, Stmt, StructDecl, Type};
+use err::CompileError;
 use pest::Span;
+use stages::type_checker::check_types;
 
 pub mod stages;
 
@@ -74,4 +76,9 @@ impl<'src> StructProto<'src> {
             is_used: false,
         }
     }
+}
+
+pub fn compile_mir<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
+    let mir = check_types(hir)?;
+    Ok(mir)
 }
