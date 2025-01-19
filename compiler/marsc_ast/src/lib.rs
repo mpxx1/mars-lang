@@ -52,8 +52,8 @@ pub enum Type<'src> {
     
     // checker only
     Any,
+    ToStr,
     Unresolved,
-    InnerBlock,
 }
 
 #[derive(Debug, Clone)]
@@ -221,6 +221,7 @@ pub enum Literal<'src> {
 
 #[derive(Debug, Clone)]
 pub struct FuncCall<'src> {
+    pub decl_scope_id: Option<usize>,
     pub node_id: usize,
     pub ident: Identifier<'src>,
     pub args: Vec<Expr<'src>>,
