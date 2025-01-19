@@ -4,14 +4,15 @@ use ast::{ArgDecl, Stmt, StructDecl, Type};
 use pest::Span;
 
 pub mod stages;
+pub mod context;
+pub mod provider;
 
 pub const GLOBAL_SCOPE_ID: usize = 0;
 
 #[derive(Debug)]
-pub struct Mir<'src, 'sf> {
+pub struct Mir<'src> {
     pub code: &'src str,
     pub scopes: HashMap<usize, Scope<'src>>,
-    pub sys_funs: HashMap<&'sf str, usize>,
 }
 
 #[derive(Debug)]
@@ -74,4 +75,11 @@ impl<'src> StructProto<'src> {
             is_used: false,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct ExternalFunction<'ctx> {
+    pub ident: &'ctx str,
+    pub args: Vec<Type<'ctx>>,
+    pub return_type: Type<'ctx>,
 }

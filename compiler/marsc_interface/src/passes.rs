@@ -1,15 +1,15 @@
 use crate::interface::Compiler;
-use anyhow::Result;
-use marsc_context::context::{CurrentGlobalContext, GlobalContext, TypeContext};
-use marsc_hir::ast;
-use marsc_hir::parser::build_ast;
+use marsc_mir::context::{CurrentGlobalContext, GlobalContext, TypeContext};
+use hir;
 use marsc_session::session::Session;
 use std::fs;
 use std::sync::OnceLock;
+use hir::Hir;
+use hir::parser::compile_hir;
 
-pub fn parse<'a>(session: &Session) -> Result<ast::AST<'a>> {
-   let data = fs::read_to_string(session.io.input_file.to_path_buf())?;
-   build_ast(Box::leak(data.into_boxed_str()))
+pub fn parse<'a>(session: &Session) -> Hir<'a> {
+   let data = fs::read_to_string(session.io.input_file.to_path_buf()).unwrap();
+   compile_hir(Box::leak(data.into_boxed_str())).unwrap()
 }
 
 pub fn create_and_enter_global_context<T, F: for<'tcx> FnOnce(TypeContext<'tcx>) -> T>(
@@ -29,7 +29,6 @@ pub fn create_and_enter_global_context<T, F: for<'tcx> FnOnce(TypeContext<'tcx>)
          session,
          |type_context| {
             let res = f(type_context);
-            // type_context.finish - save depth graph
             res
          }
       )

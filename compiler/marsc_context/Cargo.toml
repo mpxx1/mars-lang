@@ -1,7 +1,0 @@
-[package]
-name = "marsc_context"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-marsc_session = { path = "../marsc_session" }

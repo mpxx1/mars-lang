@@ -8,12 +8,12 @@ Mars programming language compiler mir module
 """
 
 [lib]
-name = "mir"
 path = "src/lib.rs"
 
 [dependencies]
 marsc_hir = { path = "../marsc_hir" }
 marsc_ast = { path = "../marsc_ast" }
 marsc_error = { path = "../marsc_error" }
+marsc_session = { path = "../marsc_session" }
 anyhow = "1.0.95"
 pest = "2.7.15"

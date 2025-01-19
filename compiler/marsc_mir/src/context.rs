@@ -1,21 +1,39 @@
+use ast::Type;
 use marsc_session::session::Session;
+use crate::ExternalFunction;
 use std::cell::RefCell;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::OnceLock;
 
 #[derive(Debug)]
-pub struct CommonTypes {
-    
+pub struct ExternalFunctions<'tcx> {
+    pub println: ExternalFunction<'tcx>,
 }
 
-impl CommonTypes{
+impl<'tcx> ExternalFunctions<'tcx> {
     pub fn new() -> Self {
-        CommonTypes {}
+        ExternalFunctions {
+            println: ExternalFunction {
+                ident: "println",
+                args: vec![Type::Str],
+                return_type: Type::Void,
+            }
+        }
+    }
+}
+
+impl<'tcx> ExternalFunctions<'tcx> {
+    pub fn get(&self, name: &str) -> Option<&ExternalFunction> {
+        match name {
+            "println" => Some(&self.println),
+            _ => None
+        }
     }
 }
 
 pub struct TypeContext<'tcx> {
-    global_context: &'tcx GlobalContext<'tcx>,
+    pub global_context: &'tcx GlobalContext<'tcx>,
 }
 
 impl<'tcx> TypeContext<'tcx> {
@@ -30,11 +48,11 @@ impl<'tcx> TypeContext<'tcx> {
         session: &'tcx Session,
         f: impl FnOnce(TypeContext<'tcx>) -> T,
     ) -> T {
-        let common_types = CommonTypes::new();
+        let external_functions = ExternalFunctions::new();
         
         let global_context = global_context_cell.get_or_init(|| GlobalContext {
             session,
-            types: common_types,
+            external_functions,
         });
         
         let type_context = TypeContext::new(global_context);
@@ -43,10 +61,18 @@ impl<'tcx> TypeContext<'tcx> {
     }
 }
 
+impl<'tcx> Deref for TypeContext<'tcx> {
+    type Target = &'tcx GlobalContext<'tcx>;
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.global_context
+    }
+}
+
 #[derive(Debug)]
 pub struct GlobalContext<'tcx> {
     pub session: &'tcx Session,
-    types: CommonTypes,
+    pub external_functions: ExternalFunctions<'tcx>,
 }
 
 impl<'tcx> GlobalContext<'tcx> {

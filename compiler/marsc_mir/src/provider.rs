@@ -1,9 +1,7 @@
-use marsc_context::context::TypeContext;
-
-use crate::provider::Providers;
+use crate::context::TypeContext;
 
 pub trait TypeContextProviders {
-     fn providers(&self) -> Providers;
+    fn providers(&self) -> Providers;
 }
 
 impl<'tcx> TypeContextProviders for TypeContext<'tcx> {
@@ -12,4 +10,8 @@ impl<'tcx> TypeContextProviders for TypeContext<'tcx> {
             type_context: self,
         }
     }
+}
+
+pub struct Providers<'tcx> {
+    pub type_context: &'tcx TypeContext<'tcx>,
 }

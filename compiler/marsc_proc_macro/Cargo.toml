@@ -7,7 +7,6 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-marsc_query_system = { path = "../marsc_query_system" }
 quote = "1.0.38"
 syn = { version = "2.0.95", features = ["full"] }
 convert_case = "0.6.0"

@@ -1,4 +1,4 @@
-use marsc_context::context::CurrentGlobalContext;
+use marsc_mir::context::CurrentGlobalContext;
 use marsc_session::session::{CompilerIO, Session};
 use std::path::PathBuf;
 
