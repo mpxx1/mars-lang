@@ -17,7 +17,7 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
         hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
        
         let mut type_checker = TypeChecker {
-            type_context: type_context,
+            type_context,
             mir: Mir {
                 code: hir.code,
                 scopes: Default::default(),
@@ -302,7 +302,7 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
             .unwrap();
 
         debug_assert_eq!(var.ty, ty);
-        let expr_type = self.resolv_expr_type(scope_id, &expr, ty)?;
+        let expr_type = self.resolve_expr_type(scope_id, &expr, ty)?;
 
         if var.ty == Type::Unresolved {
             var.ty = expr_type;
@@ -330,7 +330,7 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
         Ok(())
     }
 
-    fn resolv_expr_type(
+    fn resolve_expr_type(
         &mut self,
         scope_id: usize,
         expr: &Expr<'src>,
@@ -338,7 +338,7 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
     ) -> Result<Type<'src>, CompileError<'src>> {
         let out_type = match expr {
             Expr::Identifier(x) => {
-                let opt_type = self.resolv_ident_type(scope_id, x.ident);
+                let opt_type = self.resolve_ident_type(scope_id, x.ident);
                 if opt_type.is_none() {
                     return Err(CompileError::new(
                         x.span,
@@ -349,7 +349,7 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
             }
 
             Expr::Literal(x) => {
-                Self::resolv_lit_type(x, opt_type)?
+                Self::resolve_lit_type(x, opt_type)?
             }
 
             Expr::FuncCall(x) => {
@@ -357,7 +357,7 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
 
 
                 // 2 check fn return type
-                let opt_type = self.resolv_fn_ret_type(scope_id, x.ident.ident);
+                let opt_type = self.resolve_fn_ret_type(scope_id, x.ident.ident);
                 if opt_type.is_none() {
                     return Err(CompileError::new(
                         x.span,
@@ -373,7 +373,7 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
         Ok(out_type)
     }
 
-    fn resolv_fn_ret_type(
+    fn resolve_fn_ret_type(
         &mut self,
         scope_id: usize,
         fn_name: &'src str,
@@ -396,7 +396,7 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
     }
 
 
-    fn resolv_ident_type(
+    fn resolve_ident_type(
         &mut self,
         scope_id: usize,
         ident: &'src str,
@@ -417,7 +417,7 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
         }
     }
 
-    fn resolv_lit_type(lit: &Literal<'src>, possible_type: Type<'src>) -> Result<Type<'src>, CompileError<'src>> {
+    fn resolve_lit_type(lit: &Literal<'src>, possible_type: Type<'src>) -> Result<Type<'src>, CompileError<'src>> {
         match lit {
             Literal::Int { .. } => Ok(Type::I64),
             Literal::Float { .. } => Ok(Type::F64),

@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 #[derive(Debug)]
 pub struct ExternalFunctions<'tcx> {
     pub println: ExternalFunction<'tcx>,
+    pub print: ExternalFunction<'tcx>,
 }
 
 impl<'tcx> ExternalFunctions<'tcx> {
@@ -16,6 +17,11 @@ impl<'tcx> ExternalFunctions<'tcx> {
         ExternalFunctions {
             println: ExternalFunction {
                 ident: "println",
+                args: vec![Type::Str],
+                return_type: Type::Void,
+            },
+            print: ExternalFunction {
+                ident: "print",
                 args: vec![Type::Str],
                 return_type: Type::Void,
             }
@@ -29,6 +35,13 @@ impl<'tcx> ExternalFunctions<'tcx> {
             "println" => Some(&self.println),
             _ => None
         }
+    }
+    
+    pub fn get_all(&self) -> Box<[&ExternalFunction]> {
+        Box::new([
+            &self.println,
+            &self.print,
+        ])
     }
 }
 

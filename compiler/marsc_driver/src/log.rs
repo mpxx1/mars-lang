@@ -43,7 +43,3 @@ pub fn log_success(message: &str) {
     
     MULTI_PROGRESS.println(format!("{}", green_bold.apply_to(message))).unwrap()
 }
-
-pub fn clear_progress() {
-    MULTI_PROGRESS.clear().unwrap();
-}

@@ -13,9 +13,9 @@ use marsc_interface::{interface, passes};
 use std::process;
 use std::time::Instant;
 use anyhow::Result;
-use marsc_codegen::codegen::codegen;
 use marsc_mir::provider::TypeContextProviders;
 use marsc_mir::stages::TypeCheckerProvider;
+use marsc_codegen::codegen::CodegenProvider;
 use crate::log::{log_progress, log_success};
 
 pub struct RunCompiler<'a> {
@@ -50,7 +50,7 @@ fn run_compiler(args: &Args) -> Result<()> {
             });
             
             let generated = log_progress("Generating", || {
-                codegen(&mir, &session.io.output_file)
+                type_context.providers().codegen(mir)
             });
             
             println!("{}", generated);
@@ -58,8 +58,8 @@ fn run_compiler(args: &Args) -> Result<()> {
             Some(Linker {})
         });
 
-        if let Some(_linker) = linker {
-            // linker.link(session, codegen_backend) TODO
+        if let Some(linker) = linker {
+            linker.link(&session)
         }
 
         Ok(())
