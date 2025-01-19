@@ -27,10 +27,10 @@ pub(crate) fn check_types<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, Compil
     );
     
     // sys funs init
-    for f in sys_funs_init() {
-        mir.sys_funs.push(f.ident);
-        mir.scopes.get_mut(&GLOBAL_SCOPE_ID).unwrap().funs.insert(f.ident, f);
-    }
+    // for f in sys_funs_init() {
+    //     mir.sys_funs.push(f.ident);
+    //     mir.scopes.get_mut(&GLOBAL_SCOPE_ID).unwrap().funs.insert(f.ident, f);
+    // }
 
     let mut structs = vec![];
     let mut funs = vec![];
@@ -424,12 +424,46 @@ pub(crate) fn resolv_expr_type<'src>(
             
             vec_ty
         }
+        
+        x if matches!(x, Expr::MemLookup { .. }) => resolve_memlookup_type(scope_id, mir, x)?,
 
         x => { println!("{x:?}"); unimplemented!() },
     };
 
     Ok(out_type)
 }
+
+fn resolve_memlookup_type<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    mem_lookup: &Expr<'src>,
+) -> Result<Type<'src>, CompileError<'src>> {
+    let Expr::MemLookup { ident, indices, span, .. } = mem_lookup else { panic!("Something went wrong"); };
+    let mut current_type = resolv_expr_type(scope_id, mir, &mut Expr::Identifier(ident.clone()), Type::Unresolved)?;
+    
+    if current_type == Type::Str && indices.len() == 1 {
+        return Ok(Type::Char);
+    } else if current_type == Type::Str && indices.len() != 1 {
+        return Err(CompileError::new(*span, "Can not use more than one index with string".to_owned()));
+    }
+
+    for (i, _index) in indices.iter().enumerate() {
+        match current_type {
+            Type::Array(inner, _) | Type::Vec(inner) => {
+                current_type = *inner;
+            }
+            _ => {
+                return Err(CompileError::new(*span, format!(
+                    "Invalid type access: attempted to index non-array type at index {}",
+                    i + 1
+                )));
+            }
+        }
+    }
+
+    Ok(current_type)
+}
+
 
 fn resolv_vec_type<'src>(
     scope_id: usize,
@@ -642,7 +676,9 @@ fn test_index_struct<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"
         fn main() -> void {
             var b = 10;
-            var a: Vec<i64> = [0, b];
+            var a: [Vec<i64>; 2] = [[0, 10, 100], [0, b]];
+            
+            var c = a[0][0];
         }
     "#;
 
