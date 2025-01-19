@@ -1,28 +1,16 @@
 use crate::{FuncProto, Mir, Scope, ScopeType, StructProto, Variable};
-use ast::{Block, Expr, FuncDecl, Stmt, StructDecl, Type, Literal};
+use crate::stages::sys_funs::*;
+use ast::{Block, Expr, FuncDecl, Literal, Stmt, StructDecl, Type, FuncCall};
 use err::CompileError;
 use std::collections::{HashMap, HashSet};
 
 use crate::GLOBAL_SCOPE_ID;
 
-static mut SYS_FN_COUNTER: usize = 0;
-
-fn sys_funs_init<'sf, 'src>() -> HashMap<&'sf str, usize> {
-    fn gen_id() -> usize {
-        unsafe {
-            SYS_FN_COUNTER += 1;
-            SYS_FN_COUNTER
-        }
-    }
-
-    HashMap::from([("print", gen_id())])
-}
-
-pub fn check_types<'src, 'sf>(hir: hir::Hir<'src>) -> Result<Mir<'src, 'sf>, CompileError<'src>> {
+pub fn check_types<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
     let mut mir = Mir {
         code: hir.code,
         scopes: HashMap::new(),
-        sys_funs: sys_funs_init(),
+        sys_funs: vec![],
     };
     mir.scopes.insert(
         GLOBAL_SCOPE_ID,
@@ -36,24 +24,40 @@ pub fn check_types<'src, 'sf>(hir: hir::Hir<'src>) -> Result<Mir<'src, 'sf>, Com
             scope_type: ScopeType::Global,
         },
     );
+    
+    // sys funs init
+    for f in sys_funs_init() {
+        mir.sys_funs.push(f.ident);
+        mir.scopes.get_mut(&GLOBAL_SCOPE_ID).unwrap().funs.insert(f.ident, f);
+    }
 
+    let mut structs = vec![];
+    let mut funs = vec![];
     for stmt in hir.ast.program {
         match stmt {
             ast::ProgStmt::StructDecl(x) => {
-                scope_push_struct(GLOBAL_SCOPE_ID, &mut mir, x)?;
+                structs.push(x);
             }
             ast::ProgStmt::FuncDecl(x) => {
-                scope_push_func(GLOBAL_SCOPE_ID, &mut mir, x)?;
+                funs.push(x);
             }
         }
     }
+    
+    for s in structs {
+        scope_push_struct(GLOBAL_SCOPE_ID, &mut mir, s)?;
+    }
 
+    for f in funs {
+        scope_push_func(GLOBAL_SCOPE_ID, &mut mir, f)?;
+    }
+    
     Ok(mir)
 }
 
-fn scope_push_struct<'src, 'sf>(
+fn scope_push_struct<'src>(
     scope_id: usize,
-    mir: &mut Mir<'src, 'sf>,
+    mir: &mut Mir<'src>,
     struct_obj: StructDecl<'src>,
 ) -> Result<(), CompileError<'src>> {
     // 1 check if same named structure already been declarated
@@ -100,9 +104,9 @@ fn scope_push_struct<'src, 'sf>(
     Ok(())
 }
 
-fn scope_push_func<'src, 'sf>(
+fn scope_push_func<'src>(
     scope_id: usize,
-    mir: &mut Mir<'src, 'sf>,
+    mir: &mut Mir<'src>,
     func_obj: FuncDecl<'src>,
 ) -> Result<(), CompileError<'src>> {
     // 1 check if same named func already been declarated
@@ -120,14 +124,14 @@ fn scope_push_func<'src, 'sf>(
     }
 
     // 2 check if same named func is sys func
-    if mir.sys_funs.contains_key(func_obj.ident) {
+    if mir.sys_funs.contains(&func_obj.ident) {
         return Err(
             CompileError::new(
                 func_obj.span,
                 format!(
                     "Can not define function with name '{}'\n\tIt's already defined in list of system functions: \n\t\t{:#?}",
                     func_obj.ident,
-                    mir.sys_funs.iter().map(|x| x.0).collect::<Vec<_>>()
+                    mir.sys_funs
                 )
             ));
     }
@@ -241,9 +245,9 @@ fn scope_push_func<'src, 'sf>(
     Ok(())
 }
 
-fn scope_push_var<'src, 'sf>(
+fn scope_push_var<'src>(
     scope_id: usize,
-    mir: &mut Mir<'src, 'sf>,
+    mir: &mut Mir<'src>,
     var_obj: Variable<'src>,
 ) -> Result<(), CompileError<'src>> {
     let scope_ref = mir.scopes.get_mut(&scope_id).unwrap();
@@ -266,29 +270,44 @@ fn scope_push_var<'src, 'sf>(
     Ok(())
 }
 
-fn scope_push_inst<'src, 'sf>(
+fn scope_push_inst<'src>(
     scope_id: usize,
-    mir: &mut Mir<'src, 'sf>,
+    mir: &mut Mir<'src>,
     instr: Stmt<'src>,
 ) -> Result<(), CompileError<'src>> {
     match instr {
         x if matches!(x, ast::Stmt::Assignment { .. }) => scope_push_assignment(scope_id, mir, x)?,
+        ast::Stmt::FuncCall(fc) => scope_push_func_call(scope_id, mir, fc)?,
         _ => unimplemented!(),
     }
 
     Ok(())
 }
 
-fn scope_push_assignment<'src, 'sf>(
+fn scope_push_func_call<'src>(
     scope_id: usize,
-    mir: &mut Mir<'src, 'sf>,
+    mir: &mut Mir<'src>,
+    mut fc: FuncCall<'src>,
+) -> Result<(), CompileError<'src>> {
+    
+    check_fn_call_args(scope_id, mir, &mut fc)?;
+    mir.scopes.get_mut(&scope_id).unwrap().instrs.push(
+        ast::Stmt::FuncCall(fc)
+    );
+    
+    Ok(())
+}
+
+fn scope_push_assignment<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
     instr: Stmt<'src>,
 ) -> Result<(), CompileError<'src>> {
     let ast::Stmt::Assignment {
         node_id,
         ident,
         ty,
-        expr,
+        mut expr,
         span,
     } = instr
     else {
@@ -304,7 +323,7 @@ fn scope_push_assignment<'src, 'sf>(
         .unwrap();
     
     debug_assert_eq!(var.ty, ty);
-    let expr_type = resolv_expr_type(scope_id, mir, &expr, ty)?;
+    let expr_type = resolv_expr_type(scope_id, mir, &mut expr, ty)?;
     
     if var.ty == Type::Unresolved {
         var.ty = expr_type;
@@ -332,10 +351,10 @@ fn scope_push_assignment<'src, 'sf>(
     Ok(())
 }
 
-fn resolv_expr_type<'src, 'sf>(
+pub(crate) fn resolv_expr_type<'src>(
     scope_id: usize,
-    mir: &mut Mir<'src, 'sf>,
-    expr: &Expr<'src>,
+    mir: &mut Mir<'src>,
+    expr: &mut Expr<'src>,
     opt_type: Type<'src>,
 ) -> Result<Type<'src>, CompileError<'src>> {
     let out_type = match expr {
@@ -356,51 +375,84 @@ fn resolv_expr_type<'src, 'sf>(
         
         Expr::FuncCall(x) => {
             // 1 check fn args
-            
+            check_fn_call_args(scope_id, mir, x)?;
             
             // 2 check fn return type
-            let opt_type = resolv_fn_ret_type(scope_id, mir, x.ident.ident);
-            if opt_type.is_none() {
-                return Err(CompileError::new(
-                    x.span,
-                    format!("Can not find function '{}'", x.ident.ident),
-                ));
-            }
-            opt_type.unwrap()
+            resolv_fn_ret_type(mir, x)
         }
 
-        _ => unimplemented!(),
+        x => {println!("{x:?}"); unimplemented!()},
     };
 
     Ok(out_type)
 }
 
-fn resolv_fn_ret_type<'src, 'sf>(
+fn check_fn_call_args<'src>(
     scope_id: usize, 
-    mir: &mut Mir<'src, 'sf>,
-    fn_name: &'src str,
-) -> Option<Type<'src>> {
-    let mut current_scope_id = scope_id;
-
-    while let Some(scope) = mir.scopes.get(&current_scope_id) {
-        if let Some(func) = scope.funs.get(fn_name) {
-            return Some(func.return_type.clone());
+    mir: &mut Mir<'src>,
+    func: &mut FuncCall<'src>,
+) -> Result<(), CompileError<'src>> {
+    
+    if func.decl_scope_id.is_none() {
+        let mut current_scope_id = scope_id;
+    
+        while let Some(scope) = mir.scopes.get(&current_scope_id) {
+            if let Some(_) = scope.funs.get(func.ident.ident) {
+                func.decl_scope_id = Some(scope.node_id);
+                break;
+            }
+    
+            if current_scope_id == 0 {
+                return Err(CompileError::new(func.span,format!("Can not find declaration of function '{}'", func.ident.ident)));
+            }
+    
+            current_scope_id = scope.parent_id;
         }
-
-        if current_scope_id == 0 {
-            break;
-        }
-
-        current_scope_id = scope.parent_id;
     }
+    
+    // check argumetns
+    let proto = mir.scopes.get_mut(&func.decl_scope_id.unwrap()).unwrap().funs.get(func.ident.ident).unwrap();
+    if func.args.len() != proto.args.len() {
+        return Err(CompileError::new(func.span,format!("Calling function '{}' with wrong arguments", func.ident.ident)));
+    }
+    
+    // check system funs
+    if mir.sys_funs.contains(&func.ident.ident) {
+        let v = func
+             .args
+             .iter_mut()
+             .map(
+                 |a| resolv_expr_type(scope_id, mir, a, Type::Unresolved).unwrap()
+             )
+             .collect::<Vec<_>>();
+        
+        return check_sys_fn_args_types(
+            func,
+           &v
+        );
+    }
+    
+    for (i, expr) in func.args.iter_mut().enumerate() {
+        let actual_type = mir.scopes.get_mut(&func.decl_scope_id.unwrap()).unwrap().funs.get(func.ident.ident).unwrap().args[i].ty.clone();
+        if resolv_expr_type(scope_id, mir, expr, Type::Unresolved)? != actual_type {
+            return Err(CompileError::new(func.span,format!("Calling function '{}' with wrong arguments", func.ident.ident)));
+        }
+    }
+    
+    Ok(())
+}
 
-    None
+fn resolv_fn_ret_type<'src>(
+    mir: &mut Mir<'src>,
+    func: &mut FuncCall<'src>,
+) -> Type<'src> {
+    mir.scopes.get(&func.decl_scope_id.unwrap()).unwrap().funs.get(&func.ident.ident).unwrap().return_type.clone()
 }
 
 
-fn resolv_ident_type<'src, 'sf>(
+fn resolv_ident_type<'src>(
     scope_id: usize,
-    mir: &mut Mir<'src, 'sf>,
+    mir: &mut Mir<'src>,
     ident: &'src str,
 ) -> Option<Type<'src>> {
     let mut current_scope_id = scope_id;
@@ -484,7 +536,7 @@ fn test_index_fn<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"
         fn hello(a: i64, b: str) -> i64 {
         
-            var c = a;        
+            var c = hello(a, b);
         }
     "#;
 
@@ -499,14 +551,13 @@ fn test_index_fn<'src>() -> Result<(), CompileError<'src>> {
 #[test]
 fn test_index_inner_fn<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"
+        fn tt(a: i64) -> void {}
         fn hello(a: i64, b: str) -> i64 {
         
-            fn h2() -> void {
-                var a = null;
-                return;
-            }  
-        
-            return 10;
+            var c = a;
+            tt(c);
+            
+            print("hello");
         }
     "#;
 

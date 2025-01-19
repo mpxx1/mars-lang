@@ -8,10 +8,10 @@ pub mod stages;
 pub const GLOBAL_SCOPE_ID: usize = 0;
 
 #[derive(Debug)]
-pub struct Mir<'src, 'sf> {
+pub struct Mir<'src> {
     pub code: &'src str,
     pub scopes: HashMap<usize, Scope<'src>>,
-    pub sys_funs: HashMap<&'sf str, usize>,
+    pub sys_funs: Vec<&'src str>,
 }
 
 #[derive(Debug)]

@@ -349,6 +349,7 @@ fn parse_func_call<'src>(
     let mut inner_iter = pair.into_inner();
 
     Ok(FuncCall {
+        decl_scope_id: None,
         node_id: gen_id(),
         ident: parse_ident(inner_iter.next().unwrap())?,
         args: parse_func_args_to_call(inner_iter.next().unwrap())?,
