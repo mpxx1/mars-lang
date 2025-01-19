@@ -81,6 +81,8 @@ where
         self.builder.position_at_end(entry);
 
         self.codegen_scope_by_id(&func_decl.node_id);
+
+        self.codegen_scope_by_id(&func_decl.node_id);
     }
 
     pub(crate) fn codegen_void_func(&mut self, func_decl: &'ctx FuncProto<'src>) {
@@ -97,11 +99,7 @@ where
         self.builder.position_at_end(entry);
 
         self.codegen_scope_by_id(&func_decl.node_id);
-
-        let println_function = self.module.get_function("println").unwrap();
-        let data = self.module.get_global("global_str").unwrap();
-        let call_site = self.builder.build_call(println_function, &[data.as_basic_value_enum().into()], "call");
-
+        
         self.builder.build_return(None).unwrap();
     }
 
@@ -140,7 +138,9 @@ where
                 self.var_table.insert(ident, variable);
             }
             Stmt::Assign { .. } => {}
-            Stmt::FuncCall(_) => {}
+            Stmt::FuncCall(func_call) => {
+                self.codegen_func_call(func_call, scope);
+            },
             Stmt::IfElse { .. } => {}
             Stmt::WhileLoop { .. } => {}
             _ => unimplemented!(),
@@ -150,7 +150,13 @@ where
     pub(crate) fn codegen_expr(&self, expr: &'ctx Expr<'src>, scope: &'ctx Scope<'ctx>) -> BasicValueEnum<'ctx>  {
         match expr {
             Expr::Identifier(identifier) => self.codegen_identifier(identifier, scope),
-            Expr::FuncCall(func_call) => self.codegen_func_call(func_call, scope),
+            Expr::FuncCall(func_call) => {
+                if let Some(value) = self.codegen_func_call(func_call, scope) {
+                    value
+                } else { 
+                    panic!("Function has no return value")
+                }
+            },
             Expr::ArrayDecl { .. } => todo!(),
             Expr::MemLookup { .. } => todo!(),
             Expr::StructFieldCall { .. } => todo!(),
@@ -215,8 +221,12 @@ where
         }
     }
 
-    pub(crate) fn codegen_func_call(&self, func_call: &'ctx FuncCall<'src>, scope: &'ctx Scope<'ctx>) -> BasicValueEnum<'ctx>  {
-        let function = self.module.get_function(func_call.ident.ident).unwrap();
+    pub(crate) fn codegen_func_call(&self, func_call: &'ctx FuncCall<'src>, scope: &'ctx Scope<'ctx>) -> Option<BasicValueEnum<'ctx>> {
+        let error_msg = format!("Cannot find function '{}'", func_call.ident.ident);
+        
+        let function = self.module
+            .get_function(func_call.ident.ident)
+            .expect(error_msg.as_str());
         
         let args: Vec<BasicMetadataValueEnum> = func_call
             .args
@@ -226,10 +236,17 @@ where
         
         let call_site = self.builder.build_call(function, &args, "call");
         
-        call_site
-            .unwrap().try_as_basic_value()
-            .left()
-            .unwrap()
+        if let Some(_) = function.get_type().get_return_type() {
+            let value = call_site
+                .unwrap().try_as_basic_value()
+                .left()
+                .unwrap();
+            
+            Some(value)
+        } else {
+            call_site.unwrap();
+            None
+        }
     }
 
     pub(crate) fn codegen_type(&self, type_ast: &'ctx Type<'src>) -> BasicTypeEnum<'ctx> {
@@ -248,7 +265,7 @@ where
             Type::Ref(_) => todo!(),
             Type::Any => todo!(),
             Type::Unresolved => todo!(),
-            Type::InnerBlock => todo!(),
+            Type::ToStr => todo!(),
         }
     }
 

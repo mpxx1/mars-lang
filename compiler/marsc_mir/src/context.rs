@@ -10,6 +10,10 @@ use std::sync::OnceLock;
 pub struct ExternalFunctions<'tcx> {
     pub println: ExternalFunction<'tcx>,
     pub print: ExternalFunction<'tcx>,
+    pub print_i64: ExternalFunction<'tcx>,
+    pub print_f64: ExternalFunction<'tcx>,
+    pub sleep_thread: ExternalFunction<'tcx>,
+    pub now: ExternalFunction<'tcx>,
 }
 
 impl<'tcx> ExternalFunctions<'tcx> {
@@ -24,6 +28,26 @@ impl<'tcx> ExternalFunctions<'tcx> {
                 ident: "print",
                 args: vec![Type::Str],
                 return_type: Type::Void,
+            },
+            print_i64: ExternalFunction {
+                ident: "print_i64",
+                args: vec![Type::I64],
+                return_type: Type::Void,
+            },
+            print_f64: ExternalFunction {
+                ident: "print_f64",
+                args: vec![Type::F64],
+                return_type: Type::Void,
+            },
+            sleep_thread: ExternalFunction {
+                ident: "sleep_thread",
+                args: vec![Type::I64],
+                return_type: Type::Void,
+            },
+            now: ExternalFunction {
+                ident: "now",
+                args: vec![],
+                return_type: Type::I64,
             }
         }
     }
@@ -33,6 +57,11 @@ impl<'tcx> ExternalFunctions<'tcx> {
     pub fn get(&self, name: &str) -> Option<&ExternalFunction> {
         match name {
             "println" => Some(&self.println),
+            "print" => Some(&self.print),
+            "print_i64" => Some(&self.print_i64),
+            "print_f64" => Some(&self.print_f64),
+            "sleep_thread" => Some(&self.sleep_thread),
+            "now" => Some(&self.now),
             _ => None
         }
     }
@@ -41,6 +70,10 @@ impl<'tcx> ExternalFunctions<'tcx> {
         Box::new([
             &self.println,
             &self.print,
+            &self.print_i64,
+            &self.print_f64,
+            &self.sleep_thread,
+            &self.now,
         ])
     }
 }

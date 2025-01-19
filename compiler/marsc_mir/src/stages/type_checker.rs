@@ -1,7 +1,9 @@
-use crate::{FuncProto, Mir, Scope, ScopeType, StructProto, Variable};
-use ast::{Block, Expr, FuncDecl, Stmt, StructDecl, Type, Literal};
+use crate::{ExternalFunction, FuncProto, Mir, Scope, ScopeType, StructProto, Variable};
+use ast::{Block, Expr, FuncDecl, Stmt, StructDecl, Type, Literal, FuncCall};
 use err::CompileError;
 use std::collections::{HashMap, HashSet};
+use std::fmt::format;
+use pest::pratt_parser::Op;
 use marsc_session::session::{CompilerIO, Session};
 use crate::context::{ExternalFunctions, GlobalContext, TypeContext};
 use crate::GLOBAL_SCOPE_ID;
@@ -11,7 +13,9 @@ pub struct TypeChecker<'src, 'tcx> {
     mir: Mir<'src>,
 }
 
-impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
+impl<'src, 'tcx> TypeChecker<'src, 'tcx>
+    where 'tcx: 'src
+{
     pub fn check_types(
         type_context: &'tcx TypeContext<'tcx>,
         hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
@@ -37,15 +41,25 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
             },
         );
 
-            for stmt in hir.ast.program {
+        let mut structs = vec![];
+        let mut funs = vec![];
+        for stmt in hir.ast.program {
             match stmt {
                 ast::ProgStmt::StructDecl(x) => {
-                    type_checker.scope_push_struct(GLOBAL_SCOPE_ID, x)?;
+                    structs.push(x);
                 }
                 ast::ProgStmt::FuncDecl(x) => {
-                    type_checker.scope_push_func(GLOBAL_SCOPE_ID, x)?;
+                    funs.push(x);
                 }
             }
+        }
+        
+        for s in structs {
+            type_checker.scope_push_struct(GLOBAL_SCOPE_ID, s)?;
+        }
+
+        for f in funs {
+            type_checker.scope_push_func(GLOBAL_SCOPE_ID, f)?;
         }
 
         Ok(type_checker.mir)
@@ -270,9 +284,23 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
         instr: Stmt<'src>,
     ) -> Result<(), CompileError<'src>> {
         match instr {
-            x if matches!(x, ast::Stmt::Assignment { .. }) => self.scope_push_assignment(scope_id, x)?,
+            x if matches!(x, Stmt::Assignment { .. }) => self.scope_push_assignment(scope_id, x)?,
+            Stmt::FuncCall(fc) => self.scope_push_func_call(scope_id, fc)?,
             _ => unimplemented!(),
         }
+
+        Ok(())
+    }
+
+    fn scope_push_func_call(
+        &mut self,
+        scope_id: usize,
+        mut fc: FuncCall<'src>,
+    ) -> Result<(), CompileError<'src>> {
+        self.check_fn_call_args(scope_id, &mut fc)?;
+        self.mir.scopes.get_mut(&scope_id).unwrap().instrs.push(
+            Stmt::FuncCall(fc)
+        );
 
         Ok(())
     }
@@ -282,11 +310,11 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
         scope_id: usize,
         instr: Stmt<'src>,
     ) -> Result<(), CompileError<'src>> {
-        let ast::Stmt::Assignment {
+        let Stmt::Assignment {
             node_id,
             ident,
             ty,
-            expr,
+            mut expr,
             span,
         } = instr
         else {
@@ -302,7 +330,7 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
             .unwrap();
 
         debug_assert_eq!(var.ty, ty);
-        let expr_type = self.resolve_expr_type(scope_id, &expr, ty)?;
+        let expr_type = self.resolve_expr_type(scope_id, &mut expr, ty)?;
 
         if var.ty == Type::Unresolved {
             var.ty = expr_type;
@@ -333,7 +361,7 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
     fn resolve_expr_type(
         &mut self,
         scope_id: usize,
-        expr: &Expr<'src>,
+        expr: &mut Expr<'src>,
         opt_type: Type<'src>,
     ) -> Result<Type<'src>, CompileError<'src>> {
         let out_type = match expr {
@@ -354,47 +382,146 @@ impl<'src, 'tcx> TypeChecker<'src, 'tcx> {
 
             Expr::FuncCall(x) => {
                 // 1 check fn args
-
+                self.check_fn_call_args(scope_id, x)?;
 
                 // 2 check fn return type
-                let opt_type = self.resolve_fn_ret_type(scope_id, x.ident.ident);
-                if opt_type.is_none() {
-                    return Err(CompileError::new(
-                        x.span,
-                        format!("Can not find function '{}'", x.ident.ident),
-                    ));
+                if let Some(ty) = self.resolve_fn_ret_type(x) {
+                    return Ok(ty);
                 }
-                opt_type.unwrap()
+                
+                if let Some(ty) = self.resolve_external_fn_ret_type(x) {
+                    return Ok(ty)
+                }
+
+                return Err(CompileError::new(
+                    x.span,
+                    format!("Can not resolve '{}' function return type", x.ident.ident),
+                ));
             }
 
-            _ => unimplemented!("{:#?}", expr),
+            x => {println!("{x:?}"); unimplemented!()},
         };
 
         Ok(out_type)
     }
 
-    fn resolve_fn_ret_type(
+    fn check_fn_call_args(
         &mut self,
         scope_id: usize,
-        fn_name: &'src str,
-    ) -> Option<Type<'src>> {
-        let mut current_scope_id = scope_id;
+        func: &mut FuncCall<'src>,
+    ) -> Result<(), CompileError<'src>> {
+        
+        // check external funs
+        if let Some(external_function) = self.type_context.global_context.external_functions.get(&func.ident.ident) {
+            let args = func
+                .args
+                .iter_mut()
+                .map(|arg| self.resolve_expr_type(scope_id, arg, Type::Unresolved).unwrap())
+                .collect::<Vec<_>>();
 
-        while let Some(scope) = self.mir.scopes.get(&current_scope_id) {
-            if let Some(func) = scope.funs.get(fn_name) {
-                return Some(func.return_type.clone());
+            return self.check_sys_fn_args_types(func, external_function, &args);
+        }
+        
+        if func.decl_scope_id.is_none() {
+            let mut current_scope_id = scope_id;
+
+            while let Some(scope) = self.mir.scopes.get(&current_scope_id) {
+                if let Some(_) = scope.funs.get(func.ident.ident) {
+                    func.decl_scope_id = Some(scope.node_id);
+                    break;
+                }
+
+                if current_scope_id == 0 {
+                    return Err(CompileError::new(func.span,format!("Can not find declaration of function '{}'", func.ident.ident)));
+                }
+
+                current_scope_id = scope.parent_id;
             }
-
-            if current_scope_id == 0 {
-                break;
-            }
-
-            current_scope_id = scope.parent_id;
         }
 
+        // check argumetns
+        let proto = self.mir.scopes.get_mut(&func.decl_scope_id.unwrap()).unwrap().funs.get(func.ident.ident).unwrap();
+        if func.args.len() != proto.args.len() {
+            return Err(CompileError::new(func.span,format!("Calling function '{}' with wrong arguments", func.ident.ident)));
+        }
+
+        for (i, expr) in func.args.iter_mut().enumerate() {
+            let actual_type = self.mir.scopes.get_mut(&func.decl_scope_id.unwrap()).unwrap().funs.get(func.ident.ident).unwrap().args[i].ty.clone();
+            if self.resolve_expr_type(scope_id, expr, Type::Unresolved)? != actual_type {
+                return Err(CompileError::new(func.span,format!("Calling function '{}' with wrong arguments", func.ident.ident)));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn check_sys_fn_args_types(
+        &self,
+        func: &FuncCall<'src>,
+        external_function: &ExternalFunction<'src>,
+        arg_types: &Vec<Type<'src>>,
+    ) -> Result<(), CompileError<'src>> {
+        
+        if external_function.args.len() != arg_types.len() {
+            return Err(CompileError::new(
+                func.span,
+                format!(
+                    "Calling function '{}' ({} arguments) with incorrect count of arguments: {}",
+                    func.ident.ident,
+                    external_function.args.len(),
+                    arg_types.len()
+                ),
+            ))
+        }
+        
+        for (index, (external_arg_type, arg_type)) in external_function
+            .args
+            .iter()
+            .zip(arg_types.iter())
+            .enumerate()
+        {
+            if external_arg_type != arg_type {
+                return Err(CompileError::new(
+                    func.span,
+                    format!(
+                        "Calling function '{}' with incorrect argument type '{:?}' at position {}, expected {:?}",
+                        func.ident.ident,
+                        arg_type,
+                        index,
+                        external_arg_type
+                    ),
+                ))
+            }
+        }
+        
+        Ok(())
+    }
+
+    fn resolve_fn_ret_type(
+        &mut self,
+        func: &mut FuncCall<'src>,
+    ) -> Option<Type<'src>> {
+        if let Some(scope_id) = &func.decl_scope_id {
+            if let Some(scope) = self.mir.scopes.get(scope_id) {
+                if let Some(fun) = scope.funs.get(&func.ident.ident) {
+                    return Some(fun.return_type.clone());
+                }
+            }
+        }
+        
         None
     }
 
+    fn resolve_external_fn_ret_type(
+        &mut self,
+        func: &mut FuncCall<'src>,
+    ) -> Option<Type<'src>> {
+        if let Some(external_function) = self.type_context.global_context.external_functions.get(&func.ident.ident) {
+            Some(external_function.return_type.clone())
+        } else {
+            None
+        }
+    }
 
     fn resolve_ident_type(
         &mut self,
@@ -495,7 +622,7 @@ fn test_index_fn<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"
         fn hello(a: i64, b: str) -> i64 {
         
-            var c = a;        
+            var c = hello(a, b);
         }
     "#;
 
@@ -522,14 +649,13 @@ fn test_index_fn<'src>() -> Result<(), CompileError<'src>> {
 #[test]
 fn test_index_inner_fn() -> Result<(), CompileError<'static>> {
     let inp = r#"
+        fn tt(a: i64) -> void {}
         fn hello(a: i64, b: str) -> i64 {
         
-            fn h2() -> void {
-                var a = null;
-                return;
-            }  
-        
-            return 10;
+            var c = a;
+            tt(c);
+            
+            print("hello");
         }
     "#;
 

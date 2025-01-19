@@ -18,8 +18,6 @@ members = [
     "compiler/marsc",
     "compiler/marsc_ast",
     "compiler/marsc_codegen",
-    "compiler/marsc_core",
-    "compiler/marsc_data_structures",
     "compiler/marsc_driver",
     "compiler/marsc_hir",
     "compiler/marsc_mir",

@@ -32,7 +32,7 @@ where
         let return_type = self.codegen_type(&external_function.return_type);
         let fn_type = return_type
             .fn_type(&arg_types, false);
-        self.module.add_function(external_function.ident, fn_type, Some(Linkage::External));
+        self.module.add_function(external_function.ident, fn_type, None);
     }
     
     fn generate_external_function(&self, external_function: &'ctx ExternalFunction<'ctx>) {

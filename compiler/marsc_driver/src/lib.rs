@@ -48,6 +48,8 @@ fn run_compiler(args: &Args) -> Result<()> {
             let mir = log_progress("Checking", || {
                 type_context.providers().check_types(hir).unwrap()
             });
+
+            println!("{:#?}", mir);
             
             let generated = log_progress("Generating", || {
                 type_context.providers().codegen(mir)

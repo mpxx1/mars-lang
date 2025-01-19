@@ -11,10 +11,6 @@ Mars programming language interface
 path = "src/lib.rs"
 
 [dependencies]
-marsc_core = { path = "../marsc_core" }
-marsc_data_structures = { path = "../marsc_data_structures" }
 marsc_hir = { path = "../marsc_hir" }
 marsc_mir = { path = "../marsc_mir" }
-marsc_span = { path = "../marsc_span" }
 marsc_session = { path = "../marsc_session" }
-anyhow = "1.0.95"
