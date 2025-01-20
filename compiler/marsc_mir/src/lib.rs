@@ -80,5 +80,18 @@ impl<'src> StructProto<'src> {
 
 pub fn compile_mir<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
     let mir = check_types(hir)?;
+    // todo - check usages
+    // todo - check references
+
     Ok(mir)
+}
+
+pub trait ToMir<'src> {
+    fn compile_mir(self) -> Result<Mir<'src>, CompileError<'src>>;
+}
+
+impl<'src> ToMir<'src> for hir::Hir<'src> {
+    fn compile_mir(self) -> Result<Mir<'src>, CompileError<'src>> {
+        compile_mir(self)
+    }
 }

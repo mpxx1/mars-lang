@@ -21,3 +21,13 @@ pub fn compile_hir<'src>(
     
     Ok(hir)
 }
+
+pub trait ToHir<'src> {
+    fn compile_hir(self) -> Result<Hir<'src>, CompileError<'src>>;
+}
+
+impl<'src> ToHir<'src> for &'src str {
+    fn compile_hir(self) -> Result<Hir<'src>, CompileError<'src>> {
+        compile_hir(self)
+    }
+}

@@ -3,7 +3,7 @@ use ast::{ArgDecl, Type, FuncCall};
 use err::CompileError;
 use pest::Span;
 
-pub (crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
+pub (crate) fn _sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
     static mut SYS_FN_COUNTER: usize = GLOBAL_SCOPE_ID;
     
     fn gen_id() -> usize {
