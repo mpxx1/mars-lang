@@ -4,14 +4,12 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::types::{AnyType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum};
 use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue};
-use marsc_mir::{FuncProto, Mir, Scope, StructProto};
+use mir::{FuncProto, Mir, Scope, StructProto};
 use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 use inkwell::AddressSpace;
 use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine};
-use marsc_mir::context::TypeContext;
-use marsc_mir::provider::Providers;
 
 pub struct Codegen<'ctx, 'src> {
     pub(crate) context: &'ctx Context,
@@ -297,10 +295,10 @@ where
     
 }
 
-pub fn codegen<'tcx>(type_context: &'tcx TypeContext<'tcx>, mir: &Mir) -> String {
+pub fn codegen<'src>(mir: &'src Mir) -> String {
     let context = Context::create();
     let module = context.create_module("test_module");
-    let mut codegen = Codegen {
+    let mut codegen = Codegen::<'_, 'src> {
         context: &context,
         module,
         builder: context.create_builder(),
@@ -308,7 +306,8 @@ pub fn codegen<'tcx>(type_context: &'tcx TypeContext<'tcx>, mir: &Mir) -> String
         var_table: HashMap::new(),
     };
     
-    codegen.generate_external_functions(&type_context.external_functions);
+    let external_functions = _
+    codegen.generate_external_functions(mir);
     let result = codegen.codegen();
     
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -317,14 +316,4 @@ pub fn codegen<'tcx>(type_context: &'tcx TypeContext<'tcx>, mir: &Mir) -> String
     codegen.codegen_bytecode(&PathBuf::from(output)).unwrap();
     
     result
-}
-
-pub trait CodegenProvider<'ctx> {
-    fn codegen(&self, mir: Mir) -> String;
-} 
-
-impl<'ctx> CodegenProvider<'ctx> for Providers<'ctx> {
-    fn codegen(&self, mir: Mir) -> String {
-        codegen(self.type_context, &mir)
-    }
 }

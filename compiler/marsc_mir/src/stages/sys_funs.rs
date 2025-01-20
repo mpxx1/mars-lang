@@ -3,9 +3,9 @@ use ast::{ArgDecl, Type, FuncCall};
 use err::CompileError;
 use pest::Span;
 
-pub (crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
+pub (crate) fn _sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
     static mut SYS_FN_COUNTER: usize = GLOBAL_SCOPE_ID;
-    
+
     fn gen_id() -> usize {
         unsafe {
             SYS_FN_COUNTER += 1;
@@ -14,101 +14,101 @@ pub (crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
     }
 
     Vec::from([
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "println", 
+            ident: "println",
             args: vec![
-                ArgDecl { 
+                ArgDecl {
                     node_id: gen_id(),
                     ident: "obj",
                     ty: Type::Any,  // primitives and string (also possible a + "hello" + 22)
-                    span: Span::new("external fn arg", 0, 14).unwrap(), 
-                }], 
-            return_type: Type::Void, 
-            is_used: true, 
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                }],
+            return_type: Type::Void,
+            is_used: true,
             span: Span::new("external fn", 0, 10).unwrap()
         },
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "print", 
+            ident: "print",
             args: vec![
-                ArgDecl { 
+                ArgDecl {
                     node_id: gen_id(),
                     ident: "obj",
                     ty: Type::Any,  // primitives and string (also possible a + "hello" + 22)
-                    span: Span::new("external fn arg", 0, 14).unwrap(), 
-                }], 
-            return_type: Type::Void, 
-            is_used: true, 
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                }],
+            return_type: Type::Void,
+            is_used: true,
             span: Span::new("external fn", 0, 10).unwrap()
         },
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "len", 
+            ident: "len",
             args: vec![
-                ArgDecl { 
+                ArgDecl {
                     node_id: gen_id(),
                     ident: "obj",
                     ty: Type::Any,  // str, array and vec
-                    span: Span::new("external fn arg", 0, 15).unwrap(), 
-                }], 
-            return_type: Type::I64, 
-            is_used: true, 
+                    span: Span::new("external fn arg", 0, 15).unwrap(),
+                }],
+            return_type: Type::I64,
+            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap()
         },
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "capacity", 
+            ident: "capacity",
             args: vec![
-                ArgDecl { 
+                ArgDecl {
                     node_id: gen_id(),
                     ident: "v",
                     ty: Type::Any,  // vec
-                    span: Span::new("external fn arg", 0, 15).unwrap(), 
-                }], 
-            return_type: Type::I64, 
-            is_used: true, 
+                    span: Span::new("external fn arg", 0, 15).unwrap(),
+                }],
+            return_type: Type::I64,
+            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap()
         },
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "push", 
+            ident: "push",
             args: vec![
-                ArgDecl { 
+                ArgDecl {
                     node_id: gen_id(),
                     ident: "v",
                     ty: Type::Any,  // vec
-                    span: Span::new("external fn arg", 0, 15).unwrap(), 
+                    span: Span::new("external fn arg", 0, 15).unwrap(),
                 },
-                ArgDecl { 
+                ArgDecl {
                     node_id: gen_id(),
                     ident: "obj",
                     ty: Type::Any,  // inner type
-                    span: Span::new("external fn arg", 0, 15).unwrap(), 
+                    span: Span::new("external fn arg", 0, 15).unwrap(),
                 }
-            ], 
-            return_type: Type::Void, 
-            is_used: true, 
+            ],
+            return_type: Type::Void,
+            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap()
         },
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "pop", 
+            ident: "pop",
             args: vec![
-                ArgDecl { 
+                ArgDecl {
                     node_id: gen_id(),
                     ident: "v",
                     ty: Type::Any,  // vec
-                    span: Span::new("external fn arg", 0, 15).unwrap(), 
-                }], 
+                    span: Span::new("external fn arg", 0, 15).unwrap(),
+                }],
             return_type: Type::Any, // inner 
-            is_used: true, 
+            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap()
         },
     ])
@@ -120,7 +120,7 @@ pub(crate) fn check_sys_fn_args_types<'src>(
     func: &FuncCall<'src>,
     arg_types: &Vec<Type<'src>>,
 ) -> Result<(), CompileError<'src>> {
-    
+
     match func.ident.ident {
         "print" | "println" => {
             if PRIMITIVE.contains(&arg_types[0]) {
@@ -129,6 +129,6 @@ pub(crate) fn check_sys_fn_args_types<'src>(
         },
         _ => unimplemented!(),
     }
-    
+
     Err(CompileError::new(func.span, format!("Calling function '{}' with incorrect typed arguments", func.ident.ident )))
 }
