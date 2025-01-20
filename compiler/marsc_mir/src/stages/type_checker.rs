@@ -453,11 +453,83 @@ pub(crate) fn resolv_expr_type<'src>(
         x if matches!(x, Expr::MemLookup { .. }) => resolv_memlookup_type(scope_id, mir, x)?,
         x if matches!(x, Expr::StructFieldCall { .. }) => resolv_struct_field_type(scope_id, mir, x)?,
         x if matches!(x, Expr::StructInit { .. }) => resolv_struct_init_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::CastType { .. }) => resolv_cast_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::Reference { .. }) => resolv_ref_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::Dereference { .. }) => resolv_deref_type(scope_id, mir, x)?,
+        
+        Expr::MathExpr(x) => unimplemented!(),
+        Expr::LogicalExpr(x) => unimplemented!(),
 
-        x => { println!("{x:?}"); unimplemented!() },
+        x => { panic!("Unimplemented expression: {x:?}"); },
     };
 
     Ok(out_type)
+}
+
+
+
+fn resolv_deref_type<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    deref_obj: &mut Expr<'src>,
+) -> Result<Type<'src>, CompileError<'src>> {
+    
+    let Expr::Dereference { node_id: _, inner, span } = deref_obj else {
+        panic!("Something went wrong");
+    };
+    let inner_type = resolv_expr_type(scope_id, mir, inner, Type::Unresolved)?;
+    let Type::Ref(x) = inner_type else {
+        return Err(CompileError::new(
+            *span,
+            format!(
+                "Can call dereference operator (*) on referenced type objects only. Expression type: '{:?}'",
+                inner_type
+            )
+        ));
+    };
+    
+    Ok(*x.clone())
+}
+
+fn resolv_ref_type<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    reference: &mut Expr<'src>,
+) -> Result<Type<'src>, CompileError<'src>> {
+    
+    let Expr::Reference { node_id: _, inner, span: _ } = reference else {
+        panic!("Something went wrong");
+    };
+    let inner_ty = resolv_expr_type(scope_id, mir, inner, Type::Unresolved)?;
+    
+    Ok(Type::Ref(Box::new(inner_ty)))
+}
+
+fn resolv_cast_type<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    cast: &mut Expr<'src>,
+) -> Result<Type<'src>, CompileError<'src>> {
+    
+    // can cast only i64 to f64 and f64 to i64
+    let Expr::CastType { node_id: _, cast_to, expr, span } = cast else {
+        panic!("Something went wrong");
+    };
+    let dst_ty = *(*cast_to).clone();
+    if dst_ty != Type::I64 && dst_ty != Type::F64 {
+        return Err(CompileError::new(*span, "Can cast only i64 to f64 and f64 to i64".to_owned()));
+    }
+    
+    let src_ty = resolv_expr_type(scope_id, mir, expr, dst_ty.clone())?;
+    if src_ty == dst_ty {
+        return Err(CompileError::new(*span,format!("Remove redundant type cast: expr type - '{:?}', distanation type - '{:?}'", src_ty, dst_ty)));
+    }
+    
+    if src_ty != Type::I64 && src_ty != Type::F64 {
+        return Err(CompileError::new(*span, "Can cast only i64 to f64 and f64 to i64".to_owned()));
+    }
+    
+    Ok(dst_ty)
 }
 
 fn resolv_struct_init_type<'src>(
@@ -779,11 +851,13 @@ fn get_span_line_index<'src>(span: pest::Span<'src>) -> usize {
 
 #[test]
 fn main_test<'src>() -> Result<(), CompileError<'src>> {
-    // для null нужно проверять, что тип переменной определен и ссылочный
     let inp = r#"
     struct A { a: i64 }
+    
     fn main() -> i64 {
-        var a: i64 = a;  // todo struct init
+        var a_s = A { a: 10 };
+        var a = &a_s.a;
+        var b = *a;
     }
     
     "#;
@@ -856,5 +930,23 @@ fn test_index_struct<'src>() -> Result<(), CompileError<'src>> {
 
     println!("{mir:#?}");
 
+    Ok(())
+}
+
+#[test]
+fn test_math_expr<'src>() -> Result<(), CompileError<'src>> {
+    let inp = r#"        
+        fn main() -> void {
+            var a = "hello";
+            var b: str = "var_a = " + a;
+        }
+    "#;
+
+    let hir = hir::compile_hir(&inp)?;
+    // let mir = check_types(hir)?;
+
+    // println!("{mir:#?}");
+    println!("{:#?}", hir.ast.program);
+    
     Ok(())
 }

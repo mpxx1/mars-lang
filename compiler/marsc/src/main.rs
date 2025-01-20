@@ -21,11 +21,11 @@ enum Command {
 #[command(group(
     ArgGroup::new("flags")
         .required(false)
-        .args(&["hir", "mir", "lir"]),
+        .args(&["hir", "mir", "lir", "release"]),
 ))]
 struct BuildArgs {
-    #[arg(short = 'O', long)]
-    optimize: bool,
+    #[arg(short, long)]
+    release: bool,
     
     #[arg(long)]
     hir: bool,
@@ -35,6 +35,9 @@ struct BuildArgs {
     
     #[arg(long)]
     lir: bool,
+    
+    #[arg(long)]
+    llvm_ir: bool,
 
     #[arg(short = 'o', long)]
     output: Option<String>,
@@ -69,17 +72,18 @@ fn main() {
     
     if args.hir {
         if args.output.is_none() {
-            println!("{:?}", hir.ast.program);
+            println!("{:#?}", hir.ast.program);
             exit(0);
         }
         
         let output = args.output.unwrap();
-        if !fs::metadata(output).is_ok() {
-            println!("File '{}' not found", args.input);
-            exit(1);
-        }
+        // todo - try to create file
+        // if !fs::metadata(output).is_ok() {
+        //     println!("File '{}' not found", args.input);
+        //     exit(1);
+        // }
         
-        // save to output file
+        // todo save to output file
         exit(0);
     }
     
@@ -90,17 +94,18 @@ fn main() {
     
     if args.mir {
         if args.output.is_none() {
-            println!("{:?}", mir.scopes);
+            println!("{:#?}", mir.scopes);
             exit(0);
         }
         
         let output = args.output.unwrap();
-        if !fs::metadata(output).is_ok() {
-            println!("File '{}' not found", args.input);
-            exit(1);
-        }
+        // todo - try to create file
+        // if !fs::metadata(output).is_ok() {
+        //     println!("File '{}' not found", args.input);
+        //     exit(1);
+        // }
         
-        // save to output file
+        // todo - save to output file
         exit(0);
     }
     
