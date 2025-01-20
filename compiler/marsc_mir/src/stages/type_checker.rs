@@ -1,6 +1,6 @@
 use crate::{FuncProto, Mir, Scope, ScopeType, StructProto, Variable};
 use crate::stages::sys_funs::*;
-use ast::{Block, Expr, FuncCall, FuncDecl, Identifier, Literal, Stmt, StructDecl, Type};
+use ast::*;
 use pest::Span;
 use err::CompileError;
 use std::collections::{HashMap, HashSet};
@@ -290,7 +290,7 @@ fn scope_push_func_call<'src>(
     
     check_fn_call_args(scope_id, mir, &mut fc)?;
     mir.scopes.get_mut(&scope_id).unwrap().instrs.push(
-        ast::Stmt::FuncCall(fc)
+        Stmt::FuncCall(fc)
     );
     
     Ok(())
@@ -301,7 +301,7 @@ fn scope_push_assignment<'src>(
     mir: &mut Mir<'src>,
     instr: Stmt<'src>,
 ) -> Result<(), CompileError<'src>> {
-    let ast::Stmt::Assignment {
+    let Stmt::Assignment {
         node_id,
         ident,
         ty,
@@ -348,7 +348,7 @@ fn scope_push_assignment<'src>(
     // todo check if types is Str and ToStr
     
     debug_assert_eq!(var.ty, ty);
-    let expr_type = resolv_expr_type(scope_id, mir, &mut expr, ty)?;
+    let expr_type = resolve_expr_type(scope_id, mir, &mut expr, ty)?;
     
     if var.ty == Type::Unresolved {
         var.ty = expr_type;
@@ -376,17 +376,17 @@ fn scope_push_assignment<'src>(
     Ok(())
 }
 
-pub(crate) fn resolv_expr_type<'src>(
+pub(crate) fn resolve_expr_type<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     expr: &mut Expr<'src>,
     opt_type: Type<'src>,
 ) -> Result<Type<'src>, CompileError<'src>> {
     
-    // dbg!("resolv_expr_type", &opt_type);
+    // dbg!("resolve_expr_type", &opt_type);
     let out_type = match expr {
         Expr::Identifier(x) => {
-            let opt_type = resolv_ident_type(scope_id, mir, x.ident);
+            let opt_type = resolve_ident_type(scope_id, mir, x.ident);
             if opt_type.is_none() {
                 return Err(CompileError::new(
                     x.span,
@@ -397,7 +397,7 @@ pub(crate) fn resolv_expr_type<'src>(
         }
         
         Expr::Literal(x) => {
-            resolv_lit_type(x, opt_type)?
+            resolve_lit_type(x, opt_type)?
         }
         
         Expr::FuncCall(x) => {
@@ -405,62 +405,22 @@ pub(crate) fn resolv_expr_type<'src>(
             check_fn_call_args(scope_id, mir, x)?;
             
             // 2 check fn return type
-            resolv_fn_ret_type(mir, x)
+            resolve_fn_ret_type(mir, x)
         }
         
         Expr::ArrayDecl { node_id: _, list, span } => {
-            let av_type = opt_type.clone();
-            let opt_type = if let Type::Array(x, _) = opt_type {
-                *x
-            } else if let Type::Vec(x) = opt_type {  
-                *x
-            } else {
-                Type::Unresolved
-            };
-            let vec_ty = resolv_vec_type(scope_id, mir, list, span, opt_type)?;
-            
-            // check arr or vec
-            if let Type::Array(_, 0) = av_type {
-                return Err(CompileError::new(*span, "Array can not have lenght = 0".to_owned()));
-            }
-           
-            if let Type::Array(ty, len) = av_type.clone() {
-                // проверить эти поля на совпадение
-                if len != list.len() {
-                    return Err(CompileError::new(*span, format!("Array lenght in declaration = {}, actual lenght = {}", len, list.len())))
-                }
-                
-                let Type::Vec(x) = vec_ty else { panic!("Something went wrong") };
-                if *ty != *x {
-                    return Err(CompileError::new(*span, "Type of expressions in array declaration does not match type in declareatoin".to_owned()))
-                }
-                
-                return Ok(Type::Array(ty, len));
-            }
-            
-            if av_type == Type::Unresolved && list.len() != 0 {
-                
-                let Type::Vec(x) = vec_ty else { panic!("Something went wrong") };
-                
-                return Ok(Type::Array(Box::new(*x), list.len()));
-                
-            } else if av_type == Type::Unresolved && list.len() == 0 {
-                
-                return Err(CompileError::new(*span, "Array can not have lenght = 0".to_owned()));
-            }
-            
-            vec_ty
+            resolve_arr_decl_type(scope_id, mir, list, span, opt_type)?
         }
         
-        x if matches!(x, Expr::MemLookup { .. }) => resolv_memlookup_type(scope_id, mir, x)?,
-        x if matches!(x, Expr::StructFieldCall { .. }) => resolv_struct_field_type(scope_id, mir, x)?,
-        x if matches!(x, Expr::StructInit { .. }) => resolv_struct_init_type(scope_id, mir, x)?,
-        x if matches!(x, Expr::CastType { .. }) => resolv_cast_type(scope_id, mir, x)?,
-        x if matches!(x, Expr::Reference { .. }) => resolv_ref_type(scope_id, mir, x)?,
-        x if matches!(x, Expr::Dereference { .. }) => resolv_deref_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::MemLookup { .. }) => resolve_memlookup_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::StructFieldCall { .. }) => resolve_struct_field_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::StructInit { .. }) => resolve_struct_init_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::CastType { .. }) => resolve_cast_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::Reference { .. }) => resolve_ref_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::Dereference { .. }) => resolve_deref_type(scope_id, mir, x)?,
         
-        Expr::MathExpr(x) => unimplemented!(),
-        Expr::LogicalExpr(x) => unimplemented!(),
+        Expr::MathExpr(x) => resolve_math_expr_type(scope_id, mir, x, opt_type)?,
+        Expr::LogicalExpr(_) => unimplemented!(),
 
         x => { panic!("Unimplemented expression: {x:?}"); },
     };
@@ -468,9 +428,105 @@ pub(crate) fn resolv_expr_type<'src>(
     Ok(out_type)
 }
 
+fn resolve_math_expr_type<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    math_expr: &mut MathExpr<'src>,
+    opt_type: Type<'src>,
+) -> Result<Type<'src>, CompileError<'src>> {
+    
+    fn base_math<'src>(
+        scope_id: usize,
+        mir: &mut Mir<'src>,
+        left: &mut MathExpr<'src>,
+        right: &mut MathExpr<'src>,
+        opt_type: Type<'src>,
+        span: &mut Span<'src>,
+    ) -> Result<Type<'src>, CompileError<'src>> {
+        let left_ty = resolve_math_expr_type(scope_id, mir, left, opt_type.clone())?;
+        if opt_type != Type::Unresolved && opt_type != left_ty {
+            return Err(CompileError::new(*span, format!("Expected type: '{:?}', actual: '{:?}'", opt_type, left_ty)));
+        }
+        
+        let right_ty = resolve_math_expr_type(scope_id, mir, right, left_ty.clone())?;
+        if right_ty != left_ty {
+            return Err(CompileError::new(*span, format!("Expected type: '{:?}', actual: '{:?}'", left_ty, right_ty)));
+        }
+    
+        Ok(left_ty)
+    }
+    
+    match math_expr {
+        MathExpr::Additive { node_id: _, left, right, op: _, span } => {
+            base_math(scope_id, mir, left, right, opt_type, span)
+        }
+        
+        MathExpr::Multiplicative { node_id: _, left, right, op: _, span } => {
+            base_math(scope_id, mir, left, right, opt_type, span)
+        }
+        
+        MathExpr::Power { node_id: _, base, exp, span } => {
+            base_math(scope_id, mir, base, exp, opt_type, span)
+        }
+        
+        MathExpr::Primary(x) => {
+            resolve_expr_type(scope_id, mir, x, opt_type.clone())
+        }
+    }
+}
 
+fn resolve_arr_decl_type<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    list: &mut Vec<Expr<'src>>,
+    span: &mut Span<'src>,
+    opt_type: Type<'src>,
+) -> Result<Type<'src>, CompileError<'src>> {
+    
+    let av_type = opt_type.clone();
+    let opt_type = if let Type::Array(x, _) = opt_type {
+        *x
+    } else if let Type::Vec(x) = opt_type {  
+        *x
+    } else {
+        Type::Unresolved
+    };
+    let vec_ty = resolve_vec_type(scope_id, mir, list, span, opt_type)?;
+    
+    // check arr or vec
+    if let Type::Array(_, 0) = av_type {
+        return Err(CompileError::new(*span, "Array can not have lenght = 0".to_owned()));
+    }
+   
+    if let Type::Array(ty, len) = av_type.clone() {
+        // проверить эти поля на совпадение
+        if len != list.len() {
+            return Err(CompileError::new(*span, format!("Array lenght in declaration = {}, actual lenght = {}", len, list.len())))
+        }
+        
+        let Type::Vec(x) = vec_ty else { panic!("Something went wrong") };
+        if *ty != *x {
+            return Err(CompileError::new(*span, "Type of expressions in array declaration does not match type in declareatoin".to_owned()))
+        }
+        
+        return Ok(Type::Array(ty, len));
+    }
+    
+    if av_type == Type::Unresolved && list.len() != 0 {
+        
+        let Type::Vec(x) = vec_ty else { panic!("Something went wrong") };
+        
+        return Ok(Type::Array(Box::new(*x), list.len()));
+        
+    } else if av_type == Type::Unresolved && list.len() == 0 {
+        
+        return Err(CompileError::new(*span, "Array can not have lenght = 0".to_owned()));
+    }
+    
+    Ok(vec_ty)
+}
 
-fn resolv_deref_type<'src>(
+fn resolve_deref_type<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     deref_obj: &mut Expr<'src>,
@@ -479,7 +535,7 @@ fn resolv_deref_type<'src>(
     let Expr::Dereference { node_id: _, inner, span } = deref_obj else {
         panic!("Something went wrong");
     };
-    let inner_type = resolv_expr_type(scope_id, mir, inner, Type::Unresolved)?;
+    let inner_type = resolve_expr_type(scope_id, mir, inner, Type::Unresolved)?;
     let Type::Ref(x) = inner_type else {
         return Err(CompileError::new(
             *span,
@@ -493,7 +549,7 @@ fn resolv_deref_type<'src>(
     Ok(*x.clone())
 }
 
-fn resolv_ref_type<'src>(
+fn resolve_ref_type<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     reference: &mut Expr<'src>,
@@ -502,12 +558,12 @@ fn resolv_ref_type<'src>(
     let Expr::Reference { node_id: _, inner, span: _ } = reference else {
         panic!("Something went wrong");
     };
-    let inner_ty = resolv_expr_type(scope_id, mir, inner, Type::Unresolved)?;
+    let inner_ty = resolve_expr_type(scope_id, mir, inner, Type::Unresolved)?;
     
     Ok(Type::Ref(Box::new(inner_ty)))
 }
 
-fn resolv_cast_type<'src>(
+fn resolve_cast_type<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     cast: &mut Expr<'src>,
@@ -522,7 +578,7 @@ fn resolv_cast_type<'src>(
         return Err(CompileError::new(*span, "Can cast only i64 to f64 and f64 to i64".to_owned()));
     }
     
-    let src_ty = resolv_expr_type(scope_id, mir, expr, dst_ty.clone())?;
+    let src_ty = resolve_expr_type(scope_id, mir, expr, Type::Unresolved)?;
     if src_ty == dst_ty {
         return Err(CompileError::new(*span,format!("Remove redundant type cast: expr type - '{:?}', distanation type - '{:?}'", src_ty, dst_ty)));
     }
@@ -534,7 +590,7 @@ fn resolv_cast_type<'src>(
     Ok(dst_ty)
 }
 
-fn resolv_struct_init_type<'src>(
+fn resolve_struct_init_type<'src>(
     mut scope_id: usize,
     mir: &mut Mir<'src>,
     struct_init: &mut Expr<'src>,
@@ -592,7 +648,7 @@ fn resolv_struct_init_type<'src>(
             return Err(CompileError::new(*span, format!("Struct '{:?}' does not have field '{:?}'", ident.ident, name)));
         }
         let actual_type = actual_type.unwrap().ty.clone();
-        let fld_init_type = resolv_expr_type(scope_id, mir, &mut fld.expr, actual_type.clone())?;
+        let fld_init_type = resolve_expr_type(scope_id, mir, &mut fld.expr, actual_type.clone())?;
         
         if actual_type != fld_init_type {
             return Err(CompileError::new(*span, format!(
@@ -605,7 +661,7 @@ fn resolv_struct_init_type<'src>(
     return Ok(Type::Custom(ident.clone()));
 }
 
-fn resolv_struct_field_type<'src>(
+fn resolve_struct_field_type<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     struct_field: &mut Expr<'src>,
@@ -613,7 +669,7 @@ fn resolv_struct_field_type<'src>(
     
     let Expr::StructFieldCall { ident, field, span, .. } = struct_field else { panic!("Something went wrong"); };
 
-    let Some(custom_type) = resolv_ident_type(scope_id, mir, ident.ident) else {
+    let Some(custom_type) = resolve_ident_type(scope_id, mir, ident.ident) else {
         return Err(CompileError::new(*span, format!("Can not find variable with name '{}'", ident.ident)));
     };
     let Type::Custom(Identifier { ident, span, .. }) = custom_type else {
@@ -670,13 +726,13 @@ fn check_struct_exists<'src>(
     false
 }
 
-fn resolv_memlookup_type<'src>(
+fn resolve_memlookup_type<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     mem_lookup: &Expr<'src>,
 ) -> Result<Type<'src>, CompileError<'src>> {
     let Expr::MemLookup { ident, indices, span, .. } = mem_lookup else { panic!("Something went wrong"); };
-    let mut current_type = resolv_expr_type(scope_id, mir, &mut Expr::Identifier(ident.clone()), Type::Unresolved)?;
+    let mut current_type = resolve_expr_type(scope_id, mir, &mut Expr::Identifier(ident.clone()), Type::Unresolved)?;
     
     if current_type == Type::Str && indices.len() == 1 {
         return Ok(Type::Char);
@@ -702,7 +758,7 @@ fn resolv_memlookup_type<'src>(
 }
 
 
-fn resolv_vec_type<'src>(
+fn resolve_vec_type<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     list: &mut Vec<Expr<'src>>,
@@ -710,15 +766,15 @@ fn resolv_vec_type<'src>(
     opt_type: Type<'src>,
 ) -> Result<Type<'src>, CompileError<'src>> {
     
-    // dbg!("resolv_vec_type", &opt_type);
+    // dbg!("resolve_vec_type", &opt_type);
     let len = list.len();
     if len == 0 { 
         return Ok(Type::Vec(Box::new(opt_type)));
     }
-    let ty = resolv_expr_type(scope_id, mir, &mut list[0], opt_type.clone())?;
+    let ty = resolve_expr_type(scope_id, mir, &mut list[0], opt_type.clone())?;
     
     for i in 1..len {
-        if resolv_expr_type(scope_id, mir, &mut list[i], opt_type.clone())? != ty {
+        if resolve_expr_type(scope_id, mir, &mut list[i], opt_type.clone())? != ty {
             return Err(CompileError::new(*span, "Expressions in array/vec must have single type".to_owned()));
         }
     }
@@ -762,7 +818,7 @@ fn check_fn_call_args<'src>(
     
     for (i, expr) in func.args.iter_mut().enumerate() {
         let actual_type = mir.scopes.get_mut(&func.decl_scope_id.unwrap()).unwrap().funs.get(func.ident.ident).unwrap().args[i].ty.clone();
-        if resolv_expr_type(scope_id, mir, expr, actual_type.clone())? != actual_type {
+        if resolve_expr_type(scope_id, mir, expr, actual_type.clone())? != actual_type {
             return Err(CompileError::new(func.span,format!("Calling function '{}' with wrong arguments", func.ident.ident)));
         }
     }
@@ -770,7 +826,7 @@ fn check_fn_call_args<'src>(
     Ok(())
 }
 
-fn resolv_fn_ret_type<'src>(
+fn resolve_fn_ret_type<'src>(
     mir: &mut Mir<'src>,
     func: &mut FuncCall<'src>,
 ) -> Type<'src> {
@@ -778,7 +834,7 @@ fn resolv_fn_ret_type<'src>(
 }
 
 
-fn resolv_ident_type<'src>(
+fn resolve_ident_type<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     ident: &'src str,
@@ -799,7 +855,7 @@ fn resolv_ident_type<'src>(
     }
 }
 
-fn resolv_lit_type<'src>(lit: &Literal<'src>, possible_type: Type<'src>) -> Result<Type<'src>, CompileError<'src>> {
+fn resolve_lit_type<'src>(lit: &Literal<'src>, possible_type: Type<'src>) -> Result<Type<'src>, CompileError<'src>> {
     match lit {
         Literal::Int { .. } => Ok(Type::I64),
         Literal::Float { .. } => Ok(Type::F64), 
@@ -946,14 +1002,41 @@ fn test_math_expr<'src>() -> Result<(), CompileError<'src>> {
 fn print_test<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"        
         fn main() -> void {
-            var a = 0;
-            print("{}");
+            
+            var d = 10.44345234525;
+            var c = (i64) d;
+            var b = &c;
+            var a = 10 * *b;
+            
+            var wow = 10 * 59 ** 3435 ** 343 - 3434 + 343 - 3423 * *b / ((i64) d) % a * 8 ;
+            print("{a}, {wow}");
+            
+            var o = (f64) wow;
+            println("hello w{o}rld");
         }
     "#;
 
     let hir = hir::compile_hir(&inp)?;
     let mir = check_types(hir)?;
 
+    println!("{mir:#?}");
+    
+    Ok(())
+}
+
+#[test]
+fn math_test<'src>() -> Result<(), CompileError<'src>> {
+    let inp = r#"        
+        fn main() -> void {
+            
+            var d = 10.44345234525;
+            var c = ((i64) d) + 10;
+        }
+    "#;
+
+    let hir = hir::compile_hir(&inp)?;
+    let mir = check_types(hir)?;
+    // println!("{:#?}", hir.ast.program);
     println!("{mir:#?}");
     
     Ok(())

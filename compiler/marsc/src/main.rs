@@ -21,7 +21,7 @@ enum Command {
 #[command(group(
     ArgGroup::new("flags")
         .required(false)
-        .args(&["hir", "mir", "lir", "release"]),
+        .args(&["hir", "mir", "lir", "release", "llvm_ir"]),
 ))]
 struct BuildArgs {
     #[arg(short, long)]
@@ -76,7 +76,7 @@ fn main() {
             exit(0);
         }
         
-        let output = args.output.unwrap();
+        let _output = args.output.unwrap();
         // todo - try to create file
         // if !fs::metadata(output).is_ok() {
         //     println!("File '{}' not found", args.input);
@@ -98,7 +98,7 @@ fn main() {
             exit(0);
         }
         
-        let output = args.output.unwrap();
+        let _output = args.output.unwrap();
         // todo - try to create file
         // if !fs::metadata(output).is_ok() {
         //     println!("File '{}' not found", args.input);

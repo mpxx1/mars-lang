@@ -133,7 +133,10 @@ pub(crate) fn check_sys_fn_args_types<'src>(
                 return Err(CompileError::new(func.span, "Can call print/println function with string literal only".to_owned()));
             };
             
-            for x in extract_variable_names(lit) {
+            let var_list = extract_variable_names(lit);
+            dbg!(&var_list);
+            
+            for x in var_list {
                 let Some(inner) = resolv_ident_type(scope_id, mir, x.clone()) else {
                     return Err(CompileError::new(span, format!("Can not find variable with name {:?}", x)));
                 };
@@ -161,35 +164,12 @@ pub(crate) fn check_sys_fn_args_types<'src>(
 
 pub fn extract_variable_names(input: String) -> Vec<String> {
     let re = Regex::new(r"\{([^\{\}]+)\}").unwrap();
-    
     let mut variables = Vec::new();
-    let mut ignore = false; 
 
-    let mut chars = input.chars().peekable();
-    
-    while let Some(c) = chars.next() {
-        if c == '{' {
-            if chars.peek() == Some(&'{') {
-                ignore = true; 
-                chars.next(); 
-                continue;
-            }
-        }
-
-        if c == '}' {
-            if chars.peek() == Some(&'}') {
-                ignore = false; 
-                chars.next(); 
-                continue;
-            }
-        }
-
-        if !ignore && c == '{' {
-            let var_content = re.captures(&input)
-                .and_then(|caps| caps.get(1))
-                .map(|m| m.as_str());
-            
-            if let Some(var) = var_content {
+    for cap in re.captures_iter(&input) {
+        if let Some(var_content) = cap.get(1) {
+            let var = var_content.as_str();
+            if !var.is_empty() {
                 variables.push(var.to_string());
             }
         }
@@ -197,6 +177,7 @@ pub fn extract_variable_names(input: String) -> Vec<String> {
 
     variables
 }
+
 
 fn resolv_ident_type<'src>(
     scope_id: usize,

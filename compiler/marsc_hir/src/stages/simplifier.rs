@@ -134,6 +134,10 @@ pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
                     }
                 }
             }
+            
+            Expr::CastType { node_id, cast_to, expr, span } => {
+                Expr::CastType { node_id, cast_to, expr: Box::new(simplify_expr(*expr)), span }
+            }
 
             _ => expr,
         }
