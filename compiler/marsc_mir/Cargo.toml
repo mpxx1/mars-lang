@@ -15,4 +15,5 @@ path = "src/lib.rs"
 marsc_hir = { path = "../marsc_hir" }
 marsc_ast = { path = "../marsc_ast" }
 marsc_error = { path = "../marsc_error" }
-pest = "2.7.14"
+pest = "2.7.15"
+regex = "1.11.1"
