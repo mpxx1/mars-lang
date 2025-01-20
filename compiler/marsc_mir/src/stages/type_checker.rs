@@ -27,10 +27,10 @@ pub(crate) fn check_types<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, Compil
     );
     
     // sys funs init
-    // for f in sys_funs_init() {
-    //     mir.sys_funs.push(f.ident);
-    //     mir.scopes.get_mut(&GLOBAL_SCOPE_ID).unwrap().funs.insert(f.ident, f);
-    // }
+    for f in sys_funs_init() {
+        mir.sys_funs.push(f.ident);
+        mir.scopes.get_mut(&GLOBAL_SCOPE_ID).unwrap().funs.insert(f.ident, f);
+    }
 
     let mut structs = vec![];
     let mut funs = vec![];
@@ -344,6 +344,8 @@ fn scope_push_assignment<'src>(
             }
         } 
     }
+    
+    // todo check if types is Str and ToStr
     
     debug_assert_eq!(var.ty, ty);
     let expr_type = resolv_expr_type(scope_id, mir, &mut expr, ty)?;
@@ -755,18 +757,7 @@ fn check_fn_call_args<'src>(
     
     // check system funs
     if mir.sys_funs.contains(&func.ident.ident) {
-        let v = func
-             .args
-             .iter_mut()
-             .map(
-                 |a| resolv_expr_type(scope_id, mir, a, Type::Unresolved).unwrap()
-             )
-             .collect::<Vec<_>>();
-        
-        return check_sys_fn_args_types(
-            func,
-           &v
-        );
+        check_sys_fn_args_types(scope_id, mir, func.clone())?;
     }
     
     for (i, expr) in func.args.iter_mut().enumerate() {
@@ -947,6 +938,23 @@ fn test_math_expr<'src>() -> Result<(), CompileError<'src>> {
 
     // println!("{mir:#?}");
     println!("{:#?}", hir.ast.program);
+    
+    Ok(())
+}
+
+#[test]
+fn print_test<'src>() -> Result<(), CompileError<'src>> {
+    let inp = r#"        
+        fn main() -> void {
+            var a = 0;
+            print("{}");
+        }
+    "#;
+
+    let hir = hir::compile_hir(&inp)?;
+    let mir = check_types(hir)?;
+
+    println!("{mir:#?}");
     
     Ok(())
 }

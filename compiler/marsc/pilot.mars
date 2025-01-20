@@ -1,0 +1,10 @@
+struct A {}
+
+fn hello(a: A) -> void {
+	var init = a;
+}
+
+fn main() -> void {
+    var a = A {};
+	hello(a);
+}
