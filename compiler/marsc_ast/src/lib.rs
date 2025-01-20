@@ -52,7 +52,6 @@ pub enum Type<'src> {
 
     // checker only
     Any,
-    ToStr,
     Unresolved,
 }
 
