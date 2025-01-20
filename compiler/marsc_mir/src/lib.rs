@@ -6,8 +6,6 @@ use pest::Span;
 use stages::type_checker::check_types;
 
 pub mod stages;
-pub mod context;
-pub mod provider;
 
 pub const GLOBAL_SCOPE_ID: usize = 0;
 
@@ -52,7 +50,7 @@ pub struct StructProto<'src> {
 
 #[derive(Debug, Clone)]
 pub struct Variable<'src> {
-    pub parent_id: usize, 
+    pub parent_id: usize,
     pub node_id: usize,
     pub ident: &'src str,
     pub ty: Type<'src>,
@@ -80,12 +78,6 @@ impl<'src> StructProto<'src> {
     }
 }
 
-#[derive(Debug)]
-pub struct ExternalFunction<'ctx> {
-    pub ident: &'ctx str,
-    pub args: Vec<Type<'ctx>>,
-    pub return_type: Type<'ctx>,
-}
 pub fn compile_mir<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
     let mir = check_types(hir)?;
     // todo - check usages

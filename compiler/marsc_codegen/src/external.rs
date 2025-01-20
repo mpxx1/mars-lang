@@ -4,6 +4,7 @@ use ast::Type;
 use inkwell::types::{BasicMetadataTypeEnum, BasicType};
 use marsc_mir::context::ExternalFunctions;
 use marsc_mir::ExternalFunction;
+use mir::Mir;
 
 impl<'ctx, 'src> Codegen<'ctx, 'src>
 where
@@ -43,8 +44,8 @@ where
         }
     }
     
-    pub(crate) fn generate_external_functions(&self, external_functions: &'ctx ExternalFunctions<'ctx>) {
-        for external_function in external_functions.get_all() {
+    pub(crate) fn generate_external_functions(&self, mir: &Mir) {
+        for external_function in mir.sys_funs {
             self.generate_external_function(&external_function);
         }
     }

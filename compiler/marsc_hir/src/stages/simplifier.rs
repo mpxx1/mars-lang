@@ -8,12 +8,12 @@ pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
             | Expr::MathExpr(MathExpr::Primary(inner_expr)) => simplify_expr(*inner_expr),
 
             Expr::MathExpr(MathExpr::Additive {
-                node_id,
-                left,
-                right,
-                op,
-                span,
-            }) => Expr::MathExpr(MathExpr::Additive {
+                               node_id,
+                               left,
+                               right,
+                               op,
+                               span,
+                           }) => Expr::MathExpr(MathExpr::Additive {
                 node_id,
                 left: Box::new(simplify_math_expr(*left)),
                 right: Box::new(simplify_math_expr(*right)),
@@ -22,12 +22,12 @@ pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
             }),
 
             Expr::MathExpr(MathExpr::Multiplicative {
-                node_id,
-                left,
-                right,
-                op,
-                span,
-            }) => Expr::MathExpr(MathExpr::Multiplicative {
+                               node_id,
+                               left,
+                               right,
+                               op,
+                               span,
+                           }) => Expr::MathExpr(MathExpr::Multiplicative {
                 node_id,
                 left: Box::new(simplify_math_expr(*left)),
                 right: Box::new(simplify_math_expr(*right)),
@@ -36,11 +36,11 @@ pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
             }),
 
             Expr::MathExpr(MathExpr::Power {
-                node_id,
-                base,
-                exp,
-                span,
-            }) => Expr::MathExpr(MathExpr::Power {
+                               node_id,
+                               base,
+                               exp,
+                               span,
+                           }) => Expr::MathExpr(MathExpr::Power {
                 node_id,
                 base: Box::new(simplify_math_expr(*base)),
                 exp: Box::new(simplify_math_expr(*exp)),
@@ -197,7 +197,7 @@ pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
                 x.body.stmts = x.body.stmts.into_iter().map(|s| simplify_stmt(s)).collect();
                 Stmt::FuncDecl(x)
             }
-            
+
             Stmt::Return {
                 node_id,
                 expr: Some(inner),
@@ -372,7 +372,7 @@ fn test1() -> () {
         }*/
     }
     "#;
-    
+
     let hir = crate::stages::parser::parse(inp);
     println!("{:#?}", hir.unwrap().ast)
 }

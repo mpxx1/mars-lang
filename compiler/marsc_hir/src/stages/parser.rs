@@ -902,7 +902,7 @@ fn parse_literal<'src>(
                 .map_err(|_| CompileError::new(inner.as_span(), "faild to parse char literal".to_owned()))?,
             span,
         },
-        
+
         Rule::null_decl => Literal::NullRef { node_id: gen_id(), span, },
 
         _ => return Err(CompileError::new(inner.as_span(), format!("Unknown literal rule: {:?}", inner.as_rule()))),

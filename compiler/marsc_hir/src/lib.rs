@@ -13,12 +13,12 @@ pub struct Hir<'src> {
 pub fn compile_hir<'src>(
     source_code: &'src str,
 ) -> Result<Hir<'src>, CompileError<'src>> {
-    
+
     let mut hir = parse(source_code)?;
-    
+
     hir.ast = simplify(hir.ast)?;
     hir.ast = arr_expand(hir.ast);
-    
+
     Ok(hir)
 }
 
