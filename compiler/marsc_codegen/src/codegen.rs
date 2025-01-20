@@ -66,6 +66,11 @@ where
     }
 
     pub(crate) fn codegen_func(&mut self, func_decl: &'ctx FuncProto<'src>) {
+
+        if self.mir.sys_funs.contains(&func_decl.ident) {
+            self.generate_external_function(func_decl)
+        }
+
         let arg_types: Vec<BasicMetadataTypeEnum> = func_decl
             .args
             .iter()
@@ -305,15 +310,13 @@ pub fn codegen<'src>(mir: &'src Mir) -> String {
         mir,
         var_table: HashMap::new(),
     };
-    
-    let external_functions = _
-    codegen.generate_external_functions(mir);
+
     let result = codegen.codegen();
     
-    let out_dir = env::var("OUT_DIR").unwrap();
-    let output = out_dir + "/program.o";
+    // let out_dir = env::var("OUT_DIR").unwrap();
+    // let output = out_dir + "/program.o";
     
-    codegen.codegen_bytecode(&PathBuf::from(output)).unwrap();
+    // codegen.codegen_bytecode(&PathBuf::from(output)).unwrap();
     
     result
 }

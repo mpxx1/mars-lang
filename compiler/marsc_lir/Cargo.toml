@@ -12,4 +12,3 @@ name = "lir"
 path = "src/lib.rs"
 
 [dependencies]
-inkwell = { version = "0.5.0", features = ["llvm18-0"] }

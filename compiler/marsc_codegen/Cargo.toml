@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-inkwell = { version = "0.5.0", features = ["llvm18-0"]}
+inkwell = { version = "0.5.0", features = ["llvm18-0"] }
 marsc_mir = { path = "../marsc_mir" }
 marsc_ast = { path = "../marsc_ast" }

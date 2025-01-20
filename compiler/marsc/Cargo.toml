@@ -15,5 +15,6 @@ path = "src/main.rs"
 marsc_hir = { path = "../marsc_hir" }
 marsc_mir = { path = "../marsc_mir" }
 marsc_error = { path = "../marsc_error" }
+marsc_codegen = { path = "../marsc_codegen" }
 clap = { version = "4.5.26", features = ["derive"] }
 anyhow = "1.0.95"
