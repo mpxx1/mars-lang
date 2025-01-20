@@ -1,6 +1,6 @@
 use crate::{FuncProto, Mir, Scope, ScopeType, StructProto, Variable};
 use crate::stages::sys_funs::*;
-use ast::{Block, Expr, FuncDecl, Literal, Stmt, StructDecl, Type, FuncCall};
+use ast::{Block, Expr, FuncCall, FuncDecl, Identifier, Literal, Stmt, StructDecl, Type};
 use pest::Span;
 use err::CompileError;
 use std::collections::{HashMap, HashSet};
@@ -320,6 +320,31 @@ fn scope_push_assignment<'src>(
         .remove(ident)
         .unwrap();
     
+    // check if this type exists (for struct)
+    if var.ty != Type::Unresolved {
+        
+        // get inner type for var.ty
+        fn unwrap_to_core_type<'src>(mut ty: Type<'src>) -> Type<'src> {
+            use Type::*;
+            while let Some(inner) = match ty.clone() {
+                Vec(inner) | Array(inner, _) | Ref(inner) => Some(*inner),
+                _ => None,
+            } {
+                ty = inner;
+            }
+            ty
+        }
+        
+        if let Type::Custom(ref x) = unwrap_to_core_type(var.ty.clone()) { 
+            if !check_struct_exists(scope_id, mir, x.ident) {
+                return Err(CompileError::new(
+                    span,
+                    format!("Struct '{}' not found", x.ident),
+                ));
+            }
+        } 
+    }
+    
     debug_assert_eq!(var.ty, ty);
     let expr_type = resolv_expr_type(scope_id, mir, &mut expr, ty)?;
     
@@ -425,7 +450,9 @@ pub(crate) fn resolv_expr_type<'src>(
             vec_ty
         }
         
-        x if matches!(x, Expr::MemLookup { .. }) => resolve_memlookup_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::MemLookup { .. }) => resolv_memlookup_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::StructFieldCall { .. }) => resolv_struct_field_type(scope_id, mir, x)?,
+        x if matches!(x, Expr::StructInit { .. }) => resolv_struct_init_type(scope_id, mir, x)?,
 
         x => { println!("{x:?}"); unimplemented!() },
     };
@@ -433,7 +460,143 @@ pub(crate) fn resolv_expr_type<'src>(
     Ok(out_type)
 }
 
-fn resolve_memlookup_type<'src>(
+fn resolv_struct_init_type<'src>(
+    mut scope_id: usize,
+    mir: &mut Mir<'src>,
+    struct_init: &mut Expr<'src>,
+) -> Result<Type<'src>, CompileError<'src>> {
+    
+    let Expr::StructInit { ident, fields, span, .. } = struct_init else {
+        panic!("Something went wrong");
+    };
+    
+    while let Some(scope) = mir.scopes.get(&scope_id) {
+        if let Some(struct_proto) = scope.structs.get(ident.ident) {
+            // Check if the number of fields matches.
+            if struct_proto.fields.len() != fields.len() {
+                return Err(CompileError::new(
+                    *span,
+                    format!(
+                        "Struct '{}' expects {} fields, but {} were provided.",
+                        ident.ident,
+                        struct_proto.fields.len(),
+                        fields.len()
+                    ),
+                ));
+            }
+            
+            break;
+        }
+        
+        if scope_id == 0 {
+            return Err(CompileError::new(
+                *span,
+                format!("Struct '{}' not found.", ident.ident),
+            ));
+        }
+
+        scope_id = scope.parent_id;
+    }
+    
+    // Check each field's type.
+    let mut fields_proto = HashMap::new();
+    let mut fields_init = HashMap::new();
+    let struct_proto = mir.scopes.get(&scope_id).unwrap().structs.get(ident.ident).unwrap();
+    let tmp_args = struct_proto.fields.clone();
+    
+    for elem in tmp_args.iter() {
+        fields_proto.insert(elem.ident, elem);
+    }
+    
+    for elem in fields.iter_mut() {
+        fields_init.insert(elem.ident.ident, elem);
+    }
+    
+    for (name, fld) in fields_init.iter_mut() {
+        let actual_type = fields_proto.get(name);
+        if actual_type.is_none() {
+            return Err(CompileError::new(*span, format!("Struct '{:?}' does not have field '{:?}'", ident.ident, name)));
+        }
+        let actual_type = actual_type.unwrap().ty.clone();
+        let fld_init_type = resolv_expr_type(scope_id, mir, &mut fld.expr, actual_type.clone())?;
+        
+        if actual_type != fld_init_type {
+            return Err(CompileError::new(*span, format!(
+                "Field '{:?}' has type '{:?}', but expression provided has type '{:?}'.",
+                name, actual_type, fld_init_type
+            )));
+        }
+    }
+
+    return Ok(Type::Custom(ident.clone()));
+}
+
+fn resolv_struct_field_type<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    struct_field: &mut Expr<'src>,
+) -> Result<Type<'src>, CompileError<'src>> {
+    
+    let Expr::StructFieldCall { ident, field, span, .. } = struct_field else { panic!("Something went wrong"); };
+
+    let Some(custom_type) = resolv_ident_type(scope_id, mir, ident.ident) else {
+        return Err(CompileError::new(*span, format!("Can not find variable with name '{}'", ident.ident)));
+    };
+    let Type::Custom(Identifier { ident, span, .. }) = custom_type else {
+        return Err(CompileError::new(*span, format!("Can not find struct prototype with name '{}'", ident.ident)));
+    };
+    
+    let mut cur_scope = scope_id;
+    while let Some(scope) = mir.scopes.get(&cur_scope) {
+        if let Some(struct_proto) = scope.structs.get(&ident) {
+            if let Some(arg) = struct_proto.fields.iter().find(|arg| arg.ident == field.ident) {
+                return Ok(arg.ty.clone());
+            } else {
+                return Err(CompileError::new(
+                    span,
+                    format!("Field '{}' not found in struct '{}'", field.ident, ident),
+                ));
+            }
+        }
+        
+        if cur_scope == 0 {
+            return Err(CompileError::new(
+                span,
+                format!("Struct '{}' not found", ident),
+            ));
+        }
+        
+        cur_scope = scope.parent_id;
+    }
+
+    Err(CompileError::new(
+        span,
+        format!("Struct '{}' not found", ident),
+    ))
+}
+
+fn check_struct_exists<'src>(
+    mut scope_id: usize,
+    mir: &mut Mir<'src>,
+    ident: &'src str,
+) -> bool {
+    
+    while let Some(scope) = mir.scopes.get(&scope_id) {
+        if let Some(_) = scope.structs.get(&ident) {
+            return true;
+        }
+        
+        if scope_id == 0 {
+            return false;
+        }
+        
+        scope_id = scope.parent_id;
+    }
+
+    false
+}
+
+fn resolv_memlookup_type<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     mem_lookup: &Expr<'src>,
@@ -618,9 +781,9 @@ fn get_span_line_index<'src>(span: pest::Span<'src>) -> usize {
 fn main_test<'src>() -> Result<(), CompileError<'src>> {
     // для null нужно проверять, что тип переменной определен и ссылочный
     let inp = r#"
-    
+    struct A { a: i64 }
     fn main() -> i64 {
-        var a: &i64 = null;
+        var a: i64 = a;  // todo struct init
     }
     
     "#;
@@ -636,9 +799,10 @@ fn main_test<'src>() -> Result<(), CompileError<'src>> {
 #[test]
 fn test_index_fn<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"
+        struct A { a: i64 }
         fn hello(a: i64, b: str) -> i64 {
-        
-            var c = hello(a, b);
+            
+            var s_a = A { b: 10 };
         }
     "#;
 
@@ -674,11 +838,16 @@ fn test_index_inner_fn<'src>() -> Result<(), CompileError<'src>> {
 #[test]
 fn test_index_struct<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"
+        fn hello() -> Vec<i64> {} 
+        
         fn main() -> void {
             var b = 10;
             var a: [Vec<i64>; 2] = [[0, 10, 100], [0, b]];
             
             var c = a[0][0];
+            
+            var a = hello();
+            var b = a[0];
         }
     "#;
 
