@@ -8,6 +8,7 @@ Mars programming language compiler mir module
 """
 
 [lib]
+name = "mir"
 path = "src/lib.rs"
 
 [dependencies]

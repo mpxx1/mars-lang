@@ -7,10 +7,6 @@ description = """
 Mars programming language compiler entry point
 """
 
-[[bin]]
-name = "mars"
-path = "src/main.rs"
-
 [dependencies]
 
 [workspace]

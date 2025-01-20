@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use ast::{ArgDecl, Stmt, StructDecl, Type};
+use err::CompileError;
 use pest::Span;
+use stages::type_checker::check_types;
 
 pub mod stages;
 pub mod context;
@@ -13,6 +15,7 @@ pub const GLOBAL_SCOPE_ID: usize = 0;
 pub struct Mir<'src> {
     pub code: &'src str,
     pub scopes: HashMap<usize, Scope<'src>>,
+    pub sys_funs: Vec<&'src str>,
 }
 
 #[derive(Debug)]
@@ -82,4 +85,21 @@ pub struct ExternalFunction<'ctx> {
     pub ident: &'ctx str,
     pub args: Vec<Type<'ctx>>,
     pub return_type: Type<'ctx>,
+}
+pub fn compile_mir<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
+    let mir = check_types(hir)?;
+    // todo - check usages
+    // todo - check references
+
+    Ok(mir)
+}
+
+pub trait ToMir<'src> {
+    fn compile_mir(self) -> Result<Mir<'src>, CompileError<'src>>;
+}
+
+impl<'src> ToMir<'src> for hir::Hir<'src> {
+    fn compile_mir(self) -> Result<Mir<'src>, CompileError<'src>> {
+        compile_mir(self)
+    }
 }
