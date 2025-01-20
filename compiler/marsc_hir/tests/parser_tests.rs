@@ -157,14 +157,6 @@ fn test_parse_nested_struct() {
     }
 }
 
-// #[test]
-// fn test_parse_invalid_syntax() {
-//     let input = "invalid syntax";
-//     let result = compile_hir(input);
-//
-//     assert!(result.is_err());
-// }
-
 #[test]
 fn test_parse_empty_struct() {
     let input = r#"
