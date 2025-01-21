@@ -5,8 +5,8 @@ use ast::ProgStmt;
 use ast::Stmt::{self, *};
 use ast::Type::*;
 
-pub(crate) fn arr_expand<'src>(mut ast: Ast<'src>) -> Ast<'src> {
-    fn process_stmt<'src>(stmt: &mut Stmt<'src>) {
+pub(crate) fn arr_expand(mut ast: Ast) -> Ast {
+    fn process_stmt(stmt: &mut Stmt<'_>) {
         match stmt {
             Assignment {
                 ty: Array(_, len),
@@ -48,7 +48,7 @@ pub(crate) fn arr_expand<'src>(mut ast: Ast<'src>) -> Ast<'src> {
         }
     }
 
-    fn process_block<'src>(block: &mut Block<'src>) {
+    fn process_block(block: &mut Block<'_>) {
         for stmt in block.stmts.iter_mut() {
             process_stmt(stmt);
         }

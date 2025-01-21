@@ -11,7 +11,7 @@ pub struct Hir<'src> {
     pub code: &'src str,
 }
 
-pub fn compile_hir<'src>(source_code: &'src str) -> Result<Hir<'src>, CompileError<'src>> {
+pub fn compile_hir(source_code: &str) -> Result<Hir, CompileError> {
     let mut hir = parse(source_code)?;
 
     hir.ast = simplify(hir.ast)?;

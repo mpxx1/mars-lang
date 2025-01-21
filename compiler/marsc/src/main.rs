@@ -48,7 +48,7 @@ struct BuildArgs {
 fn main() {
     let Command::Build(args) = Cli::parse().command;
 
-    if !fs::metadata(&args.input).is_ok() {
+    if fs::metadata(&args.input).is_err() {
         println!("File '{}' not found", args.input);
         exit(1);
     }

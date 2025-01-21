@@ -3,19 +3,21 @@ use std::collections::HashMap;
 use ast::{ArgDecl, Stmt, StructDecl, Type};
 use err::CompileError;
 use pest::Span;
-use stages::type_checker::check_types;
+use stages::check_after_ret::check_after_return;
+use stages::check_main::check_main;
+use stages::check_types::check_types;
 
 pub mod stages;
 
 pub const GLOBAL_SCOPE_ID: usize = 0;
-pub static mut GLOBAL_COUNTER: usize = 2_000_000;
+// pub static mut GLOBAL_COUNTER: usize = 2_000_000;
 
-pub(crate) fn gen_id() -> usize {
-    unsafe {
-        GLOBAL_COUNTER += 1;
-        GLOBAL_COUNTER
-    }
-}
+// pub(crate) fn gen_id() -> usize {
+//     unsafe {
+//         GLOBAL_COUNTER += 1;
+//         GLOBAL_COUNTER
+//     }
+// }
 
 #[derive(Debug)]
 pub struct Mir<'src> {
@@ -86,8 +88,10 @@ impl<'src> StructProto<'src> {
     }
 }
 
-pub fn compile_mir<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
+pub fn compile_mir(hir: hir::Hir) -> Result<Mir, CompileError> {
     let mir = check_types(hir)?;
+    let mir = check_main(mir)?;
+    let mir = check_after_return(mir)?;
     // todo - check usages
     // todo - check references
 
