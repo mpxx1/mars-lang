@@ -1,5 +1,4 @@
 use crate::stages::sys_funs::*;
-use crate::gen_id;
 use crate::{FuncProto, Mir, Scope, ScopeType, StructProto, Variable};
 use ast::*;
 use err::CompileError;
@@ -7,12 +6,8 @@ use pest::Span;
 use std::collections::{HashMap, HashSet};
 
 use crate::GLOBAL_SCOPE_ID;
-use crate::GLOBAL_COUNTER;
 
-pub(crate) fn check_types<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
-    
-    unsafe { GLOBAL_COUNTER = hir.last_id; }
-    
+pub(crate) fn check_types(hir: hir::Hir) -> Result<Mir, CompileError> {
     let mut mir = Mir {
         code: hir.code,
         scopes: HashMap::new(),
@@ -198,27 +193,28 @@ fn scope_push_func<'src>(
             },
         )?;
     }
-    
+
     // 7 push instrs to fn scope
-   base_block_proceed(fn_id, mir, logic_block, ret_ty.clone())?;
-    
-    // 8 check if there is no return in the end of void fn
-    if ret_ty == Type::Void {
-        let fn_scope = mir.scopes.get_mut(&fn_id).unwrap();
-        let instrs = &mut fn_scope.instrs;
-        let last_instr = instrs.pop();
-        if last_instr.is_none() {
-            return Err(CompileError::new(fn_span, "Remove empty function".to_owned()));
-        }
-        let last_instr = last_instr.unwrap();
-        if !matches!(last_instr, Stmt::Return { .. }) {
-            instrs.push(last_instr);
-            instrs.push(Stmt::Return { node_id: gen_id(), expr: None, span: Span::new("mir generated return stmt", 0, 25).unwrap() })
-        } else {
-            instrs.push(last_instr);
-        }
+    base_block_proceed(fn_id, mir, logic_block, ret_ty.clone(), false)?;
+
+    // 8 check if there is no return in the end of fn
+    let fn_scope = mir.scopes.get_mut(&fn_id).unwrap();
+    let instrs = &mut fn_scope.instrs;
+    let last_instr = instrs.pop();
+    if last_instr.is_none() {
+        return Err(CompileError::new(
+            fn_span,
+            "Remove empty function".to_owned(),
+        ));
     }
-    
+    let last_instr = last_instr.unwrap();
+    if !matches!(last_instr, Stmt::Return { .. }) {
+        return Err(CompileError::new(
+            fn_span,
+            "No return in the end of function".to_owned(),
+        ));
+    }
+
     Ok(())
 }
 
@@ -247,11 +243,12 @@ fn scope_push_var<'src>(
     Ok(())
 }
 
-fn scope_push_inst<'src>(
+fn scope_push_instr<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     instr: Stmt<'src>,
     ret_ty: Type<'src>,
+    in_loop: bool,
 ) -> Result<(), CompileError<'src>> {
     match instr {
         x if matches!(x, ast::Stmt::Assignment { .. }) => scope_push_assignment(scope_id, mir, x)?,
@@ -259,16 +256,38 @@ fn scope_push_inst<'src>(
         ast::Stmt::FuncCall(fc) => scope_push_func_call(scope_id, mir, fc)?,
         ast::Stmt::FuncDecl(x) => scope_push_func(scope_id, mir, x)?,
         ast::Stmt::StructDecl(x) => scope_push_struct(scope_id, mir, x)?,
-        ast::Stmt::Block(x) => scope_push_block(scope_id, mir, x, ret_ty)?,
-        x if matches!(x, ast::Stmt::IfElse { .. }) => scope_push_if_else(scope_id, mir, x, ret_ty)?,
-        x if matches!(x, ast::Stmt::WhileLoop { .. }) => scope_push_while_loop(scope_id, mir, x, ret_ty)?,
+        ast::Stmt::Block(x) => scope_push_block(scope_id, mir, x, ret_ty, in_loop)?,
+        x if matches!(x, ast::Stmt::IfElse { .. }) => {
+            scope_push_if_else(scope_id, mir, x, ret_ty, in_loop)?
+        }
+        x if matches!(x, ast::Stmt::WhileLoop { .. }) => {
+            scope_push_while_loop(scope_id, mir, x, ret_ty)?
+        }
         x if matches!(x, ast::Stmt::Return { .. }) => scope_push_return(scope_id, mir, x, ret_ty)?,
-        x if matches!(x, ast::Stmt::Break { .. }) => unimplemented!(),
-        
+        x if matches!(x, ast::Stmt::Break { .. }) => scope_push_break(scope_id, mir, x, in_loop)?,
+
         x => {
             panic!("Parsing stmt '{:?}' to mir - not implemented", x);
-        },
+        }
     }
+
+    Ok(())
+}
+
+fn scope_push_break<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    instr: Stmt<'src>,
+    in_loop: bool,
+) -> Result<(), CompileError<'src>> {
+    let Stmt::Break { node_id, span } = instr else {
+        panic!("Something went wrong");
+    };
+    if !in_loop {
+        return Err(CompileError::new(span, "Not in loop".to_owned()));
+    }
+    let scope = mir.scopes.get_mut(&scope_id).unwrap();
+    scope.instrs.push(Stmt::Break { node_id, span });
 
     Ok(())
 }
@@ -278,37 +297,46 @@ fn scope_push_return<'src>(
     mir: &mut Mir<'src>,
     instr: Stmt<'src>,
     ret_ty: Type<'src>,
-) -> Result<(), CompileError<'src>> { 
-    
-    let Stmt::Return { node_id, mut expr, span } = instr else {
+) -> Result<(), CompileError<'src>> {
+    let Stmt::Return {
+        node_id,
+        mut expr,
+        span,
+    } = instr
+    else {
         panic!("Something went wrong");
     };
-    if ret_ty == Type::Void && !expr.is_none() {
-        return Err(CompileError::new(span, "Remove expression from return, function returns void".to_owned()));
+    if ret_ty == Type::Void && expr.is_some() {
+        return Err(CompileError::new(
+            span,
+            "Remove expression from return, function returns void".to_owned(),
+        ));
     }
-    
+
     if ret_ty != Type::Void && expr.is_none() {
-        return Err(CompileError::new(span, "Missing expression in return body".to_owned()));
+        return Err(CompileError::new(
+            span,
+            "Missing expression in return body".to_owned(),
+        ));
     };
-    
-    
+
     if let Some(ref mut expr) = expr {
         let expr_ty = resolve_expr_type(scope_id, mir, expr, ret_ty.clone())?;
         if expr_ty != ret_ty {
             return Err(CompileError::new(
                 span,
-                format!(
-                    "Expected type: '{:?}, actual: '{:?}'",
-                    ret_ty,
-                    expr_ty
-                ),
+                format!("Expected type: '{:?}, actual: '{:?}'", ret_ty, expr_ty),
             ));
         }
     }
-    
+
     let scope = mir.scopes.get_mut(&scope_id).unwrap();
-    scope.instrs.push(Stmt::Return { node_id, expr, span });
-    
+    scope.instrs.push(Stmt::Return {
+        node_id,
+        expr,
+        span,
+    });
+
     Ok(())
 }
 
@@ -317,9 +345,14 @@ fn scope_push_while_loop<'src>(
     mir: &mut Mir<'src>,
     instr: Stmt<'src>,
     ret_ty: Type<'src>,
-) -> Result<(), CompileError<'src>> { 
-    
-    let Stmt::WhileLoop { node_id, mut cond, body, span } = instr else {
+) -> Result<(), CompileError<'src>> {
+    let Stmt::WhileLoop {
+        node_id,
+        mut cond,
+        body,
+        span,
+    } = instr
+    else {
         panic!("Something went wrong");
     };
     let cond_ty = resolve_expr_type(scope_id, mir, &mut cond, Type::Unresolved)?;
@@ -333,8 +366,13 @@ fn scope_push_while_loop<'src>(
         ));
     }
     let scope = mir.scopes.get_mut(&scope_id).unwrap();
-    scope.instrs.push(Stmt::GoToWhile { cond, loop_id: node_id });
-    mir.scopes.insert(node_id, Scope {
+    scope.instrs.push(Stmt::GoToWhile {
+        cond,
+        loop_id: node_id,
+    });
+    mir.scopes.insert(
+        node_id,
+        Scope {
             parent_id: scope_id,
             node_id,
             structs: HashMap::new(),
@@ -342,9 +380,10 @@ fn scope_push_while_loop<'src>(
             vars: HashMap::new(),
             instrs: vec![],
             scope_type: ScopeType::Block,
-    },);
-    base_block_proceed(node_id, mir, body, ret_ty)?;
-    
+        },
+    );
+    base_block_proceed(node_id, mir, body, ret_ty, true)?;
+
     Ok(())
 }
 
@@ -353,6 +392,7 @@ fn scope_push_if_else<'src>(
     mir: &mut Mir<'src>,
     instr: Stmt<'src>,
     ret_ty: Type<'src>,
+    in_loop: bool,
 ) -> Result<(), CompileError<'src>> {
     let Stmt::IfElse {
         node_id,
@@ -394,7 +434,7 @@ fn scope_push_if_else<'src>(
             scope_type: ScopeType::Block,
         },
     );
-    base_block_proceed(node_id, mir, then_block, ret_ty.clone())?;
+    base_block_proceed(node_id, mir, then_block, ret_ty.clone(), in_loop)?;
 
     if let Some(bl) = else_block {
         mir.scopes.insert(
@@ -409,7 +449,7 @@ fn scope_push_if_else<'src>(
                 scope_type: ScopeType::Block,
             },
         );
-        base_block_proceed(else_id.unwrap(), mir, bl, ret_ty)?;
+        base_block_proceed(else_id.unwrap(), mir, bl, ret_ty, in_loop)?;
     }
 
     Ok(())
@@ -420,6 +460,7 @@ fn base_block_proceed<'src>(
     mir: &mut Mir<'src>,
     instr: Block<'src>,
     ret_ty: Type<'src>,
+    in_loop: bool,
 ) -> Result<(), CompileError<'src>> {
     let mut structs = vec![];
     let mut funs = vec![];
@@ -469,7 +510,7 @@ fn base_block_proceed<'src>(
     }
 
     for instr in instrs {
-        scope_push_inst(block_id, mir, instr, ret_ty.clone())?;
+        scope_push_instr(block_id, mir, instr, ret_ty.clone(), in_loop)?;
     }
 
     Ok(())
@@ -480,6 +521,7 @@ fn scope_push_block<'src>(
     mir: &mut Mir<'src>,
     instr: Block<'src>,
     ret_ty: Type<'src>,
+    in_loop: bool,
 ) -> Result<(), CompileError<'src>> {
     let scope = mir.scopes.get_mut(&scope_id).unwrap();
     scope.instrs.push(Stmt::GoToBlock {
@@ -498,7 +540,7 @@ fn scope_push_block<'src>(
         },
     );
 
-    base_block_proceed(instr.node_id, mir, instr, ret_ty)
+    base_block_proceed(instr.node_id, mir, instr, ret_ty, in_loop)
 }
 
 fn scope_push_assign<'src>(
@@ -579,7 +621,7 @@ fn scope_push_assignment<'src>(
     // check if this type exists (for struct)
     if var.ty != Type::Unresolved {
         // get inner type for var.ty
-        fn unwrap_to_core_type<'src>(mut ty: Type<'src>) -> Type<'src> {
+        fn unwrap_to_core_type(mut ty: Type) -> Type {
             use Type::*;
             while let Some(inner) = match ty.clone() {
                 Vec(inner) | Array(inner, _) | Ref(inner) => Some(*inner),
@@ -955,13 +997,13 @@ fn resolve_arr_decl_type<'src>(
         return Ok(Type::Array(ty, len));
     }
 
-    if av_type == Type::Unresolved && list.len() != 0 {
+    if av_type == Type::Unresolved && !list.is_empty() {
         let Type::Vec(x) = vec_ty else {
             panic!("Something went wrong")
         };
 
         return Ok(Type::Array(Box::new(*x), list.len()));
-    } else if av_type == Type::Unresolved && list.len() == 0 {
+    } else if av_type == Type::Unresolved && list.is_empty() {
         return Err(CompileError::new(
             *span,
             "Array can not have lenght = 0".to_owned(),
@@ -1148,7 +1190,7 @@ fn resolve_struct_init_type<'src>(
         }
     }
 
-    return Ok(Type::Custom(ident.clone()));
+    Ok(Type::Custom(ident.clone()))
 }
 
 fn resolve_struct_field_type<'src>(
@@ -1211,7 +1253,7 @@ fn resolve_struct_field_type<'src>(
 
 fn check_struct_exists<'src>(mut scope_id: usize, mir: &mut Mir<'src>, ident: &'src str) -> bool {
     while let Some(scope) = mir.scopes.get(&scope_id) {
-        if let Some(_) = scope.structs.get(&ident) {
+        if scope.structs.contains_key(&ident) {
             return true;
         }
 
@@ -1278,19 +1320,18 @@ fn resolve_memlookup_type<'src>(
 fn resolve_vec_type<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
-    list: &mut Vec<Expr<'src>>,
+    list: &mut [Expr<'src>],
     span: &mut Span<'src>,
     opt_type: Type<'src>,
 ) -> Result<Type<'src>, CompileError<'src>> {
     // dbg!("resolve_vec_type", &opt_type);
-    let len = list.len();
-    if len == 0 {
+    if list.is_empty() {
         return Ok(Type::Vec(Box::new(opt_type)));
     }
     let ty = resolve_expr_type(scope_id, mir, &mut list[0], opt_type.clone())?;
 
-    for i in 1..len {
-        if resolve_expr_type(scope_id, mir, &mut list[i], opt_type.clone())? != ty {
+    for item in list.iter_mut().skip(1) {
+        if resolve_expr_type(scope_id, mir, item, opt_type.clone())? != ty {
             return Err(CompileError::new(
                 *span,
                 "Expressions in array/vec must have single type".to_owned(),
@@ -1310,7 +1351,7 @@ fn check_fn_call_args<'src>(
         let mut current_scope_id = scope_id;
 
         while let Some(scope) = mir.scopes.get(&current_scope_id) {
-            if let Some(_) = scope.funs.get(func.ident.ident) {
+            if scope.funs.contains_key(func.ident.ident) {
                 func.decl_scope_id = Some(scope.node_id);
                 break;
             }
@@ -1363,7 +1404,9 @@ fn check_fn_call_args<'src>(
             .args[i]
             .ty
             .clone();
-        if actual_type != Type::Any && resolve_expr_type(scope_id, mir, expr, actual_type.clone())? != actual_type {
+        if actual_type != Type::Any
+            && resolve_expr_type(scope_id, mir, expr, actual_type.clone())? != actual_type
+        {
             return Err(CompileError::new(
                 func.span,
                 format!(
@@ -1430,15 +1473,15 @@ fn resolve_lit_type<'src>(
                 return Ok(Type::Ref(x));
             }
 
-            return Err(CompileError::new(
+            Err(CompileError::new(
                 *span,
                 "Null can be used as refrence only".to_owned(),
-            ));
+            ))
         }
     }
 }
 
-fn func_decl_split<'src>(scope_id: usize, func: FuncDecl<'src>) -> (FuncProto<'src>, Block<'src>) {
+fn func_decl_split(scope_id: usize, func: FuncDecl) -> (FuncProto, Block) {
     (
         FuncProto {
             parent_id: scope_id,
@@ -1453,7 +1496,7 @@ fn func_decl_split<'src>(scope_id: usize, func: FuncDecl<'src>) -> (FuncProto<'s
     )
 }
 
-fn get_span_line_index<'src>(span: pest::Span<'src>) -> usize {
+fn get_span_line_index(span: pest::Span) -> usize {
     let input = span.get_input();
     let start = span.start();
     input[..start].chars().filter(|&c| c == '\n').count() + 1
@@ -1474,6 +1517,8 @@ fn main_test<'src>() -> Result<(), CompileError<'src>> {
         
         var arr = ["0", "1", "30"];
         arr[0] = "1e3";
+        
+        return 0;
     }
     
     "#;
@@ -1500,6 +1545,8 @@ fn test_if_else<'src>() -> Result<(), CompileError<'src>> {
             } else {
                 println("hello");
             }
+            
+            return;
         }
     "#;
 
@@ -1518,6 +1565,8 @@ fn test_index_fn<'src>() -> Result<(), CompileError<'src>> {
         fn hello(a: i64, b: str) -> i64 {
             
             var s_a = A { a: 10 };
+            
+            return 10;
         }
     "#;
 
@@ -1535,7 +1584,7 @@ fn test_index_inner_fn<'src>() -> Result<(), CompileError<'src>> {
         fn hello(a: i64, b: str) -> i64 {
             
             struct A {}
-            fn tt(a: i64) -> i64 {}
+            fn tt(a: i64) -> i64 { return 2; }
             
             {
                 var c = a;
@@ -1543,9 +1592,11 @@ fn test_index_inner_fn<'src>() -> Result<(), CompileError<'src>> {
             }
             
             print("hello");
+            
+            return 0;
         }
         
-        fn main() -> void { hello(10, "hello"); }
+        fn main() -> void { hello(10, "hello"); return; }
     "#;
 
     let hir = hir::compile_hir(&inp)?;
@@ -1559,13 +1610,19 @@ fn test_index_inner_fn<'src>() -> Result<(), CompileError<'src>> {
 #[test]
 fn test_index_struct<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"
-        fn hello() -> Vec<i64> {} 
+        fn hello() -> Vec<i64> { 
+            var b = 10;
+            var v: Vec<i64> = [0, b];
+            return v;
+        } 
         
         fn main() -> void {
-            var b = 10;
-            var a: [Vec<i64>; 2] = [[0, 10, 100], [0, b]];
+            
+            var a: [Vec<i64>; 2] = [[0, 10, 100], hello(),];
             
             var c = a[0][0];
+            
+            return;
         }
     "#;
 
@@ -1610,6 +1667,8 @@ fn print_test<'src>() -> Result<(), CompileError<'src>> {
             
             var o = (f64) wow;
             println("hello w{o}rld");
+            
+            return;
         }
     "#;
 
@@ -1646,7 +1705,6 @@ fn math_test<'src>() -> Result<(), CompileError<'src>> {
     Ok(())
 }
 
-
 #[test]
 fn fn_block_test<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"        
@@ -1663,7 +1721,7 @@ fn fn_block_test<'src>() -> Result<(), CompileError<'src>> {
                 a += 20;
             }
             
-            
+            return;
         }
     "#;
 
@@ -1685,6 +1743,46 @@ fn sys_fn_test<'src>() -> Result<(), CompileError<'src>> {
             println("10");
             vec_push(&v, &a);
             vec_pop(&v);
+            
+            fn main() -> void {
+                var a = 10;
+                return;
+            }
+            
+            return;
+        }
+    "#;
+
+    let hir = hir::compile_hir(&inp)?;
+    let mir = check_types(hir)?;
+    println!("{mir:#?}");
+
+    Ok(())
+}
+
+#[test]
+fn while_test<'src>() -> Result<(), CompileError<'src>> {
+    let inp = r#"        
+        fn main() -> void {
+        
+            
+            while 10 < 20 {
+                var a = 20;
+                if a > 9 {
+                    break;
+                } else {
+                    print("hello");
+                    break;
+                }
+                
+                return;
+            }
+            
+            fn hello() -> bool {
+                return true;
+            }
+            
+            return;
         }
     "#;
 

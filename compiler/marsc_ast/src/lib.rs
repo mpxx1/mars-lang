@@ -338,7 +338,7 @@ pub enum MulOp {
     DivFloor,
 }
 
-impl<'src> PartialEq for Identifier<'src> {
+impl PartialEq for Identifier<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.ident == other.ident
     }

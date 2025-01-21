@@ -44,7 +44,7 @@ impl<'src> CompileError<'src> {
     }
 }
 
-impl<'src> Display for CompileError<'src> {
+impl Display for CompileError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let line_idx = self.line_index();
         let col_idx = self.column_index();
@@ -73,7 +73,7 @@ impl<'src> Display for CompileError<'src> {
     }
 }
 
-impl<'src> Debug for CompileError<'src> {
+impl Debug for CompileError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self, f)
     }

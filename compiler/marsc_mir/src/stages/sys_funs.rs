@@ -4,7 +4,7 @@ use err::CompileError;
 use pest::Span;
 use regex::Regex;
 
-use super::type_checker::resolve_expr_type;
+use super::check_types::resolve_expr_type;
 
 pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
     static mut SYS_FN_COUNTER: usize = GLOBAL_SCOPE_ID;
@@ -31,7 +31,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             is_used: true,
             span: Span::new("external fn", 0, 10).unwrap(),
         },
-        
         FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
@@ -46,7 +45,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             is_used: true,
             span: Span::new("external fn", 0, 10).unwrap(),
         },
-        
         FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
@@ -61,7 +59,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
-        
         FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
@@ -76,7 +73,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
-        
         FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
@@ -99,7 +95,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
-        
         FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
@@ -114,11 +109,10 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
-        
         FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "now",   // todo now_sec, now_milis, now_nanos
+            ident: "now", // todo now_sec, now_milis, now_nanos
             args: vec![],
             return_type: Type::I64,
             is_used: true,
@@ -134,7 +128,7 @@ pub(crate) fn check_sys_fn_args_types<'src>(
     mir: &mut Mir<'src>,
     mut func: FuncCall<'src>,
 ) -> Result<(), CompileError<'src>> {
-    return match func.ident.ident {
+    match func.ident.ident {
         "print" | "println" => {
             let Expr::Literal(x) = func.args.pop().unwrap() else {
                 return Err(CompileError::new(
@@ -155,7 +149,7 @@ pub(crate) fn check_sys_fn_args_types<'src>(
             };
 
             let var_list = extract_variable_names(lit);
-            dbg!(&var_list);
+            // dbg!(&var_list);
 
             for x in var_list {
                 let Some(inner) = resolve_ident_type(scope_id, mir, x.clone()) else {
@@ -180,9 +174,14 @@ pub(crate) fn check_sys_fn_args_types<'src>(
 
             Ok(())
         }
-        
+
         "len" => {
-            let Expr::Reference { node_id: _, inner, span } = func.args.pop().unwrap() else {
+            let Expr::Reference {
+                node_id: _,
+                inner,
+                span,
+            } = func.args.pop().unwrap()
+            else {
                 return Err(CompileError::new(
                     func.span,
                     "Can call 'len' function with refrence only".to_owned(),
@@ -200,18 +199,23 @@ pub(crate) fn check_sys_fn_args_types<'src>(
                     format!("Can not find variable with name {:?}", x.ident),
                 ));
             };
-            if !matches!(ty, Type::Str | Type::Array(_,_) | Type::Vec(_)) {
+            if !matches!(ty, Type::Str | Type::Array(_, _) | Type::Vec(_)) {
                 return Err(CompileError::new(
                     x.span,
-                    format!("Function 'len' can take argument of types '&str', '&[ _ ; _ ]' and '&Vec<_>' only"),
+                    "Function 'len' can take argument of types '&str', '&[ _ ; _ ]' and '&Vec<_>' only".to_owned(),
                 ));
             }
-            
+
             Ok(())
-        },
-        
+        }
+
         "capacity" => {
-            let Expr::Reference { node_id: _, inner, span } = func.args.pop().unwrap() else {
+            let Expr::Reference {
+                node_id: _,
+                inner,
+                span,
+            } = func.args.pop().unwrap()
+            else {
                 return Err(CompileError::new(
                     func.span,
                     "Can call 'capacity' function with refrence only".to_owned(),
@@ -232,16 +236,21 @@ pub(crate) fn check_sys_fn_args_types<'src>(
             if !matches!(ty, Type::Vec(_)) {
                 return Err(CompileError::new(
                     x.span,
-                    format!("Function len 'capacity' take argument of '&Vec<_>' type only"),
+                    "Function len 'capacity' take argument of '&Vec<_>' type only".to_owned(),
                 ));
             }
-            
+
             Ok(())
-        },
-        
+        }
+
         "vec_push" => {
             func.args.reverse();
-            let Expr::Reference { node_id: _, inner, span } = func.args.pop().unwrap() else {
+            let Expr::Reference {
+                node_id: _,
+                inner,
+                span,
+            } = func.args.pop().unwrap()
+            else {
                 return Err(CompileError::new(
                     func.span,
                     "Can call 'vec_push' function with refrence to vec only".to_owned(),
@@ -270,19 +279,24 @@ pub(crate) fn check_sys_fn_args_types<'src>(
             };
             let mut inner_expr = func.args.pop().unwrap();
             let expr_ty = resolve_expr_type(scope_id, mir, &mut inner_expr, *vec_inner_ty.clone())?;
-            
+
             if *vec_inner_ty != expr_ty {
                 return Err(CompileError::new(
                     x.span,
                     format!("Expected: '{vec_inner_ty:?}', actual: '{expr_ty:?}'"),
                 ));
             }
-            
+
             Ok(())
-        },
-        
+        }
+
         "vec_pop" => {
-            let Expr::Reference { node_id: _, inner, span } = func.args.pop().unwrap() else {
+            let Expr::Reference {
+                node_id: _,
+                inner,
+                span,
+            } = func.args.pop().unwrap()
+            else {
                 return Err(CompileError::new(
                     func.span,
                     "Can call 'vec_pop' function with refrence to vec only".to_owned(),
@@ -308,14 +322,14 @@ pub(crate) fn check_sys_fn_args_types<'src>(
             }
 
             Ok(())
-        },
-        
-        "now" => {
-            Ok(())
-        },
-        
-        x => { panic!("System fn '{x:?}' args check not implemented")},
-    };
+        }
+
+        "now" => Ok(()),
+
+        x => {
+            panic!("System fn '{x:?}' args check not implemented")
+        }
+    }
 }
 
 pub fn extract_variable_names(input: String) -> Vec<String> {

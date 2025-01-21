@@ -1,8 +1,8 @@
 use ast::*;
 use err::CompileError;
 
-pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
-    fn simplify_logical_expr<'src>(expr: LogicalExpr<'src>) -> LogicalExpr<'src> {
+pub(crate) fn simplify(ast: Ast) -> Result<Ast, CompileError> {
+    fn simplify_logical_expr(expr: LogicalExpr) -> LogicalExpr {
         match expr {
             LogicalExpr::Or {
                 node_id,
@@ -370,11 +370,7 @@ pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
                 else_id,
                 cond: Box::new(simplify_expr(*cond)),
                 then_block: simplify_top_block(then_block),
-                else_block: if let Some(inner) = else_block {
-                    Some(simplify_top_block(inner))
-                } else {
-                    None
-                },
+                else_block: else_block.map(simplify_top_block),
                 span,
             },
 
@@ -400,17 +396,11 @@ pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
         }
 
         let mut contains_stmts = false;
-        // let mut block_count = 0;
         for stmt in &block.stmts {
             if !matches!(stmt, Stmt::Block(_) | Stmt::Return { .. }) {
                 contains_stmts = true;
                 break;
             }
-            // else if matches!(stmt, Stmt::Block(_)) {
-            //     block_count += 1;
-            // } else {
-            //     continue
-            // }
         }
         let mut stmts = vec![];
 
