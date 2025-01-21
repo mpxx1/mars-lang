@@ -15,19 +15,19 @@ pub (crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
     }
 
     Vec::from([
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "println", 
+            ident: "println",
             args: vec![
-                ArgDecl { 
+                ArgDecl {
                     node_id: gen_id(),
                     ident: "s",
                     ty: Type::Str,  // example: println("{x}"); where x type is i64/f64/char/bool/str
-                    span: Span::new("external fn arg", 0, 14).unwrap(), 
-                }], 
-            return_type: Type::Void, 
-            is_used: true, 
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                }],
+            return_type: Type::Void,
+            is_used: true,
             span: Span::new("external fn", 0, 10).unwrap()
         },
         FuncProto { 
@@ -45,7 +45,7 @@ pub (crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             is_used: true, 
             span: Span::new("external fn", 0, 10).unwrap()
         },
-        FuncProto { 
+        /*FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
             ident: "len", 
@@ -111,7 +111,7 @@ pub (crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             return_type: Type::Any, // inner 
             is_used: true, 
             span: Span::new("external fn", 0, 11).unwrap()
-        },
+        },*/
     ])
 }
 
@@ -126,7 +126,7 @@ pub(crate) fn check_sys_fn_args_types<'src>(
     return match func.ident.ident {
         "print" | "println" => {
             
-            let Expr::Literal(x) = func.args.pop().unwrap() else {
+            /*let Expr::Literal(x) = func.args.pop().unwrap() else {
                 return Err(CompileError::new(func.span, "Can call print/println function with string literal only".to_owned()));
             };
             let Literal::Str { node_id: _, lit, span, } = x else {
@@ -152,7 +152,7 @@ pub(crate) fn check_sys_fn_args_types<'src>(
                         )
                     ));
                 }
-            }            
+            }   */
             
             Ok(())
         },

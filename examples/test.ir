@@ -1,0 +1,17 @@
+; ModuleID = 'test_module'
+source_filename = "test_module"
+
+@global_str = global [12 x i8] c"hello world\00"
+
+declare void @print(ptr)
+
+define void @main() {
+entry:
+  %a = alloca ptr, align 8
+  store ptr @global_str, ptr %a, align 8
+  %a1 = load ptr, ptr %a, align 8
+  call void @print(ptr %a1)
+  ret void
+}
+
+declare void @println(ptr)

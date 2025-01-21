@@ -3,6 +3,7 @@ use hir::ToHir;
 use mir::ToMir;
 use std::process::exit;
 use std::fs;
+use std::path::PathBuf;
 use marsc_codegen::codegen::codegen;
 
 #[derive(Parser, Debug)]
@@ -110,13 +111,15 @@ fn main() {
         exit(0);
     }
 
+    println!("{:#?}", mir);
+
     let output = if let Some(x) = args.output {
         x
     } else {
         args.input[..args.input.len() - 5].to_owned()
     };
 
-    let ir = codegen(&mir);
-    fs::write(output, ir).unwrap();
+    let ir = codegen(&mir, PathBuf::from(output));
+    println!("{}", ir);
 }
 

@@ -1,14 +1,17 @@
+use std::cell::RefCell;
 use ast::{Block, Expr, FuncCall, Identifier, Literal, LogicalExpr, MathExpr, Stmt, Type};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
+use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine};
 use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum};
-use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue};
+use inkwell::AddressSpace;
 use mir::{FuncProto, Mir, Scope, StructProto};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use inkwell::AddressSpace;
-use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine};
+use std::process::Command;
+use std::rc::Rc;
 
 pub struct Codegen<'ctx, 'src> {
     pub(crate) context: &'ctx Context,
@@ -36,15 +39,30 @@ where
 
     pub(crate) fn codegen_scope(&mut self, scope: &'ctx Scope<'src>) {
 
+        let mut self_ptr = Rc::new(RefCell::new(&mut *self));
+        let mut self_temp = self_ptr.borrow();
+
+
         for scope_struct in &scope.structs {
-            self.codegen_struct(scope_struct.1);
+            self_temp.codegen_struct(scope_struct.1);
         }
 
-        for scope_fun in &scope.funs {
-            match scope_fun.1.return_type {
-                Type::Void => self.codegen_void_func(scope_fun.1),
-                _ => self.codegen_func(scope_fun.1),
-            }
+        &scope.funs
+            .iter()
+            .filter(|key| self_temp.mir.sys_funs.contains(&key.1.ident))
+            .map(|key| self_temp.generate_external_function(&key.1));
+
+        let mut functions_definitions: Vec<(&FuncProto, FunctionValue)> = vec![];
+        for (_, func_proto) in scope.funs
+            .iter()
+            .filter(|key| !self_temp.mir.sys_funs.contains(&key.1.ident)) {
+            let value = self_temp.codegen_function_definition(func_proto);
+            functions_definitions.push((func_proto, value));
+        }
+
+        while functions_definitions.len() > 0 {
+            let (func_proto, func_value) = functions_definitions.pop().unwrap();
+            self.as_.codegen_function_entry(func_proto, func_value);
         }
 
         for stmt in &scope.instrs {
@@ -64,11 +82,14 @@ where
         struct_type.set_body(&field_types, false);
     }
 
-    pub(crate) fn codegen_func(&mut self, func_decl: &'ctx FuncProto<'src>) {
+    pub(crate) fn codegen_function_definition(&mut self, func_decl: &'ctx FuncProto<'src>) {
 
         if self.mir.sys_funs.contains(&func_decl.ident) {
             self.generate_external_function(func_decl);
-            return;
+        }
+
+        if func_decl.return_type == Type::Void {
+            return self.codegen_void_function_definition(func_decl);
         }
 
         let arg_types: Vec<BasicMetadataTypeEnum> = func_decl
@@ -79,14 +100,17 @@ where
         
         let return_type = self.codegen_type(&func_decl.return_type);
         let fn_type = return_type.fn_type(&arg_types, false);
-        let function = self.module.add_function(&func_decl.ident, fn_type, None);
-        let entry = self.context.append_basic_block(function, "entry"); 
-        self.builder.position_at_end(entry);
+        self.module.add_function(&func_decl.ident, fn_type, None)
 
-        self.codegen_scope_by_id(&func_decl.node_id);
-}
+        self.genera
+    }
 
-    pub(crate) fn codegen_void_func(&mut self, func_decl: &'ctx FuncProto<'src>) {
+    pub(crate) fn codegen_void_function_definition(&mut self, func_decl: &'ctx FuncProto<'src>) {
+
+        if self.mir.sys_funs.contains(&func_decl.ident) {
+            self.generate_external_function(func_decl);
+        }
+
         let arg_types: Vec<BasicMetadataTypeEnum> = func_decl
             .args
             .iter()
@@ -95,12 +119,14 @@ where
 
         let return_type = self.context.void_type();
         let fn_type = return_type.fn_type(&arg_types, false);
-        let function = self.module.add_function(&func_decl.ident, fn_type, None);
-        let entry = self.context.append_basic_block(function, "entry");
+        self.module.add_function(&func_decl.ident, fn_type, None)
+    }
+
+    pub(crate) fn codegen_function_entry(&mut self, func_proto: &'ctx FuncProto<'src>, function_value: FunctionValue) {
+        let entry = self.context.append_basic_block(function_value, "entry");
         self.builder.position_at_end(entry);
 
-        self.codegen_scope_by_id(&func_decl.node_id);
-        
+        self.codegen_scope_by_id(&func_proto.node_id);
         self.builder.build_return(None).unwrap();
     }
 
@@ -224,7 +250,7 @@ where
 
     pub(crate) fn codegen_func_call(&self, func_call: &'ctx FuncCall<'src>, scope: &'ctx Scope<'ctx>) -> Option<BasicValueEnum<'ctx>> {
         let error_msg = format!("Cannot find function '{}'", func_call.ident.ident);
-        
+
         let function = self.module
             .get_function(func_call.ident.ident)
             .expect(error_msg.as_str());
@@ -297,7 +323,7 @@ where
     
 }
 
-pub fn codegen<'src>(mir: &'src Mir) -> String {
+pub fn codegen<'src>(mir: &'src Mir, output: PathBuf) -> String {
     let context = Context::create();
     let module = context.create_module("test_module");
     let mut codegen = Codegen::<'_, 'src> {
@@ -309,11 +335,21 @@ pub fn codegen<'src>(mir: &'src Mir) -> String {
     };
 
     let result = codegen.codegen();
+
+    let object_file = "/users/nzaguta/RustroverProjects/mars-lang/examples/test.o";
+    let std_libio = "/users/nzaguta/mars/std/libio.so";
     
-    // let out_dir = env::var("OUT_DIR").unwrap();
-    // let output = out_dir + "/program.o";
-    
-    // codegen.codegen_bytecode(&PathBuf::from(output)).unwrap();
-    
+    codegen.codegen_bytecode(&PathBuf::from(object_file)).unwrap();
+
+    let status = Command::new("clang")
+        .args([std_libio, object_file])
+        .args(["-o", "/users/nzaguta/RustroverProjects/mars-lang/examples/test"])
+        .status()
+        .expect("Failed to invoke C compiler and build executable file");
+
+    if !status.success() {
+        panic!("Status is not success");
+    }
+
     result
 }

@@ -1,15 +1,14 @@
-use std::env;
 use std::process::Command;
 
 fn main() {
-    let out_dir = env::var("OUT_DIR").unwrap();
-    
-    println!("OUT_DIR = {}", out_dir);
+    let mars_std_dir = "/users/nzaguta/mars/std";
+
+    println!("STD: {mars_std_dir}");
     
     let status = Command::new("clang")
         .args(["-shared", "src/clib/io.c"])
         .arg("-o")
-        .arg(format!("{}/libio.so", out_dir))
+        .arg(format!("{}/libio.so", mars_std_dir))
         .status()
         .expect("Failed to invoke C compiler and build shared library for external C functions!");
 
@@ -18,6 +17,6 @@ fn main() {
     }
 
     println!("cargo:rerun-if-changed=src/clib/io.c");
-    println!("cargo:rustc-link-search=native={out_dir}");
+    println!("cargo:rustc-link-search=native={mars_std_dir}");
     println!("cargo:rustc-link-lib=dylib=io");
 }
