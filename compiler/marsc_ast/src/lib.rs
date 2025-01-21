@@ -49,7 +49,7 @@ pub enum Type<'src> {
     Array(Box<Type<'src>>, usize),
     Vec(Box<Type<'src>>),
     Ref(Box<Type<'src>>),
-    
+
     // checker only
     Any,
     Unresolved,
@@ -211,7 +211,7 @@ pub enum Literal<'src> {
         lit: bool,
         span: Span<'src>,
     },
-    
+
     NullRef {
         node_id: usize,
         span: Span<'src>,

@@ -1,6 +1,6 @@
-use std::ops::Deref;
 use ast::*;
 use hir::compile_hir;
+use std::ops::Deref;
 
 #[test]
 fn test_parse_empty_program() {
@@ -194,7 +194,13 @@ fn test_parse_if_else_in_main() {
         assert_eq!(func_decl.ident, "main");
         assert_eq!(func_decl.args.len(), 0);
 
-        if let Some(Stmt::IfElse { cond, then_block, else_block, .. }) = func_decl.body.stmts.first() {
+        if let Some(Stmt::IfElse {
+            cond,
+            then_block,
+            else_block,
+            ..
+        }) = func_decl.body.stmts.first()
+        {
             assert!(matches!(*cond.deref(), Expr::LogicalExpr(_)));
             assert_eq!(then_block.stmts.len(), 1);
             assert_eq!(else_block.as_ref().unwrap().stmts.len(), 1);
@@ -224,7 +230,13 @@ fn test_parse_if_in_main() {
         assert_eq!(func_decl.ident, "main");
         assert_eq!(func_decl.args.len(), 0);
 
-        if let Some(Stmt::IfElse { cond, then_block, else_block, .. }) = func_decl.body.stmts.first() {
+        if let Some(Stmt::IfElse {
+            cond,
+            then_block,
+            else_block,
+            ..
+        }) = func_decl.body.stmts.first()
+        {
             assert!(matches!(*cond.deref(), Expr::LogicalExpr(_)));
             assert_eq!(then_block.stmts.len(), 1);
             assert!(else_block.is_none(), "Expected no else block");
@@ -235,7 +247,6 @@ fn test_parse_if_in_main() {
         panic!("Expected a function declaration for main");
     }
 }
-
 
 #[test]
 fn test_parse_while_in_main() {
@@ -265,4 +276,3 @@ fn test_parse_while_in_main() {
         panic!("Expected a function declaration for main");
     }
 }
-

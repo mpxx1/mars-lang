@@ -1,12 +1,12 @@
-use crate::{GLOBAL_SCOPE_ID, FuncProto, Mir};
+use crate::{FuncProto, Mir, GLOBAL_SCOPE_ID};
 use ast::*;
 use err::CompileError;
 use pest::Span;
 use regex::Regex;
 
-pub (crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
+pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
     static mut SYS_FN_COUNTER: usize = GLOBAL_SCOPE_ID;
-    
+
     fn gen_id() -> usize {
         unsafe {
             SYS_FN_COUNTER += 1;
@@ -15,102 +15,97 @@ pub (crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
     }
 
     Vec::from([
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "println", 
-            args: vec![
-                ArgDecl { 
-                    node_id: gen_id(),
-                    ident: "s",
-                    ty: Type::Str,  // example: println("{x}"); where x type is i64/f64/char/bool/str
-                    span: Span::new("external fn arg", 0, 14).unwrap(), 
-                }], 
-            return_type: Type::Void, 
-            is_used: true, 
-            span: Span::new("external fn", 0, 10).unwrap()
+            ident: "println",
+            args: vec![ArgDecl {
+                node_id: gen_id(),
+                ident: "s",
+                ty: Type::Str, // example: println("{x}"); where x type is i64/f64/char/bool/str
+                span: Span::new("external fn arg", 0, 14).unwrap(),
+            }],
+            return_type: Type::Void,
+            is_used: true,
+            span: Span::new("external fn", 0, 10).unwrap(),
         },
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "print", 
-            args: vec![
-                ArgDecl { 
-                    node_id: gen_id(),
-                    ident: "s",
-                    ty: Type::Str,  // example: print("{x}"); where x type is i64/f64/char/bool/str
-                    span: Span::new("external fn arg", 0, 14).unwrap(), 
-                }], 
-            return_type: Type::Void, 
-            is_used: true, 
-            span: Span::new("external fn", 0, 10).unwrap()
+            ident: "print",
+            args: vec![ArgDecl {
+                node_id: gen_id(),
+                ident: "s",
+                ty: Type::Str, // example: print("{x}"); where x type is i64/f64/char/bool/str
+                span: Span::new("external fn arg", 0, 14).unwrap(),
+            }],
+            return_type: Type::Void,
+            is_used: true,
+            span: Span::new("external fn", 0, 10).unwrap(),
         },
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "len", 
-            args: vec![
-                ArgDecl { 
-                    node_id: gen_id(),
-                    ident: "obj",
-                    ty: Type::Any,  // str, array and vec
-                    span: Span::new("external fn arg", 0, 15).unwrap(), 
-                }], 
-            return_type: Type::I64, 
-            is_used: true, 
-            span: Span::new("external fn", 0, 11).unwrap()
+            ident: "len",
+            args: vec![ArgDecl {
+                node_id: gen_id(),
+                ident: "obj",
+                ty: Type::Any, // str, array and vec
+                span: Span::new("external fn arg", 0, 15).unwrap(),
+            }],
+            return_type: Type::I64,
+            is_used: true,
+            span: Span::new("external fn", 0, 11).unwrap(),
         },
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "capacity", 
+            ident: "capacity",
+            args: vec![ArgDecl {
+                node_id: gen_id(),
+                ident: "v",
+                ty: Type::Any, // vec
+                span: Span::new("external fn arg", 0, 15).unwrap(),
+            }],
+            return_type: Type::I64,
+            is_used: true,
+            span: Span::new("external fn", 0, 11).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "push",
             args: vec![
-                ArgDecl { 
+                ArgDecl {
                     node_id: gen_id(),
                     ident: "v",
-                    ty: Type::Any,  // vec
-                    span: Span::new("external fn arg", 0, 15).unwrap(), 
-                }], 
-            return_type: Type::I64, 
-            is_used: true, 
-            span: Span::new("external fn", 0, 11).unwrap()
-        },
-        FuncProto { 
-            parent_id: GLOBAL_SCOPE_ID,
-            node_id: gen_id(),
-            ident: "push", 
-            args: vec![
-                ArgDecl { 
-                    node_id: gen_id(),
-                    ident: "v",
-                    ty: Type::Any,  // vec
-                    span: Span::new("external fn arg", 0, 15).unwrap(), 
+                    ty: Type::Any, // vec
+                    span: Span::new("external fn arg", 0, 15).unwrap(),
                 },
-                ArgDecl { 
+                ArgDecl {
                     node_id: gen_id(),
                     ident: "obj",
-                    ty: Type::Any,  // inner type
-                    span: Span::new("external fn arg", 0, 15).unwrap(), 
-                }
-            ], 
-            return_type: Type::Void, 
-            is_used: true, 
-            span: Span::new("external fn", 0, 11).unwrap()
+                    ty: Type::Any, // inner type
+                    span: Span::new("external fn arg", 0, 15).unwrap(),
+                },
+            ],
+            return_type: Type::Void,
+            is_used: true,
+            span: Span::new("external fn", 0, 11).unwrap(),
         },
-        FuncProto { 
+        FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
-            ident: "pop", 
-            args: vec![
-                ArgDecl { 
-                    node_id: gen_id(),
-                    ident: "v",
-                    ty: Type::Any,  // vec
-                    span: Span::new("external fn arg", 0, 15).unwrap(), 
-                }], 
-            return_type: Type::Any, // inner 
-            is_used: true, 
-            span: Span::new("external fn", 0, 11).unwrap()
+            ident: "pop",
+            args: vec![ArgDecl {
+                node_id: gen_id(),
+                ident: "v",
+                ty: Type::Any, // vec
+                span: Span::new("external fn arg", 0, 15).unwrap(),
+            }],
+            return_type: Type::Any, // inner
+            is_used: true,
+            span: Span::new("external fn", 0, 11).unwrap(),
         },
     ])
 }
@@ -122,45 +117,55 @@ pub(crate) fn check_sys_fn_args_types<'src>(
     mir: &mut Mir<'src>,
     mut func: FuncCall<'src>,
 ) -> Result<(), CompileError<'src>> {
-    
     return match func.ident.ident {
         "print" | "println" => {
-            
             let Expr::Literal(x) = func.args.pop().unwrap() else {
-                return Err(CompileError::new(func.span, "Can call print/println function with string literal only".to_owned()));
+                return Err(CompileError::new(
+                    func.span,
+                    "Can call print/println function with string literal only".to_owned(),
+                ));
             };
-            let Literal::Str { node_id: _, lit, span, } = x else {
-                return Err(CompileError::new(func.span, "Can call print/println function with string literal only".to_owned()));
+            let Literal::Str {
+                node_id: _,
+                lit,
+                span,
+            } = x
+            else {
+                return Err(CompileError::new(
+                    func.span,
+                    "Can call print/println function with string literal only".to_owned(),
+                ));
             };
-            
+
             let var_list = extract_variable_names(lit);
             dbg!(&var_list);
-            
+
             for x in var_list {
                 let Some(inner) = resolv_ident_type(scope_id, mir, x.clone()) else {
-                    return Err(CompileError::new(span, format!("Can not find variable with name {:?}", x)));
+                    return Err(CompileError::new(
+                        span,
+                        format!("Can not find variable with name {:?}", x),
+                    ));
                 };
-                
+
                 if !PRIMITIVE.contains(&inner) {
                     return Err(CompileError::new(
                         span,
                         format!(
                             "Output string contains variable '{:?}' that has type '{:?}', but print/println can compute only {:?} types",
-                            x, 
-                            inner, 
+                            x,
+                            inner,
                             PRIMITIVE
                         )
                     ));
                 }
-            }            
-            
+            }
+
             Ok(())
-        },
+        }
         _ => unimplemented!(),
     };
 }
-
-
 
 pub fn extract_variable_names(input: String) -> Vec<String> {
     let re = Regex::new(r"\{([^\{\}]+)\}").unwrap();
@@ -177,7 +182,6 @@ pub fn extract_variable_names(input: String) -> Vec<String> {
 
     variables
 }
-
 
 fn resolv_ident_type<'src>(
     scope_id: usize,
