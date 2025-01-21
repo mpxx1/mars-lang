@@ -2,10 +2,112 @@ use ast::*;
 use err::CompileError;
 
 pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
+    fn simplify_logical_expr<'src>(expr: LogicalExpr<'src>) -> LogicalExpr<'src> {
+        match expr {
+            LogicalExpr::Or {
+                node_id,
+                left,
+                right,
+                span,
+            } => LogicalExpr::Or {
+                node_id,
+                left: Box::new(simplify_logical_expr(*left)),
+                right: Box::new(simplify_logical_expr(*right)),
+                span,
+            },
+
+            LogicalExpr::And {
+                node_id,
+                left,
+                right,
+                span,
+            } => LogicalExpr::And {
+                node_id,
+                left: Box::new(simplify_logical_expr(*left)),
+                right: Box::new(simplify_logical_expr(*right)),
+                span,
+            },
+
+            LogicalExpr::Not {
+                node_id,
+                inner,
+                span,
+            } => LogicalExpr::Not {
+                node_id,
+                inner: Box::new(simplify_logical_expr(*inner)),
+                span,
+            },
+
+            LogicalExpr::Primary(x) => LogicalExpr::Primary(Box::new(simplify_expr(*x))),
+
+            LogicalExpr::Comparison {
+                node_id,
+                left,
+                right,
+                op,
+                span,
+            } => LogicalExpr::Comparison {
+                node_id,
+                left: Box::new(simplify_math_expr(*left)),
+                right: Box::new(simplify_math_expr(*right)),
+                op,
+                span,
+            },
+        }
+    }
+
     fn simplify_expr(expr: Expr) -> Expr {
         match expr {
             Expr::LogicalExpr(LogicalExpr::Primary(inner_expr))
             | Expr::MathExpr(MathExpr::Primary(inner_expr)) => simplify_expr(*inner_expr),
+
+            Expr::LogicalExpr(LogicalExpr::Or {
+                node_id,
+                left,
+                right,
+                span,
+            }) => Expr::LogicalExpr(LogicalExpr::Or {
+                node_id,
+                left: Box::new(simplify_logical_expr(*left)),
+                right: Box::new(simplify_logical_expr(*right)),
+                span,
+            }),
+
+            Expr::LogicalExpr(LogicalExpr::And {
+                node_id,
+                left,
+                right,
+                span,
+            }) => Expr::LogicalExpr(LogicalExpr::And {
+                node_id,
+                left: Box::new(simplify_logical_expr(*left)),
+                right: Box::new(simplify_logical_expr(*right)),
+                span,
+            }),
+
+            Expr::LogicalExpr(LogicalExpr::Not {
+                node_id,
+                inner,
+                span,
+            }) => Expr::LogicalExpr(LogicalExpr::Not {
+                node_id,
+                inner: Box::new(simplify_logical_expr(*inner)),
+                span,
+            }),
+
+            Expr::LogicalExpr(LogicalExpr::Comparison {
+                node_id,
+                left,
+                right,
+                op,
+                span,
+            }) => Expr::LogicalExpr(LogicalExpr::Comparison {
+                node_id,
+                left: Box::new(simplify_math_expr(*left)),
+                right: Box::new(simplify_math_expr(*right)),
+                op,
+                span,
+            }),
 
             Expr::MathExpr(MathExpr::Additive {
                 node_id,
@@ -134,10 +236,18 @@ pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
                     }
                 }
             }
-            
-            Expr::CastType { node_id, cast_to, expr, span } => {
-                Expr::CastType { node_id, cast_to, expr: Box::new(simplify_expr(*expr)), span }
-            }
+
+            Expr::CastType {
+                node_id,
+                cast_to,
+                expr,
+                span,
+            } => Expr::CastType {
+                node_id,
+                cast_to,
+                expr: Box::new(simplify_expr(*expr)),
+                span,
+            },
 
             _ => expr,
         }
@@ -201,7 +311,12 @@ pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
                 x.body.stmts = x.body.stmts.into_iter().map(|s| simplify_stmt(s)).collect();
                 Stmt::FuncDecl(x)
             }
-            
+
+            Stmt::Block(mut x) => {
+                x.stmts = x.stmts.into_iter().map(|s| simplify_stmt(s)).collect();
+                Stmt::Block(x)
+            }
+
             Stmt::Return {
                 node_id,
                 expr: Some(inner),
@@ -245,12 +360,14 @@ pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
 
             Stmt::IfElse {
                 node_id,
+                else_id,
                 cond,
                 then_block,
                 else_block,
                 span,
             } => Stmt::IfElse {
                 node_id,
+                else_id,
                 cond: Box::new(simplify_expr(*cond)),
                 then_block: simplify_top_block(then_block),
                 else_block: if let Some(inner) = else_block {
@@ -376,7 +493,7 @@ fn test1() -> () {
         }*/
     }
     "#;
-    
+
     let hir = crate::stages::parser::parse(inp);
     println!("{:#?}", hir.unwrap().ast)
 }

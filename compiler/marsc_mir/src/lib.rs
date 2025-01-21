@@ -50,7 +50,7 @@ pub struct StructProto<'src> {
 
 #[derive(Debug, Clone)]
 pub struct Variable<'src> {
-    pub parent_id: usize, 
+    pub parent_id: usize,
     pub node_id: usize,
     pub ident: &'src str,
     pub ty: Type<'src>,

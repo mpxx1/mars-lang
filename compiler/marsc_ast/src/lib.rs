@@ -49,7 +49,7 @@ pub enum Type<'src> {
     Array(Box<Type<'src>>, usize),
     Vec(Box<Type<'src>>),
     Ref(Box<Type<'src>>),
-    
+
     // checker only
     Any,
     Unresolved,
@@ -101,6 +101,7 @@ pub enum Stmt<'src> {
     IfElse {
         // pub parent_id: usize,
         node_id: usize,
+        else_id: Option<usize>,
         cond: Box<Expr<'src>>,
         then_block: Block<'src>,
         else_block: Option<Block<'src>>,
@@ -113,6 +114,23 @@ pub enum Stmt<'src> {
         cond: Box<Expr<'src>>,
         body: Block<'src>,
         span: Span<'src>,
+    },
+
+    // type checker
+    GoToBlock {
+        node_id: usize,
+        // fn return type
+    },
+
+    GoToIfCond {
+        cond: Box<Expr<'src>>,
+        then_block_id: usize,
+        else_block_id: Option<usize>,
+    },
+
+    GoToWhile {
+        cond: Box<Expr<'src>>,
+        loop_id: usize,
     },
 }
 
@@ -211,7 +229,7 @@ pub enum Literal<'src> {
         lit: bool,
         span: Span<'src>,
     },
-    
+
     NullRef {
         node_id: usize,
         span: Span<'src>,
