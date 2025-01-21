@@ -2,11 +2,10 @@ use ast::{Block, Expr, FuncCall, Identifier, Literal, LogicalExpr, MathExpr, Stm
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::types::{AnyType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum};
+use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum};
 use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, PointerValue};
 use mir::{FuncProto, Mir, Scope, StructProto};
 use std::collections::HashMap;
-use std::env;
 use std::path::PathBuf;
 use inkwell::AddressSpace;
 use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine};
@@ -68,7 +67,8 @@ where
     pub(crate) fn codegen_func(&mut self, func_decl: &'ctx FuncProto<'src>) {
 
         if self.mir.sys_funs.contains(&func_decl.ident) {
-            self.generate_external_function(func_decl)
+            self.generate_external_function(func_decl);
+            return;
         }
 
         let arg_types: Vec<BasicMetadataTypeEnum> = func_decl
@@ -84,9 +84,7 @@ where
         self.builder.position_at_end(entry);
 
         self.codegen_scope_by_id(&func_decl.node_id);
-
-        self.codegen_scope_by_id(&func_decl.node_id);
-    }
+}
 
     pub(crate) fn codegen_void_func(&mut self, func_decl: &'ctx FuncProto<'src>) {
         let arg_types: Vec<BasicMetadataTypeEnum> = func_decl
@@ -106,7 +104,7 @@ where
         self.builder.build_return(None).unwrap();
     }
 
-    pub(crate) fn codegen_block(&mut self, block: &'ctx Block<'src>, scope: &'ctx Scope<'ctx>) {
+    pub(crate) fn _codegen_block(&mut self, block: &'ctx Block<'src>, scope: &'ctx Scope<'ctx>) {
         for stmt in &block.stmts {
             self.codegen_stmt(stmt, scope);
         }
@@ -125,11 +123,11 @@ where
             }
             Stmt::Break { .. } => {}
             Stmt::Assignment {
-                node_id,
+                node_id: _,
                 ident,
                 ty,
                 expr,
-                span
+                span: _,
             } => {
                 let variable_type = self.codegen_type(&ty);
                 let variable = self.builder.build_alloca(variable_type, ident).unwrap();
@@ -268,7 +266,6 @@ where
             Type::Ref(_) => todo!(),
             Type::Any => todo!(),
             Type::Unresolved => todo!(),
-            Type::ToStr => todo!(),
         }
     }
 
