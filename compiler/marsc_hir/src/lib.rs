@@ -6,6 +6,7 @@ use err::CompileError;
 use stages::arr_expander::arr_expand;
 
 pub struct Hir<'src> {
+    pub last_id: usize,
     pub ast: ast::Ast<'src>,
     pub code: &'src str,
 }

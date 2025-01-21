@@ -1,4 +1,5 @@
 use crate::stages::sys_funs::*;
+use crate::gen_id;
 use crate::{FuncProto, Mir, Scope, ScopeType, StructProto, Variable};
 use ast::*;
 use err::CompileError;
@@ -6,8 +7,12 @@ use pest::Span;
 use std::collections::{HashMap, HashSet};
 
 use crate::GLOBAL_SCOPE_ID;
+use crate::GLOBAL_COUNTER;
 
 pub(crate) fn check_types<'src>(hir: hir::Hir<'src>) -> Result<Mir<'src>, CompileError<'src>> {
+    
+    unsafe { GLOBAL_COUNTER = hir.last_id; }
+    
     let mut mir = Mir {
         code: hir.code,
         scopes: HashMap::new(),
@@ -156,7 +161,9 @@ fn scope_push_func<'src>(
     }
 
     // 4 add func to scope
+    let ret_ty = func_obj.return_type.clone();
     let (fn_proto, logic_block) = func_decl_split(scope_id, func_obj);
+    let fn_span = fn_proto.span;
     let fn_id = fn_proto.node_id;
     let fn_args = fn_proto.args.clone();
     scope_ref.funs.insert(fn_proto.ident, fn_proto);
@@ -191,8 +198,28 @@ fn scope_push_func<'src>(
             },
         )?;
     }
-
-    base_block_proceed(fn_id, mir, logic_block)
+    
+    // 7 push instrs to fn scope
+   base_block_proceed(fn_id, mir, logic_block, ret_ty.clone())?;
+    
+    // 8 check if there is no return in the end of void fn
+    if ret_ty == Type::Void {
+        let fn_scope = mir.scopes.get_mut(&fn_id).unwrap();
+        let instrs = &mut fn_scope.instrs;
+        let last_instr = instrs.pop();
+        if last_instr.is_none() {
+            return Err(CompileError::new(fn_span, "Remove empty function".to_owned()));
+        }
+        let last_instr = last_instr.unwrap();
+        if !matches!(last_instr, Stmt::Return { .. }) {
+            instrs.push(last_instr);
+            instrs.push(Stmt::Return { node_id: gen_id(), expr: None, span: Span::new("mir generated return stmt", 0, 25).unwrap() })
+        } else {
+            instrs.push(last_instr);
+        }
+    }
+    
+    Ok(())
 }
 
 fn scope_push_var<'src>(
@@ -224,6 +251,7 @@ fn scope_push_inst<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     instr: Stmt<'src>,
+    ret_ty: Type<'src>,
 ) -> Result<(), CompileError<'src>> {
     match instr {
         x if matches!(x, ast::Stmt::Assignment { .. }) => scope_push_assignment(scope_id, mir, x)?,
@@ -231,11 +259,92 @@ fn scope_push_inst<'src>(
         ast::Stmt::FuncCall(fc) => scope_push_func_call(scope_id, mir, fc)?,
         ast::Stmt::FuncDecl(x) => scope_push_func(scope_id, mir, x)?,
         ast::Stmt::StructDecl(x) => scope_push_struct(scope_id, mir, x)?,
-        ast::Stmt::Block(x) => scope_push_block(scope_id, mir, x)?,
-        x if matches!(x, ast::Stmt::IfElse { .. }) => scope_push_if_else(scope_id, mir, x)?,
-        _ => unimplemented!(),
+        ast::Stmt::Block(x) => scope_push_block(scope_id, mir, x, ret_ty)?,
+        x if matches!(x, ast::Stmt::IfElse { .. }) => scope_push_if_else(scope_id, mir, x, ret_ty)?,
+        x if matches!(x, ast::Stmt::WhileLoop { .. }) => scope_push_while_loop(scope_id, mir, x, ret_ty)?,
+        x if matches!(x, ast::Stmt::Return { .. }) => scope_push_return(scope_id, mir, x, ret_ty)?,
+        x if matches!(x, ast::Stmt::Break { .. }) => unimplemented!(),
+        
+        x => {
+            panic!("Parsing stmt '{:?}' to mir - not implemented", x);
+        },
     }
 
+    Ok(())
+}
+
+fn scope_push_return<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    instr: Stmt<'src>,
+    ret_ty: Type<'src>,
+) -> Result<(), CompileError<'src>> { 
+    
+    let Stmt::Return { node_id, mut expr, span } = instr else {
+        panic!("Something went wrong");
+    };
+    if ret_ty == Type::Void && !expr.is_none() {
+        return Err(CompileError::new(span, "Remove expression from return, function returns void".to_owned()));
+    }
+    
+    if ret_ty != Type::Void && expr.is_none() {
+        return Err(CompileError::new(span, "Missing expression in return body".to_owned()));
+    };
+    
+    
+    if let Some(ref mut expr) = expr {
+        let expr_ty = resolve_expr_type(scope_id, mir, expr, ret_ty.clone())?;
+        if expr_ty != ret_ty {
+            return Err(CompileError::new(
+                span,
+                format!(
+                    "Expected type: '{:?}, actual: '{:?}'",
+                    ret_ty,
+                    expr_ty
+                ),
+            ));
+        }
+    }
+    
+    let scope = mir.scopes.get_mut(&scope_id).unwrap();
+    scope.instrs.push(Stmt::Return { node_id, expr, span });
+    
+    Ok(())
+}
+
+fn scope_push_while_loop<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    instr: Stmt<'src>,
+    ret_ty: Type<'src>,
+) -> Result<(), CompileError<'src>> { 
+    
+    let Stmt::WhileLoop { node_id, mut cond, body, span } = instr else {
+        panic!("Something went wrong");
+    };
+    let cond_ty = resolve_expr_type(scope_id, mir, &mut cond, Type::Unresolved)?;
+    if cond_ty != Type::Bool {
+        return Err(CompileError::new(
+            span,
+            format!(
+                "Condition expression must have bool type only. Got type '{:?}'",
+                cond_ty
+            ),
+        ));
+    }
+    let scope = mir.scopes.get_mut(&scope_id).unwrap();
+    scope.instrs.push(Stmt::GoToWhile { cond, loop_id: node_id });
+    mir.scopes.insert(node_id, Scope {
+            parent_id: scope_id,
+            node_id,
+            structs: HashMap::new(),
+            funs: HashMap::new(),
+            vars: HashMap::new(),
+            instrs: vec![],
+            scope_type: ScopeType::Block,
+    },);
+    base_block_proceed(node_id, mir, body, ret_ty)?;
+    
     Ok(())
 }
 
@@ -243,6 +352,7 @@ fn scope_push_if_else<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     instr: Stmt<'src>,
+    ret_ty: Type<'src>,
 ) -> Result<(), CompileError<'src>> {
     let Stmt::IfElse {
         node_id,
@@ -260,7 +370,7 @@ fn scope_push_if_else<'src>(
         return Err(CompileError::new(
             span,
             format!(
-                "Condition expression can have bool type only. Got type '{:?}'",
+                "Condition expression must have bool type only. Got type '{:?}'",
                 cond_ty
             ),
         ));
@@ -284,7 +394,7 @@ fn scope_push_if_else<'src>(
             scope_type: ScopeType::Block,
         },
     );
-    base_block_proceed(node_id, mir, then_block)?;
+    base_block_proceed(node_id, mir, then_block, ret_ty.clone())?;
 
     if let Some(bl) = else_block {
         mir.scopes.insert(
@@ -299,7 +409,7 @@ fn scope_push_if_else<'src>(
                 scope_type: ScopeType::Block,
             },
         );
-        base_block_proceed(else_id.unwrap(), mir, bl)?;
+        base_block_proceed(else_id.unwrap(), mir, bl, ret_ty)?;
     }
 
     Ok(())
@@ -309,6 +419,7 @@ fn base_block_proceed<'src>(
     block_id: usize,
     mir: &mut Mir<'src>,
     instr: Block<'src>,
+    ret_ty: Type<'src>,
 ) -> Result<(), CompileError<'src>> {
     let mut structs = vec![];
     let mut funs = vec![];
@@ -358,7 +469,7 @@ fn base_block_proceed<'src>(
     }
 
     for instr in instrs {
-        scope_push_inst(block_id, mir, instr)?;
+        scope_push_inst(block_id, mir, instr, ret_ty.clone())?;
     }
 
     Ok(())
@@ -368,6 +479,7 @@ fn scope_push_block<'src>(
     scope_id: usize,
     mir: &mut Mir<'src>,
     instr: Block<'src>,
+    ret_ty: Type<'src>,
 ) -> Result<(), CompileError<'src>> {
     let scope = mir.scopes.get_mut(&scope_id).unwrap();
     scope.instrs.push(Stmt::GoToBlock {
@@ -386,7 +498,7 @@ fn scope_push_block<'src>(
         },
     );
 
-    base_block_proceed(instr.node_id, mir, instr)
+    base_block_proceed(instr.node_id, mir, instr, ret_ty)
 }
 
 fn scope_push_assign<'src>(
@@ -530,7 +642,7 @@ pub(crate) fn resolve_expr_type<'src>(
             if opt_type.is_none() {
                 return Err(CompileError::new(
                     x.span,
-                    format!("Can not find identifier '{}'", x.ident),
+                    format!("Can not find identifier {:?}", x.ident),
                 ));
             }
             opt_type.unwrap()
@@ -1054,13 +1166,13 @@ fn resolve_struct_field_type<'src>(
     let Some(custom_type) = resolve_ident_type(scope_id, mir, ident.ident) else {
         return Err(CompileError::new(
             *span,
-            format!("Can not find variable with name '{}'", ident.ident),
+            format!("Can not find variable with name {:?}", ident.ident),
         ));
     };
     let Type::Custom(Identifier { ident, span, .. }) = custom_type else {
         return Err(CompileError::new(
             *span,
-            format!("Can not find struct prototype with name '{}'", ident.ident),
+            format!("Can not find struct prototype with name {:?}", ident.ident),
         ));
     };
 
@@ -1207,7 +1319,7 @@ fn check_fn_call_args<'src>(
                 return Err(CompileError::new(
                     func.span,
                     format!(
-                        "Can not find declaration of function '{}'",
+                        "Can not find declaration of function {:?}",
                         func.ident.ident
                     ),
                 ));
@@ -1251,7 +1363,7 @@ fn check_fn_call_args<'src>(
             .args[i]
             .ty
             .clone();
-        if resolve_expr_type(scope_id, mir, expr, actual_type.clone())? != actual_type {
+        if actual_type != Type::Any && resolve_expr_type(scope_id, mir, expr, actual_type.clone())? != actual_type {
             return Err(CompileError::new(
                 func.span,
                 format!(
@@ -1423,7 +1535,7 @@ fn test_index_inner_fn<'src>() -> Result<(), CompileError<'src>> {
         fn hello(a: i64, b: str) -> i64 {
             
             struct A {}
-            fn tt(a: i64) -> void {}
+            fn tt(a: i64) -> i64 {}
             
             {
                 var c = a;
@@ -1432,6 +1544,8 @@ fn test_index_inner_fn<'src>() -> Result<(), CompileError<'src>> {
             
             print("hello");
         }
+        
+        fn main() -> void { hello(10, "hello"); }
     "#;
 
     let hir = hir::compile_hir(&inp)?;
@@ -1514,7 +1628,63 @@ fn math_test<'src>() -> Result<(), CompileError<'src>> {
             
             var d = 10.44345234525;
             var c = ((i64) d) + 10;
+            var b = (i64) d;
             var a = 10 >= 20 && 30 <= 5 || c > ((i64) d);
+            
+            while a {
+                println("b: {b}, c: {c}");
+            }
+            
+            return;
+        }
+    "#;
+
+    let hir = hir::compile_hir(&inp)?;
+    let mir = check_types(hir)?;
+    println!("{mir:#?}");
+
+    Ok(())
+}
+
+
+#[test]
+fn fn_block_test<'src>() -> Result<(), CompileError<'src>> {
+    let inp = r#"        
+        fn main() -> void {
+        
+            var b = 20;
+            fn hello() -> f64 {
+                
+                return (f64) 10;
+            }
+        
+            var a = 10;
+            {
+                a += 20;
+            }
+            
+            
+        }
+    "#;
+
+    let hir = hir::compile_hir(&inp)?;
+    let mir = check_types(hir)?;
+    println!("{mir:#?}");
+
+    Ok(())
+}
+
+#[test]
+fn sys_fn_test<'src>() -> Result<(), CompileError<'src>> {
+    let inp = r#"        
+        fn main() -> void {
+        
+            var v: Vec<&i64> = [];
+            var ref: &f64 = null;
+            var a = 0;
+            println("10");
+            vec_push(&v, &a);
+            vec_pop(&v);
         }
     "#;
 

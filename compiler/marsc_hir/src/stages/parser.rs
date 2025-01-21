@@ -4,7 +4,7 @@ use err::CompileError;
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 
-static mut GLOBAL_COUNTER: usize = 1_000;
+static mut GLOBAL_COUNTER: usize = 1_000_000;
 
 pub(crate) fn gen_id() -> usize {
     unsafe {
@@ -19,6 +19,7 @@ struct MarsLangParser;
 
 pub(crate) fn parse<'src>(source_code: &'src str) -> Result<Hir<'src>, CompileError<'src>> {
     let mut hir = Hir {
+        last_id: 0,
         ast: Ast::default(),
         code: source_code,
     };
@@ -43,6 +44,7 @@ pub(crate) fn parse<'src>(source_code: &'src str) -> Result<Hir<'src>, CompileEr
         })
     }
 
+    hir.last_id = gen_id();
     Ok(hir)
 }
 

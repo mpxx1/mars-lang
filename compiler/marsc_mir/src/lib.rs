@@ -8,6 +8,14 @@ use stages::type_checker::check_types;
 pub mod stages;
 
 pub const GLOBAL_SCOPE_ID: usize = 0;
+pub static mut GLOBAL_COUNTER: usize = 2_000_000;
+
+pub(crate) fn gen_id() -> usize {
+    unsafe {
+        GLOBAL_COUNTER += 1;
+        GLOBAL_COUNTER
+    }
+}
 
 #[derive(Debug)]
 pub struct Mir<'src> {
