@@ -192,61 +192,7 @@ fn scope_push_func<'src>(
         )?;
     }
 
-    // 7 push instructions of function to this scope
-    let mut structs = vec![];
-    let mut funs = vec![];
-    let mut vars = vec![];
-    let mut instrs = vec![];
-    for stmt in logic_block.stmts {
-        match stmt {
-            ast::Stmt::StructDecl(x) => structs.push(x),
-            ast::Stmt::FuncDecl(x) => funs.push(x),
-            ast::Stmt::Assignment {
-                node_id,
-                ident,
-                ty,
-                expr,
-                span,
-            } => {
-                vars.push(Variable {
-                    parent_id: fn_id,
-                    node_id,
-                    ident,
-                    ty: ty.clone(),
-                    is_used: false,
-                    decl_span: span,
-                });
-                instrs.push(ast::Stmt::Assignment {
-                    node_id,
-                    ident,
-                    ty,
-                    expr,
-                    span,
-                })
-            }
-            x => instrs.push(x),
-        }
-    }
-
-    for struct_obj in structs {
-        scope_push_struct(fn_id, mir, struct_obj)?;
-    }
-
-    for fun in funs {
-        scope_push_func(fn_id, mir, fun)?;
-    }
-
-    // 6 todo variables (check types of exprs)
-    for var in vars {
-        scope_push_var(fn_id, mir, var)?;
-    }
-
-    // 7 todo instructions
-    for instr in instrs {
-        scope_push_inst(fn_id, mir, instr)?;
-    }
-
-    Ok(())
+    base_block_proceed(fn_id, mir, logic_block)
 }
 
 fn scope_push_var<'src>(
@@ -281,9 +227,200 @@ fn scope_push_inst<'src>(
 ) -> Result<(), CompileError<'src>> {
     match instr {
         x if matches!(x, ast::Stmt::Assignment { .. }) => scope_push_assignment(scope_id, mir, x)?,
+        x if matches!(x, ast::Stmt::Assign { .. }) => scope_push_assign(scope_id, mir, x)?,
         ast::Stmt::FuncCall(fc) => scope_push_func_call(scope_id, mir, fc)?,
+        ast::Stmt::FuncDecl(x) => scope_push_func(scope_id, mir, x)?,
+        ast::Stmt::StructDecl(x) => scope_push_struct(scope_id, mir, x)?,
+        ast::Stmt::Block(x) => scope_push_block(scope_id, mir, x)?,
+        x if matches!(x, ast::Stmt::IfElse { .. }) => scope_push_if_else(scope_id, mir, x)?,
         _ => unimplemented!(),
     }
+
+    Ok(())
+}
+
+fn scope_push_if_else<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    instr: Stmt<'src>,
+) -> Result<(), CompileError<'src>> {
+    let Stmt::IfElse {
+        node_id,
+        else_id,
+        mut cond,
+        then_block,
+        else_block,
+        span,
+    } = instr
+    else {
+        panic!("Something went wrong");
+    };
+    let cond_ty = resolve_expr_type(scope_id, mir, &mut cond, Type::Unresolved)?;
+    if cond_ty != Type::Bool {
+        return Err(CompileError::new(
+            span,
+            format!(
+                "Condition expression can have bool type only. Got type '{:?}'",
+                cond_ty
+            ),
+        ));
+    }
+
+    let scope = mir.scopes.get_mut(&scope_id).unwrap();
+    scope.instrs.push(Stmt::GoToIfCond {
+        cond,
+        then_block_id: node_id,
+        else_block_id: else_id,
+    });
+    mir.scopes.insert(
+        node_id,
+        Scope {
+            parent_id: scope_id,
+            node_id,
+            structs: HashMap::new(),
+            funs: HashMap::new(),
+            vars: HashMap::new(),
+            instrs: vec![],
+            scope_type: ScopeType::Block,
+        },
+    );
+    base_block_proceed(node_id, mir, then_block)?;
+
+    if let Some(bl) = else_block {
+        mir.scopes.insert(
+            else_id.unwrap(),
+            Scope {
+                parent_id: scope_id,
+                node_id: else_id.unwrap(),
+                structs: HashMap::new(),
+                funs: HashMap::new(),
+                vars: HashMap::new(),
+                instrs: vec![],
+                scope_type: ScopeType::Block,
+            },
+        );
+        base_block_proceed(else_id.unwrap(), mir, bl)?;
+    }
+
+    Ok(())
+}
+
+fn base_block_proceed<'src>(
+    block_id: usize,
+    mir: &mut Mir<'src>,
+    instr: Block<'src>,
+) -> Result<(), CompileError<'src>> {
+    let mut structs = vec![];
+    let mut funs = vec![];
+    let mut vars = vec![];
+    let mut instrs = vec![];
+    for stmt in instr.stmts {
+        match stmt {
+            ast::Stmt::StructDecl(x) => structs.push(x),
+            ast::Stmt::FuncDecl(x) => funs.push(x),
+            ast::Stmt::Assignment {
+                node_id,
+                ident,
+                ty,
+                expr,
+                span,
+            } => {
+                vars.push(Variable {
+                    parent_id: block_id,
+                    node_id,
+                    ident,
+                    ty: ty.clone(),
+                    is_used: false,
+                    decl_span: span,
+                });
+                instrs.push(ast::Stmt::Assignment {
+                    node_id,
+                    ident,
+                    ty,
+                    expr,
+                    span,
+                })
+            }
+            x => instrs.push(x),
+        }
+    }
+
+    for struct_obj in structs {
+        scope_push_struct(block_id, mir, struct_obj)?;
+    }
+
+    for fun in funs {
+        scope_push_func(block_id, mir, fun)?;
+    }
+
+    for var in vars {
+        scope_push_var(block_id, mir, var)?;
+    }
+
+    for instr in instrs {
+        scope_push_inst(block_id, mir, instr)?;
+    }
+
+    Ok(())
+}
+
+fn scope_push_block<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    instr: Block<'src>,
+) -> Result<(), CompileError<'src>> {
+    let scope = mir.scopes.get_mut(&scope_id).unwrap();
+    scope.instrs.push(Stmt::GoToBlock {
+        node_id: instr.node_id,
+    });
+    mir.scopes.insert(
+        instr.node_id,
+        Scope {
+            parent_id: scope_id,
+            node_id: instr.node_id,
+            structs: HashMap::new(),
+            funs: HashMap::new(),
+            vars: HashMap::new(),
+            instrs: vec![],
+            scope_type: ScopeType::Block,
+        },
+    );
+
+    base_block_proceed(instr.node_id, mir, instr)
+}
+
+fn scope_push_assign<'src>(
+    scope_id: usize,
+    mir: &mut Mir<'src>,
+    instr: Stmt<'src>,
+) -> Result<(), CompileError<'src>> {
+    let Stmt::Assign {
+        node_id,
+        mut lhs,
+        mut rhs,
+        span,
+    } = instr
+    else {
+        panic!("Something went wrong")
+    };
+
+    let lty = resolve_expr_type(scope_id, mir, &mut lhs, Type::Unresolved)?;
+    let rty = resolve_expr_type(scope_id, mir, &mut rhs, lty.clone())?;
+
+    if lty != rty {
+        return Err(CompileError::new(
+            span,
+            format!("Expected type: '{:?}', actual: '{:?}'", lty, rty),
+        ));
+    }
+
+    let scope_ref = mir.scopes.get_mut(&scope_id).unwrap();
+    scope_ref.instrs.push(Stmt::Assign {
+        node_id,
+        lhs,
+        rhs,
+        span,
+    });
 
     Ok(())
 }
@@ -350,8 +487,6 @@ fn scope_push_assignment<'src>(
             }
         }
     }
-
-    // todo check if types is Str and ToStr
 
     debug_assert_eq!(var.ty, ty);
     let expr_type = resolve_expr_type(scope_id, mir, &mut expr, ty)?;
@@ -1085,7 +1220,7 @@ fn check_fn_call_args<'src>(
     // check argumetns
     let proto = mir
         .scopes
-        .get_mut(&func.decl_scope_id.unwrap())
+        .get_mut(&func.decl_scope_id.unwrap()) // check todo
         .unwrap()
         .funs
         .get(func.ident.ident)
@@ -1221,8 +1356,39 @@ fn main_test<'src>() -> Result<(), CompileError<'src>> {
         var a_s = A { a: 10 };
         var a = &a_s.a;
         var b = *a;
+        
+        b += 20;
+        *a = 45;
+        
+        var arr = ["0", "1", "30"];
+        arr[0] = "1e3";
     }
     
+    "#;
+
+    let hir = hir::compile_hir(&inp)?;
+    let mir = check_types(hir)?;
+
+    println!("{mir:#?}");
+
+    Ok(())
+}
+
+#[test]
+fn test_if_else<'src>() -> Result<(), CompileError<'src>> {
+    let inp = r#"
+        fn main() -> void {
+            var a = 10 < 20;
+            if a {
+                println("ya");
+            }
+            
+            if a {
+                println("hello");
+            } else {
+                println("hello");
+            }
+        }
     "#;
 
     let hir = hir::compile_hir(&inp)?;
@@ -1239,7 +1405,7 @@ fn test_index_fn<'src>() -> Result<(), CompileError<'src>> {
         struct A { a: i64 }
         fn hello(a: i64, b: str) -> i64 {
             
-            var s_a = A { b: 10 };
+            var s_a = A { a: 10 };
         }
     "#;
 
@@ -1254,11 +1420,15 @@ fn test_index_fn<'src>() -> Result<(), CompileError<'src>> {
 #[test]
 fn test_index_inner_fn<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"
-        fn tt(a: i64) -> void {}
         fn hello(a: i64, b: str) -> i64 {
-        
-            var c = a;
-            tt(c);
+            
+            struct A {}
+            fn tt(a: i64) -> void {}
+            
+            {
+                var c = a;
+                tt(c);
+            }
             
             print("hello");
         }
@@ -1282,9 +1452,6 @@ fn test_index_struct<'src>() -> Result<(), CompileError<'src>> {
             var a: [Vec<i64>; 2] = [[0, 10, 100], [0, b]];
             
             var c = a[0][0];
-            
-            var a = hello();
-            var b = a[0];
         }
     "#;
 

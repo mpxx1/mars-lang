@@ -360,12 +360,14 @@ pub(crate) fn simplify<'src>(ast: Ast) -> Result<Ast, CompileError<'src>> {
 
             Stmt::IfElse {
                 node_id,
+                else_id,
                 cond,
                 then_block,
                 else_block,
                 span,
             } => Stmt::IfElse {
                 node_id,
+                else_id,
                 cond: Box::new(simplify_expr(*cond)),
                 then_block: simplify_top_block(then_block),
                 else_block: if let Some(inner) = else_block {

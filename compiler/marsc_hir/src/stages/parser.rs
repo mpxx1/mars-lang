@@ -6,7 +6,7 @@ use pest_derive::Parser;
 
 static mut GLOBAL_COUNTER: usize = 1_000;
 
-pub fn gen_id() -> usize {
+pub(crate) fn gen_id() -> usize {
     unsafe {
         GLOBAL_COUNTER += 1;
         GLOBAL_COUNTER
@@ -836,6 +836,11 @@ fn parse_if_else<'src>(pair: Pair<'src, Rule>) -> Result<Stmt<'src>, CompileErro
 
     Ok(Stmt::IfElse {
         node_id: gen_id(),
+        else_id: if else_block.is_some() {
+            Some(gen_id())
+        } else {
+            None
+        },
         cond,
         then_block,
         else_block,
@@ -953,7 +958,31 @@ fn liter_test<'src>() -> Result<(), CompileError<'src>> {
 }
 
 #[test]
-fn test<'src>() -> Result<(), CompileError<'src>> {
+fn test_if_else<'src>() -> Result<(), CompileError<'src>> {
+    let inp = r#"
+    fn main() -> void {
+        var a = 10;
+        print(a);
+        
+        if hello {
+            fn hello() -> void {}
+        }
+
+        return;
+    }
+    "#;
+
+    match crate::compile_hir(inp) {
+        Ok(out) => {
+            println!("{:#?}", out.ast);
+            Ok(())
+        }
+        Err(err) => Err(err),
+    }
+}
+
+#[test]
+fn test_structs<'src>() -> Result<(), CompileError<'src>> {
     let inp = r#"struct Hello {
         a: helo,
     }

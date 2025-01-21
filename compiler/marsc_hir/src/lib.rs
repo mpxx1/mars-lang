@@ -1,4 +1,4 @@
-mod stages;
+pub(crate) mod stages;
 
 use crate::stages::parser::parse;
 use crate::stages::simplifier::simplify;
