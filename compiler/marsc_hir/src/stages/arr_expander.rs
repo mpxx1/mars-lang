@@ -1,13 +1,12 @@
 use ast::Ast;
-use ast::ProgStmt;
 use ast::Block;
 use ast::Expr;
-use ast::Type::*;
+use ast::ProgStmt;
 use ast::Stmt::{self, *};
+use ast::Type::*;
 
-pub(crate) fn arr_expand<'src>(mut ast: Ast<'src>) -> Ast<'src> {
-
-    fn process_stmt<'src>(stmt: &mut Stmt<'src>) {
+pub(crate) fn arr_expand(mut ast: Ast) -> Ast {
+    fn process_stmt(stmt: &mut Stmt<'_>) {
         match stmt {
             Assignment {
                 ty: Array(_, len),
@@ -18,12 +17,19 @@ pub(crate) fn arr_expand<'src>(mut ast: Ast<'src>) -> Ast<'src> {
                     return;
                 }
 
-                let Expr::ArrayDecl { node_id: _, list, span: _ } = expr else {
+                let Expr::ArrayDecl {
+                    node_id: _,
+                    list,
+                    span: _,
+                } = expr
+                else {
                     panic!("Something went wrong")
                 };
 
                 let act_len = list.len();
-                if act_len > 1 || act_len == 0 { return; }
+                if act_len > 1 || act_len == 0 {
+                    return;
+                }
 
                 let obj = list.pop().unwrap();
                 for _ in 0..*len {
@@ -42,7 +48,7 @@ pub(crate) fn arr_expand<'src>(mut ast: Ast<'src>) -> Ast<'src> {
         }
     }
 
-    fn process_block<'src>(block: &mut Block<'src>) {
+    fn process_block(block: &mut Block<'_>) {
         for stmt in block.stmts.iter_mut() {
             process_stmt(stmt);
         }
@@ -56,7 +62,6 @@ pub(crate) fn arr_expand<'src>(mut ast: Ast<'src>) -> Ast<'src> {
 
     ast
 }
-
 
 #[test]
 fn test_arr_exp() {
