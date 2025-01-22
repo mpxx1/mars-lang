@@ -6,8 +6,12 @@ use pest::Span;
 use std::collections::{HashMap, HashSet};
 
 use crate::GLOBAL_SCOPE_ID;
+use crate::GLOBAL_COUNTER;
 
 pub(crate) fn check_types(hir: hir::Hir) -> Result<Mir, CompileError> {
+    
+    unsafe { GLOBAL_COUNTER = hir.last_id; }
+    
     let mut mir = Mir {
         code: hir.code,
         scopes: HashMap::new(),
@@ -214,6 +218,7 @@ fn scope_push_func<'src>(
             "No return in the end of function".to_owned(),
         ));
     }
+    instrs.push(last_instr);
 
     Ok(())
 }
