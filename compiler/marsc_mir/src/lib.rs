@@ -9,6 +9,7 @@ use stages::check_types::check_types;
 use stages::init_new_block_var::block_var_decl;
 
 pub mod stages;
+pub mod mir_instr;
 
 pub const GLOBAL_SCOPE_ID: usize = 0;
 pub static mut GLOBAL_COUNTER: usize = 2_000_000;
