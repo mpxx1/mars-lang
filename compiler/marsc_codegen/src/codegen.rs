@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use ast::{Block, Expr, FuncCall, Identifier, Literal, LogicalExpr, MathExpr, Stmt, Type};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
@@ -11,7 +10,6 @@ use mir::{FuncProto, Mir, Scope, StructProto};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
-use std::rc::Rc;
 
 pub struct Codegen<'ctx, 'src> {
     pub(crate) context: &'ctx Context,
@@ -38,31 +36,26 @@ where
     }
 
     pub(crate) fn codegen_scope(&mut self, scope: &'ctx Scope<'src>) {
-
-        let mut self_ptr = Rc::new(RefCell::new(&mut *self));
-        let mut self_temp = self_ptr.borrow();
-
-
         for scope_struct in &scope.structs {
-            self_temp.codegen_struct(scope_struct.1);
+            self.codegen_struct(scope_struct.1);
         }
 
-        &scope.funs
+        let _ = &scope.funs
             .iter()
-            .filter(|key| self_temp.mir.sys_funs.contains(&key.1.ident))
-            .map(|key| self_temp.generate_external_function(&key.1));
+            .filter(|key| self.mir.sys_funs.contains(&key.1.ident))
+            .map(|key| self.generate_external_function(&key.1));
 
         let mut functions_definitions: Vec<(&FuncProto, FunctionValue)> = vec![];
         for (_, func_proto) in scope.funs
             .iter()
-            .filter(|key| !self_temp.mir.sys_funs.contains(&key.1.ident)) {
-            let value = self_temp.codegen_function_definition(func_proto);
-            functions_definitions.push((func_proto, value));
+            .filter(|key| !self.mir.sys_funs.contains(&key.1.ident))
+        {
+            let value = self.codegen_function_definition(func_proto);
+            functions_definitions.push((func_proto, value.clone()));
         }
 
-        while functions_definitions.len() > 0 {
-            let (func_proto, func_value) = functions_definitions.pop().unwrap();
-            self.as_.codegen_function_entry(func_proto, func_value);
+        for (func_proto, func_value) in functions_definitions.iter_mut() {
+            self.codegen_function_entry(func_proto, &func_value);
         }
 
         for stmt in &scope.instrs {
@@ -82,7 +75,7 @@ where
         struct_type.set_body(&field_types, false);
     }
 
-    pub(crate) fn codegen_function_definition(&mut self, func_decl: &'ctx FuncProto<'src>) {
+    pub(crate) fn codegen_function_definition(&self, func_decl: &'ctx FuncProto<'src>) -> FunctionValue {
 
         if self.mir.sys_funs.contains(&func_decl.ident) {
             self.generate_external_function(func_decl);
@@ -101,11 +94,9 @@ where
         let return_type = self.codegen_type(&func_decl.return_type);
         let fn_type = return_type.fn_type(&arg_types, false);
         self.module.add_function(&func_decl.ident, fn_type, None)
-
-        self.genera
     }
 
-    pub(crate) fn codegen_void_function_definition(&mut self, func_decl: &'ctx FuncProto<'src>) {
+    pub(crate) fn codegen_void_function_definition(&self, func_decl: &'ctx FuncProto<'src>) -> FunctionValue {
 
         if self.mir.sys_funs.contains(&func_decl.ident) {
             self.generate_external_function(func_decl);
@@ -122,8 +113,8 @@ where
         self.module.add_function(&func_decl.ident, fn_type, None)
     }
 
-    pub(crate) fn codegen_function_entry(&mut self, func_proto: &'ctx FuncProto<'src>, function_value: FunctionValue) {
-        let entry = self.context.append_basic_block(function_value, "entry");
+    pub(crate) fn codegen_function_entry(&mut self, func_proto: &FuncProto<'src>, function_value: &FunctionValue) {
+        let entry = self.context.append_basic_block(function_value.clone(), "entry");
         self.builder.position_at_end(entry);
 
         self.codegen_scope_by_id(&func_proto.node_id);
@@ -296,6 +287,7 @@ where
     }
 
     pub fn codegen_bytecode(&self, output: &PathBuf) -> Result<(), String> {
+        println!("{}", self.module.print_to_string().to_string());
         self.module.write_bitcode_to_path(output);
         
         Target::initialize_all(&InitializationConfig::default());
