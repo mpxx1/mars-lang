@@ -1,5 +1,15 @@
 use std::collections::HashMap;
 
+pub trait ToLir<'src> {
+    fn compile_lir(self) -> Result<Lir<'src>, err::CompileError<'src>>;
+}
+
+impl<'src> ToLir<'src> for mir::Mir<'src> {
+    fn compile_lir(self) -> Result<Lir<'src>, err::CompileError<'src>> {
+        Ok(self.into())
+    }
+}
+
 #[derive(Debug)]
 pub struct Lir<'src> {
     pub code: &'src str,
@@ -123,19 +133,20 @@ pub enum LIRLiteral {
     NullRef,
 }
 
-#[derive(Debug, Clone)]
-pub struct LIRStructType {
-    pub decl_scope_id: usize,
-    pub struct_id: usize,
-    pub ident: String,
-}
+// #[derive(Debug, Clone)]
+// pub struct LIRStructType {
+//     // pub decl_scope_id: usize,
+//     // pub struct_id: usize,
+//     pub ident: String,
+// }
 
-impl PartialEq for LIRStructType {
-    fn eq(&self, other: &Self) -> bool {
-        self.decl_scope_id == other.decl_scope_id &&
-        self.struct_id == self.struct_id
-    }
-}
+// impl PartialEq for LIRStructType {
+//     fn eq(&self, other: &Self) -> bool {
+//         // self.decl_scope_id == other.decl_scope_id &&
+//         // self.struct_id == self.struct_id
+//         self.ident == other.ident
+//     }
+// }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LIRType {
@@ -145,7 +156,7 @@ pub enum LIRType {
     Char,
     Bool,
     Void,
-    StructType(LIRStructType),
+    StructType(String),
     Array(Box<LIRType>, usize),
     Vec(Box<LIRType>),
     Ref(Box<LIRType>),
@@ -196,12 +207,13 @@ impl<'src> From<Mir<'src>> for Lir<'src> {
             }
             
             for (ident, fun) in scope.funs {
-                let id = fun.node_id;
-                functions.insert(global_name(ident, id), fun.into());
+                if !mir.sys_funs.contains(&ident) && ident != "main" {
+                    let id = fun.node_id;
+                    functions.insert(global_name(ident, id), fun.into());
+                }
             }
             
-            blocks.insert(id, vec![]);
-            // blocks.insert(id, scope.instrs.into_iter().map(Into::into).collect());
+            blocks.insert(id, scope.instrs.into_iter().map(|x| proceed_instr(x, &structs)).collect());
         }
         
         Self {
@@ -214,78 +226,164 @@ impl<'src> From<Mir<'src>> for Lir<'src> {
     }
 }
 
-fn proceed_expr(expr: MIRExpr<'_>, structs: &HashMap<String, LIRStruct>) -> LIRExpr {
-    if let MIRExpr::StructFieldCall { decl_scope_id: _, struct_id, ident, field: _, span: _ } = 
-        expr {
-            let glob = global_name(ident.clone(), struct_id);
-            let indx = structs
-                .get(&glob)
-                .unwrap()
-                .fields
-                .iter()
-                .enumerate()
-                .find(|(_, (id, _))| id == &ident)
-                .unwrap().0;
-            
-            LIRExpr::StructFieldCall { struct_name: glob, field_index: indx }
-        } else {
-            expr.into()
-        }
-}
-
-impl<'src> From<MIRExpr<'src>> for LIRExpr {
-    fn from(expr: MIRExpr<'src>) -> Self {
-        match expr {
-            MIRExpr::Identifier { ident, .. } => LIRExpr::Identifier(ident),
-            
-            MIRExpr::FuncCall(fc) => LIRExpr::FuncCall(fc.into()),
-            
-            MIRExpr::ArrayDecl { list, .. } => {
-                LIRExpr::Array(list.into_iter().map(|e| e.into()).collect())
-            }
-            
-            MIRExpr::MemLookup { ident, indices, span } => LIRExpr::MemLookup {
-                base: ident,
-                indices: indices.into_iter().map(|e| e.into()).collect(),
-                span_start: span.start(),
-                span_end: span.end(),
+fn proceed_instr<'src>(instr: MIRInstruction<'src>, structs: &HashMap<String, LIRStruct>) -> LIRInstruction {
+    match instr {
+        MIRInstruction::Return { expr, .. } => LIRInstruction::Return {
+            expr: if expr.is_some() { Some(proceed_expr(expr.unwrap(), structs)) } else { None },
+        },
+        
+        MIRInstruction::Break { .. } => LIRInstruction::Break,
+        
+        MIRInstruction::Assignment { ident, ty, expr, .. } => 
+            LIRInstruction::Assignment {
+                ident,
+                ty: ty.into(),
+                expr: proceed_expr(expr, structs),
             },
             
-            MIRExpr::StructFieldCall { .. } => unreachable!(), 
-            
-            MIRExpr::StructInit { ident, fields, .. } => LIRExpr::StructInit {
-                struct_name: ident,
-                fields: fields.into_iter().map(|(_, e)| e.into()).collect(),
+        MIRInstruction::Assign { lhs, rhs, .. } => 
+            LIRInstruction::Assign {
+                lhs: proceed_expr(lhs, structs),
+                rhs: proceed_expr(rhs, structs),
             },
             
-            MIRExpr::CastType { cast_to, expr, .. } => LIRExpr::Cast {
-                ty: Box::new((*cast_to).into()),
-                expr: Box::new((*expr).into()),
+        MIRInstruction::FuncCall(fc) => 
+                LIRInstruction::FuncCall(LIRFuncCall { 
+                    function: global_name(fc.ident, fc.fn_id),
+                    args: fc.args.into_iter().map(|x| proceed_expr(x, structs)).collect(),
+                }),
+            
+        MIRInstruction::GoToBlock { block_id } => 
+            LIRInstruction::GoToBlock { block_id },
+            
+        MIRInstruction::GoToIfCond { cond, then_block_id, else_block_id } => 
+            LIRInstruction::GoToIfCond {
+                cond: Box::new(proceed_expr(*cond, structs)),
+                then_block: then_block_id,
+                else_block: else_block_id,
             },
             
-            MIRExpr::Dereference { inner, span } => LIRExpr::Dereference {
-                refer: Box::new((*inner).into()),
-                span_start: span.start(),
-                span_end: span.end(),
+        MIRInstruction::GoToWhile { cond, loop_id } => 
+            LIRInstruction::GoToWhile {
+                cond: Box::new(proceed_expr(*cond, structs)),
+                loop_block: loop_id,
             },
-            
-            MIRExpr::Reference { inner, .. } => LIRExpr::Reference(Box::new((*inner).into())),
-            
-            MIRExpr::LogicalExpr(le) => LIRExpr::Logical(le.into()),
-            
-            MIRExpr::MathExpr(me) => LIRExpr::Math(me.into()),
-            
-            MIRExpr::Literal(l) => LIRExpr::Literal(l.into()),
-        }
     }
 }
 
-impl<'src> From<MIRFuncCall<'_>> for LIRFuncCall {
-    fn from(fc: MIRFuncCall<'_>) -> Self {
-        LIRFuncCall {
-            function: global_name(fc.ident, fc.fn_id),
-            args: fc.args.into_iter().map(|arg| arg.into()).collect(),
-        }
+fn proceed_expr(expr: MIRExpr<'_>, structs: &HashMap<String, LIRStruct>) -> LIRExpr {
+    match expr {
+        MIRExpr::Identifier { ident, .. } => LIRExpr::Identifier(ident),
+        MIRExpr::FuncCall(x) => LIRExpr::FuncCall(
+            LIRFuncCall { 
+                function: global_name(x.ident, x.fn_id),
+                args: x.args.into_iter().map(|expr| proceed_expr(expr, structs)).collect(),
+            }
+        ),
+        MIRExpr::ArrayDecl { list, .. } => {
+            LIRExpr::Array(list.into_iter().map(|expr| proceed_expr(expr, structs)).collect())
+        },
+        MIRExpr::MemLookup { ident, indices, span } => LIRExpr::MemLookup {
+            base: ident,
+            indices: indices.into_iter().map(|expr| proceed_expr(expr, structs)).collect(),
+            span_start: span.start(),
+            span_end: span.end(),
+        },
+        MIRExpr::StructFieldCall { 
+            struct_id, 
+            ident, 
+            field,
+            ..
+        } => { 
+            let glob = global_name(ident, struct_id);
+            
+            LIRExpr::StructFieldCall { 
+            struct_name: glob.clone(),
+            field_index: structs
+                .iter()
+                .find(|&(_, x)| *x.name == glob)
+                .unwrap()
+                .1
+                .fields
+                .iter()
+                .enumerate()
+                .find(|(_, (id, _))| *id == field)
+                .unwrap()
+                .0,
+        }},
+        
+        MIRExpr::StructInit { ident, fields, struct_id, .. } => LIRExpr::StructInit {
+            struct_name: global_name(ident, struct_id),
+            fields: fields.into_iter().map(|(_, e)| proceed_expr(e, structs)).collect(),
+        },
+        
+        MIRExpr::CastType { cast_to, expr, .. } => LIRExpr::Cast {
+            ty: Box::new((*cast_to).into()),
+            expr: Box::new(proceed_expr(*expr, structs)),
+        },
+        
+        MIRExpr::Dereference { inner, span } => LIRExpr::Dereference {
+            refer: Box::new(proceed_expr(*inner, structs)),
+            span_start: span.start(),
+            span_end: span.end(),
+        },
+        
+        MIRExpr::Reference { inner, .. } => LIRExpr::Reference(Box::new(proceed_expr(*inner, structs))),
+        
+        MIRExpr::Literal(l) => LIRExpr::Literal(l.into()),
+
+        MIRExpr::LogicalExpr(le) => LIRExpr::Logical(proceed_logical(le, structs)),
+        
+         MIRExpr::MathExpr(me) => LIRExpr::Math(proceed_math(me, structs)),
+    }
+}
+
+fn proceed_logical(expr: MIRLogicalExpr<'_>, structs: &HashMap<String, LIRStruct>) -> LIRLogicalExpr {
+    match expr {
+        MIRLogicalExpr::Not { inner, .. } => LIRLogicalExpr::Not {
+            inner: Box::new(proceed_logical(*inner, structs)),
+        },
+        
+        MIRLogicalExpr::Or { left, right, .. } => LIRLogicalExpr::Or {
+            left: Box::new(proceed_logical(*left, structs)),
+            right: Box::new(proceed_logical(*right, structs)),
+        },
+        
+        MIRLogicalExpr::And { left, right, .. } => LIRLogicalExpr::And {
+            left: Box::new(proceed_logical(*left, structs)),
+            right: Box::new(proceed_logical(*right, structs)),
+        },
+        
+        MIRLogicalExpr::Comparison { left, right, op, .. } => LIRLogicalExpr::Comparison {
+            left: Box::new(proceed_math(*left, structs)),
+            right: Box::new(proceed_math(*right, structs)),
+            op: op.into(),
+        },
+        
+        MIRLogicalExpr::Primary(p) => LIRLogicalExpr::Primary(Box::new(proceed_expr(*p, structs))),
+    }
+}
+
+fn proceed_math(expr: MIRMathExpr<'_>, structs: &HashMap<String, LIRStruct>) -> LIRMathExpr {
+    match expr {
+        MIRMathExpr::Additive { left, right, op, .. } => LIRMathExpr::Additive {
+            left: Box::new(proceed_math(*left, structs)),
+            right: Box::new(proceed_math(*right, structs)),
+            op: op.into(),
+        },
+        
+        MIRMathExpr::Multiplicative { left, right, op, .. } => LIRMathExpr::Multiplicative {
+            left: Box::new(proceed_math(*left, structs)),
+            right: Box::new(proceed_math(*right, structs)),
+            op: op.into(),
+        },
+        
+        MIRMathExpr::Power { base, exp, .. } => LIRMathExpr::Power {
+            base: Box::new(proceed_math(*base, structs)),
+            exp: Box::new(proceed_math(*exp, structs)),
+        },
+        
+        MIRMathExpr::Primary(p) => LIRMathExpr::Primary(Box::new(proceed_expr(*p, structs))),
     }
 }
 
@@ -302,60 +400,6 @@ impl<'src> From<MIRLiteral<'src>> for LIRLiteral {
     }
 }
 
-impl<'src> From<MIRLogicalExpr<'src>> for LIRLogicalExpr {
-    fn from(expr: MIRLogicalExpr<'src>) -> Self {
-        match expr {
-            MIRLogicalExpr::Not { inner, .. } => LIRLogicalExpr::Not {
-                inner: Box::new((*inner).into()),
-            },
-            
-            MIRLogicalExpr::Or { left, right, .. } => LIRLogicalExpr::Or {
-                left: Box::new((*left).into()),
-                right: Box::new((*right).into()),
-            },
-            
-            MIRLogicalExpr::And { left, right, .. } => LIRLogicalExpr::And {
-                left: Box::new((*left).into()),
-                right: Box::new((*right).into()),
-            },
-            
-            MIRLogicalExpr::Comparison { left, right, op, .. } => LIRLogicalExpr::Comparison {
-                left: Box::new((*left).into()),
-                right: Box::new((*right).into()),
-                op: op.into(),
-            },
-            
-            MIRLogicalExpr::Primary(p) => LIRLogicalExpr::Primary(Box::new((*p).into())),
-        }
-    }
-}
-
-impl<'src> From<MIRMathExpr<'src>> for LIRMathExpr {
-    fn from(expr: MIRMathExpr<'src>) -> Self {
-        match expr {
-            MIRMathExpr::Additive { left, right, op, .. } => LIRMathExpr::Additive {
-                left: Box::new((*left).into()),
-                right: Box::new((*right).into()),
-                op: op.into(),
-            },
-            
-            MIRMathExpr::Multiplicative { left, right, op, .. } => LIRMathExpr::Multiplicative {
-                left: Box::new((*left).into()),
-                right: Box::new((*right).into()),
-                op: op.into(),
-            },
-            
-            MIRMathExpr::Power { base, exp, .. } => LIRMathExpr::Power {
-                base: Box::new((*base).into()),
-                exp: Box::new((*exp).into()),
-            },
-            
-            MIRMathExpr::Primary(p) => LIRMathExpr::Primary(Box::new((*p).into())),
-        }
-    }
-}
-
-// Преобразования для операторов
 impl From<MIRCmpOp> for LIRCmpOp {
     fn from(op: MIRCmpOp) -> Self {
         match op {
@@ -421,11 +465,9 @@ impl From<MIRType> for LIRType {
             MIRType::Str => LIRType::Str,
             MIRType::Any => LIRType::Any,
             
-            MIRType::StructType(mir_struct) => LIRType::StructType(LIRStructType {
-                decl_scope_id: mir_struct.decl_scope_id,
-                struct_id: mir_struct.struct_id,
-                ident: global_name(mir_struct.ident, mir_struct.struct_id),
-            }),
+            MIRType::StructType(mir_struct) => LIRType::StructType(
+                global_name(mir_struct.ident, mir_struct.struct_id)
+            ),
             
             MIRType::Array(inner, size) => {
                 LIRType::Array(Box::new((*inner).into()), size)
@@ -440,4 +482,36 @@ impl From<MIRType> for LIRType {
             }
         }
     }
+}
+
+#[test]
+fn resolving_parent_ids<'src>() -> Result<(), err::CompileError<'src>> {
+    let inp = r#"
+        struct A { a: i64 }
+        
+        fn hello(a: i64) -> i64 {
+            println("10");
+            println("{a}");
+            return a;
+        }
+        
+        fn main() -> void { 
+            struct B { b: i64 }
+            
+            var b = B { b: 60, };
+            
+            hello(b.b);
+            
+            return;
+        }
+    "#;
+
+    let hir = hir::compile_hir(&inp)?;
+    let mir = hir.compile_mir()?;
+    let lir = mir.compile_lir()?;
+    
+
+    println!("{lir:#?}");
+
+    Ok(())
 }
