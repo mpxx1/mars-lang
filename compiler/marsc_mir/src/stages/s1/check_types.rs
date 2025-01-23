@@ -175,27 +175,6 @@ fn check_rec_ty<'src>(
     span: Span<'src>,
 ) -> Result<bool, CompileError<'src>> {
     match ty {
-        // Type::Custom(x) => {
-        //     if x.ident == target_ty {
-        //         return Ok(true);
-        //     }
-
-        //     let dst_scope = check_struct_declared(scope_id, mir, x.ident);
-        //     if dst_scope.is_none() {
-        //         return Err(CompileError::new(span, "Type not found".to_owned()));
-        //     }
-        //     scope_id = dst_scope.unwrap().0;
-
-        //     let proto = mir.scopes.get(&scope_id).unwrap().structs.get(x.ident).unwrap();
-
-        //     for field in proto.fields.iter() {
-        //         if check_rec_ty(scope_id, mir, &field.ty, target_ty, field.span)? {
-        //             return Ok(true);
-        //         }
-        //     }
-
-        //     Ok(false)
-        // }
         Type::StructType(x) => {
             if x.ident == target_ty {
                 return Ok(true);

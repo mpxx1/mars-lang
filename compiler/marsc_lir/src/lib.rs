@@ -613,3 +613,76 @@ fn resolving_parent_ids<'src>() -> Result<(), err::CompileError<'src>> {
 
     Ok(())
 }
+
+#[test]
+fn sys_funs_test<'src>() -> Result<(), err::CompileError<'src>> { 
+    let inp = r#"
+        fn main() -> void {
+            var vec: Vec<i64> = [];
+            var ref = &vec;
+            var cap = capacity(&vec);
+            var x = capacity(ref);
+            return;
+        }
+    "#;
+    
+    let hir = hir::compile_hir(&inp)?;
+    let mir = hir.compile_mir()?;
+    let lir = mir.compile_lir()?;
+
+    println!("{lir:#?}");
+    
+    Ok(())
+}
+
+#[test]
+fn q_sort<'src>() -> Result<(), err::CompileError<'src>> {
+    // var pivot = *( arr[0] );        /*  todo  ->  (*arr)[0]  */
+    let inp = r#"
+    fn quick_sort(arr: &Vec<i64>) -> Vec<i64> {
+        var len = len(arr);
+        if len <= 1 {
+            return *arr;
+        }
+    
+        var pivot = *arr[0];   /* here */
+        var left: Vec<i64> = [];
+        var right: Vec<i64> = [];
+    
+        var i: i64 = 1;
+        while i < l {
+            if arr[i] < pivot {
+                push(left, arr[i]);
+            } else {
+                push(right, arr[i]);
+            }
+        }
+    
+        var result = quick_sort(&left);
+        push(result, pivot);
+        var rightRes = quick_sort(&right);
+    
+        i = 0;
+        while i < len(rightRes) {
+            push(result, rightRes[i]);
+        }
+    
+        return result;
+    }
+    
+    fn main() -> void {
+        var arr: Vec<i64> = [3, 6, 8, 10, 1, 2, 1];
+        var sorted = quick_sort(&arr);
+    }
+    "#;
+    
+    let hir = hir::compile_hir(&inp)?;
+    let mir = hir.compile_mir()?;
+    // let lir = mir.compile_lir()?;
+
+    // println!("{:#?}", lir);
+    println!("{:#?}", mir);
+    // println!("{:#?}", hir.ast.program);
+
+    Ok(())
+}
