@@ -45,3 +45,27 @@ fn mir_2<'src>() -> Result<(), CompileError<'src>> {
 
     Ok(())
 }
+
+#[test]
+fn resolving_parent_ids<'src>() -> Result<(), CompileError<'src>> {
+    let inp = r#"
+        struct A { a: i64 }
+        
+        fn main() -> void { 
+            var fir = A { a: 10 };
+            var sec = A { a: 11 };
+            var thi = A { a: 12 };
+            
+            var a: Vec<A> = [fir, sec, thi];
+            
+            return;
+        }
+    "#;
+
+    let hir = hir::compile_hir(&inp)?;
+    let mir = hir.compile_mir()?;
+
+    println!("{mir:#?}");
+
+    Ok(())
+}

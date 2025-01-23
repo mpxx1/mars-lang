@@ -346,7 +346,8 @@ fn parse_func_call(pair: Pair<Rule>) -> Result<FuncCall, CompileError> {
     let mut inner_iter = pair.into_inner();
 
     Ok(FuncCall {
-        decl_scope_id: None,
+        decl_scope_id: 0,
+        fn_id: 0,
         node_id: gen_id(),
         ident: parse_ident(inner_iter.next().unwrap())?,
         args: parse_func_args_to_call(inner_iter.next().unwrap())?,
@@ -384,6 +385,8 @@ fn parse_struct_field_call(pair: Pair<Rule>) -> Result<Expr, CompileError> {
     let mut inner_iter = pair.into_inner();
 
     Ok(Expr::StructFieldCall {
+        decl_scope_id: 0,
+        struct_id: 0,
         node_id: gen_id(),
         ident: parse_ident(inner_iter.next().unwrap())?,
         field: parse_ident(inner_iter.next().unwrap())?,
@@ -891,6 +894,8 @@ fn parse_struct_init(pair: Pair<Rule>) -> Result<Expr, CompileError> {
     let mut inner_iter = pair.into_inner();
 
     Ok(Expr::StructInit {
+        decl_scope_id: 0, 
+        struct_id: 0,
         node_id: gen_id(),
         ident: parse_ident(inner_iter.next().unwrap())?,
         fields: parse_struct_init_args(inner_iter.next().unwrap())?,

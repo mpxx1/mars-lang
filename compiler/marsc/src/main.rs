@@ -45,7 +45,7 @@ struct BuildArgs {
     input: String,
 }
 
-fn main() {
+pub fn main() {
     let Command::Build(args) = Cli::parse().command;
 
     if fs::metadata(&args.input).is_err() {
@@ -92,12 +92,8 @@ fn main() {
 
     if args.mir {
         if args.output.is_none() {
-            if mir.code.len() > 20 {
-                exit(0);
-            }
-            // println!("{:#?}", mir.scopes);
-            // println!("done");
-            exit(20);
+            println!("{:#?}", mir.scopes);
+            exit(0);
         }
 
         let _output = args.output.unwrap();

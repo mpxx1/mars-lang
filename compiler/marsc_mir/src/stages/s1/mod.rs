@@ -82,11 +82,6 @@ pub fn compile_mir_s1(hir: hir::Hir) -> Result<MirS1, CompileError> {
     let mir = check_main(mir)?;
     let mir = check_after_return(mir)?;
     
-    // mir_s2
-    // let mir = block_var_decl(mir)?;
-    // todo - check usages
-    // todo - check references
-
     Ok(mir)
 }
 

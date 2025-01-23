@@ -37,7 +37,9 @@ pub struct MIRScope<'src> {
 #[repr(u8)]
 #[derive(Debug, Clone)]
 pub enum MIRScopeType {
-    Global, Block, Function,
+    Global, 
+    Block, 
+    Function,
 }
 
 #[derive(Debug, Clone)]
@@ -136,12 +138,16 @@ pub enum MIRExpr<'src> {
     },
 
     StructFieldCall {
+        decl_scope_id: usize,
+        struct_id: usize,
         ident: String,
         field: String,
         span: Span<'src>,
     },
 
     StructInit {
+        decl_scope_id: usize,
+        struct_id: usize,
         ident: String,
         fields: Vec<(String, MIRExpr<'src>)>,
         span: Span<'src>,
@@ -281,11 +287,19 @@ pub enum MIRLiteral<'src> {
 
 #[derive(Debug, Clone)]
 pub struct MIRFuncCall<'src> {
+    decl_scope_id: usize,
+    fn_id: usize,
     ident: String,
     args: Vec<MIRExpr<'src>>,
     span: Span<'src>,
 }
 
+#[derive(Debug, Clone)]
+pub struct MIRStructType {
+    pub decl_scope_id: usize,
+    pub struct_id: usize,
+    pub ident: String,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MIRType {
@@ -295,12 +309,19 @@ pub enum MIRType {
     Char,
     Bool,
     Void,
-    Custom(String),
+    StructType(MIRStructType),
+    // Custom(String),
     Array(Box<MIRType>, usize),
     Vec(Box<MIRType>),
     Ref(Box<MIRType>),
     Any,
-    Unresolved,
+}
+
+impl PartialEq for MIRStructType {
+    fn eq(&self, other: &Self) -> bool {
+        self.decl_scope_id == other.decl_scope_id &&
+        self.struct_id == self.struct_id
+    }
 }
 
 impl From<Type<'_>> for MIRType {
@@ -312,15 +333,26 @@ impl From<Type<'_>> for MIRType {
             Type::Char => MIRType::Char,
             Type::Bool => MIRType::Bool,
             Type::Void => MIRType::Void,
-            Type::Custom(id) => MIRType::Custom(id.ident.to_string()),
+            Type::StructType(x) => MIRType::StructType(x.into()),
+            // Type::Custom(id) => MIRType::Custom(id.ident.to_string()),
             Type::Array(inner, size) => MIRType::Array(Box::new((*inner).into()), size),
             Type::Vec(inner) => MIRType::Vec(Box::new((*inner).into())),
             Type::Ref(inner) => MIRType::Ref(Box::new((*inner).into())),
             Type::Any => MIRType::Any,
-            Type::Unresolved => MIRType::Unresolved,
+            _ => panic!("Unsupported type conversion"),
         }
     }
 }
+
+impl<'src> From<StructType<'_>> for MIRStructType {
+    fn from(s: StructType<'_>) -> Self {
+        Self {
+            decl_scope_id: s.decl_scope_id,
+            struct_id: s.struct_id,
+            ident: s.ident.to_owned(),
+        }
+    }
+} 
 
 impl<'src> From<s1::StructProto<'src>> for MIRStruct<'src> {
     fn from(proto: s1::StructProto<'src>) -> Self {
@@ -382,6 +414,8 @@ impl<'src> From<Literal<'src>> for MIRLiteral<'src> {
 impl<'src> From<FuncCall<'src>> for MIRFuncCall<'src> {
     fn from(fc: FuncCall<'src>) -> Self {
         Self {
+            decl_scope_id: fc.decl_scope_id,
+            fn_id: fc.fn_id,
             ident: fc.ident.ident.to_string(),
             args: fc.args.into_iter().map(Into::into).collect(),
             span: fc.span,
@@ -406,13 +440,17 @@ impl<'src> From<Expr<'src>> for MIRExpr<'src> {
                 span,
             },
             
-            Expr::StructFieldCall { ident, field, span, .. } => Self::StructFieldCall {
+            Expr::StructFieldCall { ident, field, span, decl_scope_id, struct_id, .. } => Self::StructFieldCall {
+                decl_scope_id,
+                struct_id,
                 ident: ident.ident.to_string(),
                 field: field.ident.to_string(),
                 span,
             },
             
-            Expr::StructInit { ident, fields, span, .. } => Self::StructInit {
+            Expr::StructInit { ident, fields, span, decl_scope_id, struct_id, .. } => Self::StructInit {
+                decl_scope_id,
+                struct_id,
                 ident: ident.ident.to_string(),
                 fields: fields.into_iter().map(|f| (f.ident.ident.to_owned(), f.expr.into())).collect(),
                 span,
