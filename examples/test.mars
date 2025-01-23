@@ -1,4 +1,11 @@
-fn main() -> void {
-    var a: str = "hello world";
-    print(a);
+fn main() -> i64 {
+    var a = [10, 11, 12];
+    var b = &a;
+    var c: [i64; 3] = *b;
+    var d = c[1];
+
+    print_i64(d);
+    println("");
+
+    return 0;
 }

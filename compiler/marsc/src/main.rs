@@ -3,6 +3,7 @@ use hir::ToHir;
 use mir::ToMir;
 use std::fs;
 use std::process::exit;
+use marsc_codegen::codegen::codegen::codegen;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -107,9 +108,13 @@ fn main() {
         exit(0);
     }
 
-    let _output = if let Some(x) = args.output {
+    let output = if let Some(x) = args.output {
         x
     } else {
         args.input[..args.input.len() - 5].to_owned()
     };
+
+    let ir = codegen(&mir);
+
+    println!("{}", ir);
 }
