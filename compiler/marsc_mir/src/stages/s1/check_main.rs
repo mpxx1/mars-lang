@@ -1,6 +1,7 @@
-use crate::Mir;
 use err::CompileError;
 use pest::Span;
+
+type Mir<'src> = crate::stages::s1::MirS1<'src>;
 
 pub(crate) fn check_main(mir: Mir) -> Result<Mir, CompileError> {
     let global = mir.scopes.get(&0).unwrap();
@@ -29,7 +30,7 @@ fn check_main_test<'src>() -> Result<(), CompileError<'src>> {
     "#;
 
     let hir = hir::compile_hir(&inp)?;
-    let mir = crate::compile_mir(hir)?;
+    let mir = crate::stages::s1::compile_mir_s1(hir)?;
     println!("{mir:#?}");
 
     Ok(())

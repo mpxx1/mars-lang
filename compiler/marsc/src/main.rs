@@ -46,7 +46,7 @@ struct BuildArgs {
     input: String,
 }
 
-fn main() {
+pub fn main() {
     let Command::Build(args) = Cli::parse().command;
 
     if fs::metadata(&args.input).is_err() {
