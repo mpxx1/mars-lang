@@ -1,5 +1,7 @@
-use crate::Mir;
+use crate::stages::s1::MirS1;
 use err::CompileError;
+
+type Mir<'src> = MirS1<'src>;
 
 pub(crate) fn check_after_return(mut mir: Mir) -> Result<Mir, CompileError> {
     
@@ -28,7 +30,7 @@ fn check_unreacheble<'src>() -> Result<(), CompileError<'src>> {
     "#;
 
     let hir = hir::compile_hir(&inp)?;
-    let mir = crate::compile_mir(hir)?;
+    let mir = crate::stages::s1::compile_mir_s1(hir)?;
     println!("{mir:#?}");
 
     Ok(())

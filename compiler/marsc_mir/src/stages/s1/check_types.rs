@@ -1,17 +1,16 @@
-use crate::stages::sys_funs::*;
-use crate::{FuncProto, Mir, Scope, ScopeType, StructProto, Variable};
+use crate::stages::s1::sys_funs::*;
+use crate::stages::s1::{FuncProto, MirS1, Scope, ScopeType, StructProto, Variable};
 use ast::*;
 use err::CompileError;
 use pest::Span;
 use std::collections::{HashMap, HashSet};
 
+type Mir<'src> = MirS1<'src>;
+
 use crate::GLOBAL_SCOPE_ID;
-use crate::GLOBAL_COUNTER;
 
 pub(crate) fn check_types(hir: hir::Hir) -> Result<Mir, CompileError> {
-    
-    unsafe { GLOBAL_COUNTER = hir.last_id; }
-    
+        
     let mut mir = Mir {
         code: hir.code,
         scopes: HashMap::new(),
@@ -70,7 +69,7 @@ fn scope_push_struct<'src>(
     struct_obj: StructDecl<'src>,
 ) -> Result<(), CompileError<'src>> {
     // 1 check if same named structure already been declarated
-    let scope_ref = mir.scopes.get_mut(&scope_id).unwrap();
+    let scope_ref = mir.scopes.get(&scope_id).unwrap();
     if scope_ref.structs.contains_key(struct_obj.ident) {
         return Err(CompileError::new(
             struct_obj.span,
@@ -90,29 +89,112 @@ fn scope_push_struct<'src>(
             format!("Struct '{}' fields has duplicated names", struct_obj.ident),
         ));
     }
-
-    // 3 check fields for no having inner type as itself (possible as ref only)
-    if struct_obj.fields.iter().any(|x| {
-        if let ast::Type::Custom(ref x) = x.ty {
-            if x.ident == struct_obj.ident {
+     
+    // проверка, что тип декларирован
+    let mut missed_type = "".to_string();
+    if struct_obj.fields.iter().any(|field| {
+        if let Type::Custom(ident) = &field.ty {
+            if check_struct_declared(scope_id, mir,  ident.ident).is_none() {
+                missed_type = ident.ident.to_owned();
                 return true;
             }
+            return false;
         }
         false
     }) {
-        return Err(
-            CompileError::new(
+        return Err(CompileError::new(
+            struct_obj.span,
+            format!("Type {:?} is not declared in this scope", missed_type),
+        ));
+    }
+
+    // todo recursive check by node_id
+    // 3 check fields for no having inner type as itself (possible as ref only)
+    for field in struct_obj.fields.iter() {
+        if check_rec_ty(scope_id, mir, &field.ty, struct_obj.ident, field.span)? {
+            return Err(CompileError::new(
                 struct_obj.span,
                 "Structs can't be recursive, try to use reference instead:\n\tstruct Example {\n\t\tfield: &Example\n\t}".to_owned()
             ));
+        }
     }
+    // if struct_obj.fields.iter().any(|field| {
+    //     // let mut visited = HashSet::new();
+    //     check_rec_ty(scope_id, mir, &field.ty, struct_obj.ident, field.span)?
+    //     // contains_recursive_type(mir, scope_id, &field.ty, struct_obj.ident, &mut visited)
+    // }) {
+    //     return Err(CompileError::new(
+    //         struct_obj.span,
+    //         "Structs can't be recursive, try to use reference instead:\n\tstruct Example {\n\t\tfield: &Example\n\t}".to_owned()
+    //     ));
+    // }
 
+    let scope_ref = mir.scopes.get_mut(&scope_id).unwrap();
     // 4 add struct to scope
     scope_ref
         .structs
         .insert(struct_obj.ident, StructProto::from(scope_id, struct_obj));
 
     Ok(())
+}
+
+fn check_struct_declared<'src>(
+    mut scope_id: usize,
+    mir: &MirS1<'src>,
+    type_name: &str,
+) -> Option<usize> {
+    loop {
+        
+        let scope = mir.scopes.get(&scope_id).unwrap();
+
+        if scope.structs.contains_key(type_name) {
+            return Some(scope.node_id);
+        }
+        
+        if scope_id == GLOBAL_SCOPE_ID {
+            return None;
+        }
+        
+        scope_id = scope.parent_id;
+    }
+}
+
+fn check_rec_ty<'src>(
+    mut scope_id: usize,
+    mir: &MirS1<'src>,
+    ty: &Type<'src>,
+    target_ty: &str,
+    span: Span<'src>,
+) -> Result<bool, CompileError<'src>> { 
+    match ty {
+        Type::Custom(x) => {
+            if x.ident == target_ty {
+                return Ok(true);
+            }
+            
+            let dst_scope = check_struct_declared(scope_id, mir, x.ident);
+            if dst_scope.is_none() {
+                return Err(CompileError::new(span, "Type not found".to_owned()));
+            }
+            scope_id = dst_scope.unwrap();
+            
+            let proto = mir.scopes.get(&scope_id).unwrap().structs.get(x.ident).unwrap();
+            
+            for field in proto.fields.iter() {
+                if check_rec_ty(scope_id, mir, &field.ty, target_ty, field.span)? {
+                    return Ok(true);
+                }
+            }
+        
+            Ok(false)
+        }
+        
+        Type::Array(inner, _) | Type::Vec(inner) => {
+            check_rec_ty(scope_id, mir, inner, target_ty, span)
+        }
+        Type::Ref(_) => Ok(false),
+        _ => Ok(false),
+    }
 }
 
 fn scope_push_func<'src>(
@@ -192,7 +274,6 @@ fn scope_push_func<'src>(
                 node_id: arg.node_id,
                 ident: arg.ident,
                 ty: arg.ty,
-                is_used: false,
                 decl_span: arg.span,
             },
         )?;
@@ -487,7 +568,6 @@ fn base_block_proceed<'src>(
                     node_id,
                     ident,
                     ty: ty.clone(),
-                    is_used: false,
                     decl_span: span,
                 });
                 instrs.push(ast::Stmt::Assignment {
@@ -1378,7 +1458,7 @@ fn check_fn_call_args<'src>(
     // check argumetns
     let proto = mir
         .scopes
-        .get_mut(&func.decl_scope_id.unwrap()) // check todo
+        .get_mut(&func.decl_scope_id.unwrap()) 
         .unwrap()
         .funs
         .get(func.ident.ident)
@@ -1494,7 +1574,6 @@ fn func_decl_split(scope_id: usize, func: FuncDecl) -> (FuncProto, Block) {
             ident: func.ident,
             args: func.args,
             return_type: func.return_type,
-            is_used: false,
             span: func.span,
         },
         func.body,
@@ -1572,6 +1651,26 @@ fn test_index_fn<'src>() -> Result<(), CompileError<'src>> {
             var s_a = A { a: 10 };
             
             return 10;
+        }
+    "#;
+
+    let hir = hir::compile_hir(&inp)?;
+    let mir = check_types(hir)?;
+
+    println!("{mir:#?}");
+
+    Ok(())
+}
+
+#[test]
+fn test_struct_recursive<'src>() -> Result<(), CompileError<'src>> {
+    let inp = r#"
+        fn main() -> void {
+            struct B { b: &B }
+            struct A { a: B }
+            struct C { c: A }
+            
+            return;
         }
     "#;
 

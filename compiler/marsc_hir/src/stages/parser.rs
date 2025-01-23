@@ -4,13 +4,12 @@ use err::CompileError;
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 
-static mut GLOBAL_COUNTER: usize = 1_000_000;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static GLOBAL_COUNTER: AtomicUsize = AtomicUsize::new(1_000_000);
 
 pub(crate) fn gen_id() -> usize {
-    unsafe {
-        GLOBAL_COUNTER += 1;
-        GLOBAL_COUNTER
-    }
+    GLOBAL_COUNTER.fetch_add(1, Ordering::Relaxed)
 }
 
 #[derive(Parser)]

@@ -92,8 +92,12 @@ fn main() {
 
     if args.mir {
         if args.output.is_none() {
-            println!("{:#?}", mir.scopes);
-            exit(0);
+            if mir.code.len() > 20 {
+                exit(0);
+            }
+            // println!("{:#?}", mir.scopes);
+            // println!("done");
+            exit(20);
         }
 
         let _output = args.output.unwrap();

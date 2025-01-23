@@ -1,10 +1,13 @@
-use crate::{FuncProto, Mir, GLOBAL_SCOPE_ID};
+use crate::stages::s1::{FuncProto, MirS1};
+use crate::GLOBAL_SCOPE_ID;
 use ast::*;
 use err::CompileError;
 use pest::Span;
 use regex::Regex;
 
 use super::check_types::resolve_expr_type;
+
+type Mir<'src> = MirS1<'src>;
 
 pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
     static mut SYS_FN_COUNTER: usize = GLOBAL_SCOPE_ID;
@@ -28,7 +31,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 span: Span::new("external fn arg", 0, 14).unwrap(),
             }],
             return_type: Type::Void,
-            is_used: true,
             span: Span::new("external fn", 0, 10).unwrap(),
         },
         FuncProto {
@@ -42,7 +44,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 span: Span::new("external fn arg", 0, 14).unwrap(),
             }],
             return_type: Type::Void,
-            is_used: true,
             span: Span::new("external fn", 0, 10).unwrap(),
         },
         FuncProto {
@@ -56,7 +57,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 span: Span::new("external fn arg", 0, 15).unwrap(),
             }],
             return_type: Type::I64,
-            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
         FuncProto {
@@ -70,7 +70,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 span: Span::new("external fn arg", 0, 15).unwrap(),
             }],
             return_type: Type::I64,
-            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
         FuncProto {
@@ -92,7 +91,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 },
             ],
             return_type: Type::Void,
-            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
         FuncProto {
@@ -106,7 +104,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 span: Span::new("external fn arg", 0, 15).unwrap(),
             }],
             return_type: Type::Void,
-            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
         FuncProto {
@@ -115,7 +112,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             ident: "now", // todo now_sec, now_milis, now_nanos
             args: vec![],
             return_type: Type::I64,
-            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
     ])
@@ -361,7 +357,7 @@ fn resolve_ident_type<'src>(
             return Some(var.ty.clone());
         }
 
-        if scope.scope_type == crate::ScopeType::Function {
+        if scope.scope_type == crate::stages::s1::ScopeType::Function {
             return None;
         }
 
