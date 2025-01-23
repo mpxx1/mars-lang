@@ -1,0 +1,70 @@
+struct TreeNode {
+    left: &TreeNode,
+    right: &TreeNode,
+    item: i64
+}
+
+fn itemCheck(node: &TreeNode) -> i64 {
+    if node.left == null {
+        return node.item;
+    } else {
+        return node.item + itemCheck(node.left) - itemCheck(node.right);
+    }
+}
+
+fn bottomUpTree(item: i64, depth: i64) -> &TreeNode {
+    if depth > 0 {
+        return &TreeNode{
+            left: bottomUpTree(2 * item - 1, depth - 1),
+            right: bottomUpTree(2 * item, depth - 1),
+            item: item
+        };
+    } else {
+        return &TreeNode{
+            left: null,
+            right: null,
+            item: item
+        };
+    }
+}
+
+fn main() -> void {
+    var ret: i64 = 0;
+
+    var n: i64 = 4;
+    while n <= 7 {
+        var minDepth: i64 = 4;
+        var maxDepth: i64 = 0;
+        if minDepth+2 > n {
+            maxDepth = minDepth + 2;
+        } else {
+            maxDepth = n;
+        }
+
+        var check: i64 = itemCheck(bottomUpTree(0, maxDepth + 1));
+
+        var longLivedTree: &TreeNode = bottomUpTree(0, maxDepth);
+
+        var depth: i64 = minDepth;
+        while depth <= maxDepth {
+            var iterations: i64 = 2 ** (maxDepth - depth + minDepth);
+
+            check = 0;
+            var i: i64 = 1;
+            while i <= iterations {
+                check += itemCheck(bottomUpTree(i, depth));
+                check += itemCheck(bottomUpTree(0-i, depth));
+                i += 1;
+            }
+            depth += 2;
+        }
+
+        ret += itemCheck(longLivedTree);
+        n += 1;
+    }
+
+    var expected: i64 = -4;
+    if ret != expected {
+        println("ERROR: bad result: expected {expected} but got {ret}");
+    }
+}
