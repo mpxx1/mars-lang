@@ -287,11 +287,11 @@ pub enum MIRLiteral<'src> {
 
 #[derive(Debug, Clone)]
 pub struct MIRFuncCall<'src> {
-    decl_scope_id: usize,
-    fn_id: usize,
-    ident: String,
-    args: Vec<MIRExpr<'src>>,
-    span: Span<'src>,
+    pub decl_scope_id: usize,
+    pub fn_id: usize,
+    pub ident: String,
+    pub args: Vec<MIRExpr<'src>>,
+    pub span: Span<'src>,
 }
 
 #[derive(Debug, Clone)]
@@ -310,7 +310,6 @@ pub enum MIRType {
     Bool,
     Void,
     StructType(MIRStructType),
-    // Custom(String),
     Array(Box<MIRType>, usize),
     Vec(Box<MIRType>),
     Ref(Box<MIRType>),
@@ -334,7 +333,6 @@ impl From<Type<'_>> for MIRType {
             Type::Bool => MIRType::Bool,
             Type::Void => MIRType::Void,
             Type::StructType(x) => MIRType::StructType(x.into()),
-            // Type::Custom(id) => MIRType::Custom(id.ident.to_string()),
             Type::Array(inner, size) => MIRType::Array(Box::new((*inner).into()), size),
             Type::Vec(inner) => MIRType::Vec(Box::new((*inner).into())),
             Type::Ref(inner) => MIRType::Ref(Box::new((*inner).into())),

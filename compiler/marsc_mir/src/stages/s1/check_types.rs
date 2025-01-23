@@ -172,7 +172,29 @@ fn check_rec_ty<'src>(
     span: Span<'src>,
 ) -> Result<bool, CompileError<'src>> { 
     match ty {
-        Type::Custom(x) => {
+        // Type::Custom(x) => {
+        //     if x.ident == target_ty {
+        //         return Ok(true);
+        //     }
+            
+        //     let dst_scope = check_struct_declared(scope_id, mir, x.ident);
+        //     if dst_scope.is_none() {
+        //         return Err(CompileError::new(span, "Type not found".to_owned()));
+        //     }
+        //     scope_id = dst_scope.unwrap().0;
+            
+        //     let proto = mir.scopes.get(&scope_id).unwrap().structs.get(x.ident).unwrap();
+            
+        //     for field in proto.fields.iter() {
+        //         if check_rec_ty(scope_id, mir, &field.ty, target_ty, field.span)? {
+        //             return Ok(true);
+        //         }
+        //     }
+        
+        //     Ok(false)
+        // }
+        
+        Type::StructType(x) => {
             if x.ident == target_ty {
                 return Ok(true);
             }
@@ -248,10 +270,11 @@ fn scope_push_func<'src>(
 
     // 4 add func to scope
     let ret_ty = func_obj.return_type.clone();
-    let (fn_proto, logic_block) = func_decl_split(scope_id, func_obj);
+    let (fn_proto, logic_block) = func_decl_split(scope_id, func_obj, mir);
     let fn_span = fn_proto.span;
     let fn_id = fn_proto.node_id;
     let fn_args = fn_proto.args.clone();
+    let scope_ref = mir.scopes.get_mut(&scope_id).unwrap();
     scope_ref.funs.insert(fn_proto.ident, fn_proto);
 
     // 5 procceed with function body
@@ -572,13 +595,13 @@ fn base_block_proceed<'src>(
                     parent_id: block_id,
                     node_id,
                     ident,
-                    ty: ty.clone(),
+                    ty: resolve_type(ty.clone(), block_id, mir),
                     decl_span: span,
                 });
                 instrs.push(ast::Stmt::Assignment {
                     node_id,
                     ident,
-                    ty,
+                    ty: resolve_type(ty, block_id, mir),
                     expr,
                     span,
                 })
@@ -692,7 +715,7 @@ fn scope_push_assignment<'src>(
     let Stmt::Assignment {
         node_id,
         ident,
-        mut ty,
+        ty,
         mut expr,
         span,
     } = instr
@@ -733,7 +756,7 @@ fn scope_push_assignment<'src>(
     }
 
     debug_assert_eq!(var.ty, ty);
-    let expr_type = resolve_expr_type(scope_id, mir, &mut expr, ty)?;
+    let expr_type = resolve_expr_type(scope_id, mir, &mut expr, resolve_type(ty, scope_id, mir))?;
 
     if var.ty == Type::Unresolved {
         var.ty = expr_type;
@@ -859,7 +882,7 @@ fn resolve_logical_expr_type<'src>(
             ));
         }
 
-        Ok(left_ty)
+        Ok(resolve_type(left_ty, scope_id, mir))
     }
 
     match logical_expr {
@@ -1004,7 +1027,7 @@ fn resolve_math_expr_type<'src>(
             ));
         }
 
-        Ok(left_ty)
+        Ok(resolve_type(left_ty, scope_id, mir))
     }
 
     match math_expr {
@@ -1042,7 +1065,7 @@ fn resolve_arr_decl_type<'src>(
     span: &mut Span<'src>,
     opt_type: Type<'src>,
 ) -> Result<Type<'src>, CompileError<'src>> {
-    let av_type = opt_type.clone();
+    let av_type = resolve_type(opt_type.clone(), scope_id, mir);
     let opt_type = if let Type::Array(x, _) = opt_type {
         *x
     } else if let Type::Vec(x) = opt_type {
@@ -1127,7 +1150,7 @@ fn resolve_deref_type<'src>(
         ));
     };
 
-    Ok(*x.clone())
+    Ok(resolve_type(*x.clone(), scope_id, mir))
 }
 
 fn resolve_ref_type<'src>(
@@ -1144,6 +1167,7 @@ fn resolve_ref_type<'src>(
         panic!("Something went wrong");
     };
     let inner_ty = resolve_expr_type(scope_id, mir, inner, Type::Unresolved)?;
+    let inner_ty = resolve_type(inner_ty, scope_id, mir);
 
     Ok(Type::Ref(Box::new(inner_ty)))
 }
@@ -1301,7 +1325,7 @@ fn resolve_struct_init_type<'src>(
         }
     }
 
-    Ok(Type::Custom(ident.clone()))
+    Ok(resolve_type(Type::Custom(ident.clone()), scope_id, mir))
 }
 
 fn resolve_struct_field_type<'src>(
@@ -1327,6 +1351,7 @@ fn resolve_struct_field_type<'src>(
             format!("Can not find variable with name {:?}", ident.ident),
         ));
     };
+    // let custom_type = resolve_type(custom_type, scope_id, mir);
     let Type::StructType(struct_ty) = custom_type else {
         return Err(CompileError::new(
             *span,
@@ -1346,7 +1371,7 @@ fn resolve_struct_field_type<'src>(
                 *decl_scope_id = cur_scope;
                 *struct_id = struct_proto.node_id;
                 
-                return Ok(arg.ty.clone());
+                return Ok(resolve_type(arg.ty.clone(), cur_scope, mir));
             } else {
                 return Err(CompileError::new(
                     *span,
@@ -1407,6 +1432,7 @@ fn resolve_memlookup_type<'src>(
         &mut Expr::Identifier(ident.clone()),
         Type::Unresolved,
     )?;
+    // let mut current_type = resolve_type(current_type, scope_id, mir);
 
     if current_type == Type::Str && indices.len() == 1 {
         return Ok(Type::Char);
@@ -1459,7 +1485,7 @@ fn resolve_vec_type<'src>(
         }
     }
 
-    Ok(Type::Vec(Box::new(ty)))
+    Ok(Type::Vec(Box::new(resolve_type(ty, scope_id, mir))))
 }
 
 fn check_fn_call_args<'src>(
@@ -1524,6 +1550,7 @@ fn check_fn_call_args<'src>(
             .args[i]
             .ty
             .clone();
+        let actual_type = resolve_type(actual_type.clone(), scope_id, mir);
         if actual_type != Type::Any
             && resolve_expr_type(scope_id, mir, expr, actual_type.clone())? != actual_type
         {
@@ -1541,14 +1568,16 @@ fn check_fn_call_args<'src>(
 }
 
 fn resolve_fn_ret_type<'src>(mir: &mut Mir<'src>, func: &mut FuncCall<'src>) -> Type<'src> {
-    mir.scopes
+    let tmp_ty = mir.scopes
         .get(&func.decl_scope_id)
         .unwrap()
         .funs
         .get(&func.ident.ident)
         .unwrap()
         .return_type
-        .clone()
+        .clone();
+    
+    resolve_type(tmp_ty, func.decl_scope_id, mir)
 }
 
 // fn resolve_custom_type<'src>(
@@ -1583,7 +1612,7 @@ fn resolve_ident_type<'src>(
         let scope = mir.scopes.get(&current_scope_id)?;
 
         if let Some(var) = scope.vars.get(ident) {
-            return Some(var.ty.clone());
+            return Some(resolve_type(var.ty.clone(), scope_id, mir));
         }
 
         if scope.scope_type == ScopeType::Function {
@@ -1609,7 +1638,7 @@ fn resolve_type<'src>(
                     span: ident.span,
                 })
             } else {
-                Type::Custom(ident)
+                panic!("Tmp err")
             }
         }
         Type::Array(inner, size) => {
@@ -1657,14 +1686,15 @@ fn resolve_lit_type<'src>(
     }
 }
 
-fn func_decl_split(scope_id: usize, func: FuncDecl) -> (FuncProto, Block) {
+fn func_decl_split<'src>(scope_id: usize, mut func: FuncDecl<'src>, mir: &mut Mir<'src>) -> (FuncProto<'src>, Block<'src>) {
+    func.args.iter_mut().for_each(|x| x.ty = resolve_type(x.ty.clone(), scope_id, mir));
     (
         FuncProto {
             parent_id: scope_id,
             node_id: func.node_id,
             ident: func.ident,
             args: func.args,
-            return_type: func.return_type,
+            return_type: resolve_type(func.return_type, scope_id, mir),
             span: func.span,
         },
         func.body,
