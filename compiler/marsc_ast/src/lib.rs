@@ -154,7 +154,7 @@ pub enum Expr<'src> {
 
     MemLookup {
         node_id: usize, // excess ?
-        ident: Identifier<'src>,    
+        ident: Identifier<'src>,
         indices: Vec<Expr<'src>>,
         span: Span<'src>,
     },
@@ -162,9 +162,9 @@ pub enum Expr<'src> {
     StructFieldCall {
         decl_scope_id: usize,
         struct_id: usize,
-        node_id: usize,             // excess ?
-        ident: Identifier<'src>,    
-        field: Identifier<'src>,    
+        node_id: usize, // excess ?
+        ident: Identifier<'src>,
+        field: Identifier<'src>,
         span: Span<'src>,
     },
 
@@ -252,7 +252,7 @@ pub struct FuncCall<'src> {
     pub decl_scope_id: usize,
     pub fn_id: usize,
     pub node_id: usize, // excess ?
-    pub ident: Identifier<'src>,    
+    pub ident: Identifier<'src>,
     pub args: Vec<Expr<'src>>,
     pub span: Span<'src>,
 }
@@ -260,7 +260,7 @@ pub struct FuncCall<'src> {
 #[derive(Debug, Clone)]
 pub struct StructFieldDecl<'src> {
     pub node_id: usize, // excess ?
-    pub ident: Identifier<'src>,    
+    pub ident: Identifier<'src>,
     pub expr: Expr<'src>,
     pub span: Span<'src>,
 }
@@ -356,7 +356,7 @@ impl PartialEq for Identifier<'_> {
     }
 }
 
-impl<'src> PartialEq for StructType<'src> {
+impl PartialEq for StructType<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.ident == other.ident
     }

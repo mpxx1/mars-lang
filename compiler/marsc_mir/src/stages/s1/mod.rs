@@ -6,11 +6,11 @@ pub(crate) mod sys_funs;
 use std::collections::HashMap;
 
 use ast::{ArgDecl, Stmt, StructDecl, Type};
-use err::CompileError;
-use pest::Span;
 use check_after_ret::check_after_return;
 use check_main::check_main;
 use check_types::check_types;
+use err::CompileError;
+use pest::Span;
 
 #[derive(Debug)]
 pub struct MirS1<'src> {
@@ -81,8 +81,6 @@ pub fn compile_mir_s1(hir: hir::Hir) -> Result<MirS1, CompileError> {
     let mir = check_types(hir)?;
     let mir = check_main(mir)?;
     let mir = check_after_return(mir)?;
-    
+
     Ok(mir)
 }
-
-

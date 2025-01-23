@@ -182,7 +182,7 @@ pub(crate) fn simplify(ast: Ast) -> Result<Ast, CompileError> {
                     })
                     .collect();
                 Expr::StructInit {
-                    decl_scope_id, 
+                    decl_scope_id,
                     struct_id,
                     node_id,
                     ident,

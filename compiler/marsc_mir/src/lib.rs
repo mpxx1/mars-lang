@@ -18,7 +18,7 @@ impl<'src> ToMir<'src> for hir::Hir<'src> {
         let m1 = s1::compile_mir_s1(self)?;
         let m2 = m1.into();
         let mir = compile_mir_s2(m2)?;
-        
+
         Ok(mir)
     }
 }

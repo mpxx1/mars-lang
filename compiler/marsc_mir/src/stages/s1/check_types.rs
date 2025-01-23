@@ -10,7 +10,6 @@ type Mir<'src> = MirS1<'src>;
 use crate::GLOBAL_SCOPE_ID;
 
 pub(crate) fn check_types(hir: hir::Hir) -> Result<Mir, CompileError> {
-        
     let mut mir = Mir {
         code: hir.code,
         scopes: HashMap::new(),
@@ -89,32 +88,37 @@ fn scope_push_struct<'src>(
             format!("Struct '{}' fields has duplicated names", struct_obj.ident),
         ));
     }
-     
+
     // check type for decl
     let mut missed_type = "".to_string();
     if struct_obj.fields.iter_mut().any(|field| {
         if let Type::Custom(ident) = &field.ty {
             // field.ty = Type::StructType(StructType {});
-            
-            let ids = check_struct_declared(scope_id, mir,  ident.ident);
+
+            let ids = check_struct_declared(scope_id, mir, ident.ident);
             if ids.is_none() {
                 missed_type = ident.ident.to_owned();
                 return true;
             }
             let ids = ids.unwrap();
-            field.ty = Type::StructType(StructType {decl_scope_id: ids.0, struct_id: ids.1, ident: ident.ident, span: ident.span });
-            
+            field.ty = Type::StructType(StructType {
+                decl_scope_id: ids.0,
+                struct_id: ids.1,
+                ident: ident.ident,
+                span: ident.span,
+            });
+
             return false;
-        } 
-        
+        }
+
         if let Type::StructType(x) = &field.ty {
-            if check_struct_declared(scope_id, mir,  x.ident).is_none() {
+            if check_struct_declared(scope_id, mir, x.ident).is_none() {
                 missed_type = x.ident.to_owned();
                 return true;
             }
             return false;
         }
-        
+
         false
     }) {
         return Err(CompileError::new(
@@ -143,23 +147,22 @@ fn scope_push_struct<'src>(
     Ok(())
 }
 
-fn check_struct_declared<'src>(
+fn check_struct_declared(
     mut scope_id: usize,
-    mir: &MirS1<'src>,
+    mir: &MirS1,
     type_name: &str,
 ) -> Option<(usize, usize)> {
     loop {
-        
         let scope = mir.scopes.get(&scope_id).unwrap();
 
         if scope.structs.contains_key(type_name) {
             return Some((scope.node_id, scope.structs.get(type_name).unwrap().node_id));
         }
-        
+
         if scope_id == GLOBAL_SCOPE_ID {
             return None;
         }
-        
+
         scope_id = scope.parent_id;
     }
 }
@@ -170,52 +173,57 @@ fn check_rec_ty<'src>(
     ty: &Type<'src>,
     target_ty: &str,
     span: Span<'src>,
-) -> Result<bool, CompileError<'src>> { 
+) -> Result<bool, CompileError<'src>> {
     match ty {
         // Type::Custom(x) => {
         //     if x.ident == target_ty {
         //         return Ok(true);
         //     }
-            
+
         //     let dst_scope = check_struct_declared(scope_id, mir, x.ident);
         //     if dst_scope.is_none() {
         //         return Err(CompileError::new(span, "Type not found".to_owned()));
         //     }
         //     scope_id = dst_scope.unwrap().0;
-            
+
         //     let proto = mir.scopes.get(&scope_id).unwrap().structs.get(x.ident).unwrap();
-            
+
         //     for field in proto.fields.iter() {
         //         if check_rec_ty(scope_id, mir, &field.ty, target_ty, field.span)? {
         //             return Ok(true);
         //         }
         //     }
-        
+
         //     Ok(false)
         // }
-        
         Type::StructType(x) => {
             if x.ident == target_ty {
                 return Ok(true);
             }
-            
+
             let dst_scope = check_struct_declared(scope_id, mir, x.ident);
             if dst_scope.is_none() {
                 return Err(CompileError::new(span, "Type not found".to_owned()));
             }
             scope_id = dst_scope.unwrap().0;
-            
-            let proto = mir.scopes.get(&scope_id).unwrap().structs.get(x.ident).unwrap();
-            
+
+            let proto = mir
+                .scopes
+                .get(&scope_id)
+                .unwrap()
+                .structs
+                .get(x.ident)
+                .unwrap();
+
             for field in proto.fields.iter() {
                 if check_rec_ty(scope_id, mir, &field.ty, target_ty, field.span)? {
                     return Ok(true);
                 }
             }
-        
+
             Ok(false)
         }
-        
+
         Type::Array(inner, _) | Type::Vec(inner) => {
             check_rec_ty(scope_id, mir, inner, target_ty, span)
         }
@@ -1260,7 +1268,7 @@ fn resolve_struct_init_type<'src>(
 
         scope_id = scope.parent_id;
     }
-    
+
     // let Some(custom_type) = resolve_custom_type(scope_id, mir, ident.ident) else {
     //     return Err(CompileError::new(
     //         *span,
@@ -1299,7 +1307,7 @@ fn resolve_struct_init_type<'src>(
 
     *decl_scope_id = scope_id;
     *struct_id = struct_proto.node_id;
-    
+
     for (name, fld) in fields_init.iter_mut() {
         let actual_type = fields_proto.get(name);
         if actual_type.is_none() {
@@ -1370,12 +1378,15 @@ fn resolve_struct_field_type<'src>(
             {
                 *decl_scope_id = cur_scope;
                 *struct_id = struct_proto.node_id;
-                
+
                 return Ok(resolve_type(arg.ty.clone(), cur_scope, mir));
             } else {
                 return Err(CompileError::new(
                     *span,
-                    format!("Field '{}' not found in struct '{}'", field.ident, ident.ident),
+                    format!(
+                        "Field '{}' not found in struct '{}'",
+                        field.ident, ident.ident
+                    ),
                 ));
             }
         }
@@ -1499,7 +1510,7 @@ fn check_fn_call_args<'src>(
         if scope.funs.contains_key(func.ident.ident) {
             func.decl_scope_id = scope.node_id;
             func.fn_id = scope.funs.get(func.ident.ident).unwrap().node_id;
-                
+
             break;
         }
 
@@ -1515,11 +1526,11 @@ fn check_fn_call_args<'src>(
 
         current_scope_id = scope.parent_id;
     }
-    
+
     // check argumetns
     let proto = mir
         .scopes
-        .get_mut(&func.decl_scope_id) 
+        .get_mut(&func.decl_scope_id)
         .unwrap()
         .funs
         .get(func.ident.ident)
@@ -1568,7 +1579,8 @@ fn check_fn_call_args<'src>(
 }
 
 fn resolve_fn_ret_type<'src>(mir: &mut Mir<'src>, func: &mut FuncCall<'src>) -> Type<'src> {
-    let tmp_ty = mir.scopes
+    let tmp_ty = mir
+        .scopes
         .get(&func.decl_scope_id)
         .unwrap()
         .funs
@@ -1576,7 +1588,7 @@ fn resolve_fn_ret_type<'src>(mir: &mut Mir<'src>, func: &mut FuncCall<'src>) -> 
         .unwrap()
         .return_type
         .clone();
-    
+
     resolve_type(tmp_ty, func.decl_scope_id, mir)
 }
 
@@ -1623,14 +1635,12 @@ fn resolve_ident_type<'src>(
     }
 }
 
-fn resolve_type<'src>(
-    ty: Type<'src>,
-    scope_id: usize,
-    mir: &Mir<'src>,
-) -> Type<'src> {
+fn resolve_type<'src>(ty: Type<'src>, scope_id: usize, mir: &Mir<'src>) -> Type<'src> {
     match ty {
         Type::Custom(ident) => {
-            if let Some((decl_scope_id, struct_id)) = check_struct_declared(scope_id, mir, ident.ident) {
+            if let Some((decl_scope_id, struct_id)) =
+                check_struct_declared(scope_id, mir, ident.ident)
+            {
                 Type::StructType(StructType {
                     decl_scope_id,
                     struct_id,
@@ -1686,8 +1696,14 @@ fn resolve_lit_type<'src>(
     }
 }
 
-fn func_decl_split<'src>(scope_id: usize, mut func: FuncDecl<'src>, mir: &mut Mir<'src>) -> (FuncProto<'src>, Block<'src>) {
-    func.args.iter_mut().for_each(|x| x.ty = resolve_type(x.ty.clone(), scope_id, mir));
+fn func_decl_split<'src>(
+    scope_id: usize,
+    mut func: FuncDecl<'src>,
+    mir: &mut Mir<'src>,
+) -> (FuncProto<'src>, Block<'src>) {
+    func.args
+        .iter_mut()
+        .for_each(|x| x.ty = resolve_type(x.ty.clone(), scope_id, mir));
     (
         FuncProto {
             parent_id: scope_id,

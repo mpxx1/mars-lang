@@ -894,7 +894,7 @@ fn parse_struct_init(pair: Pair<Rule>) -> Result<Expr, CompileError> {
     let mut inner_iter = pair.into_inner();
 
     Ok(Expr::StructInit {
-        decl_scope_id: 0, 
+        decl_scope_id: 0,
         struct_id: 0,
         node_id: gen_id(),
         ident: parse_ident(inner_iter.next().unwrap())?,

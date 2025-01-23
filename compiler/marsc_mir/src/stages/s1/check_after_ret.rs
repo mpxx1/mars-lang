@@ -4,15 +4,17 @@ use err::CompileError;
 type Mir<'src> = MirS1<'src>;
 
 pub(crate) fn check_after_return(mut mir: Mir) -> Result<Mir, CompileError> {
-    
     for (_, scope) in mir.scopes.iter_mut() {
         for instr in scope.instrs.iter_mut().rev().skip(1) {
             if let ast::Stmt::Return { span, .. } = instr {
-                return Err(CompileError::new(*span, "Code after this return statement is unreachable".to_owned()));
+                return Err(CompileError::new(
+                    *span,
+                    "Code after this return statement is unreachable".to_owned(),
+                ));
             }
         }
     }
-    
+
     Ok(mir)
 }
 

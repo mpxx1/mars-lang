@@ -2,9 +2,9 @@ pub mod new_block_var_decl;
 
 use std::collections::HashMap;
 
-use new_block_var_decl::block_var_decl;
-use ast::*;
 use super::s1;
+use ast::*;
+use new_block_var_decl::block_var_decl;
 
 use pest::Span;
 
@@ -37,8 +37,8 @@ pub struct MIRScope<'src> {
 #[repr(u8)]
 #[derive(Debug, Clone)]
 pub enum MIRScopeType {
-    Global, 
-    Block, 
+    Global,
+    Block,
     Function,
 }
 
@@ -118,12 +118,11 @@ pub struct MIRArgDecl<'src> {
 
 #[derive(Debug, Clone)]
 pub enum MIRExpr<'src> {
-    
-    Identifier { 
+    Identifier {
         ident: String,
-        span: Span<'src>, 
+        span: Span<'src>,
     },
-    
+
     FuncCall(MIRFuncCall<'src>),
 
     ArrayDecl {
@@ -255,34 +254,17 @@ pub enum MIRMulOp {
 
 #[derive(Debug, Clone)]
 pub enum MIRLiteral<'src> {
-    Int {
-        lit: i64,
-        span: Span<'src>,
-    },
+    Int { lit: i64, span: Span<'src> },
 
-    Float {
-        lit: f64,
-        span: Span<'src>,
-    },
+    Float { lit: f64, span: Span<'src> },
 
-    Str {
-        lit: String,
-        span: Span<'src>,
-    },
+    Str { lit: String, span: Span<'src> },
 
-    Char {
-        lit: char,
-        span: Span<'src>,
-    },
+    Char { lit: char, span: Span<'src> },
 
-    Bool {
-        lit: bool,
-        span: Span<'src>,
-    },
+    Bool { lit: bool, span: Span<'src> },
 
-    NullRef {
-        span: Span<'src>,
-    },
+    NullRef { span: Span<'src> },
 }
 
 #[derive(Debug, Clone)]
@@ -318,8 +300,7 @@ pub enum MIRType {
 
 impl PartialEq for MIRStructType {
     fn eq(&self, other: &Self) -> bool {
-        self.decl_scope_id == other.decl_scope_id &&
-        self.struct_id == self.struct_id
+        self.decl_scope_id == other.decl_scope_id && self.struct_id == other.struct_id
     }
 }
 
@@ -342,15 +323,15 @@ impl From<Type<'_>> for MIRType {
     }
 }
 
-impl<'src> From<StructType<'_>> for MIRStructType {
-    fn from(s: StructType<'_>) -> Self {
+impl From<StructType<'_>> for MIRStructType {
+    fn from(s: StructType) -> Self {
         Self {
             decl_scope_id: s.decl_scope_id,
             struct_id: s.struct_id,
             ident: s.ident.to_owned(),
         }
     }
-} 
+}
 
 impl<'src> From<s1::StructProto<'src>> for MIRStruct<'src> {
     fn from(proto: s1::StructProto<'src>) -> Self {
@@ -380,7 +361,7 @@ impl<'src> From<s1::FuncProto<'src>> for MIRFunc<'src> {
 impl<'src> From<s1::Variable<'src>> for MIRVariable {
     fn from(v: s1::Variable<'src>) -> Self {
         Self {
-            ident: v.ident.to_owned(), 
+            ident: v.ident.to_owned(),
             ty: v.ty.into(),
         }
     }
@@ -424,52 +405,82 @@ impl<'src> From<FuncCall<'src>> for MIRFuncCall<'src> {
 impl<'src> From<Expr<'src>> for MIRExpr<'src> {
     fn from(expr: Expr<'src>) -> Self {
         match expr {
-            Expr::Identifier(id) => Self::Identifier { ident: id.ident.to_string(), span: id.span },
+            Expr::Identifier(id) => Self::Identifier {
+                ident: id.ident.to_string(),
+                span: id.span,
+            },
             Expr::FuncCall(fc) => Self::FuncCall(fc.into()),
-            
+
             Expr::ArrayDecl { list, span, .. } => Self::ArrayDecl {
                 list: list.into_iter().map(Into::into).collect(),
                 span,
             },
-            
-            Expr::MemLookup { ident, indices, span, .. } => Self::MemLookup {
+
+            Expr::MemLookup {
+                ident,
+                indices,
+                span,
+                ..
+            } => Self::MemLookup {
                 ident: ident.ident.to_string(),
                 indices: indices.into_iter().map(Into::into).collect(),
                 span,
             },
-            
-            Expr::StructFieldCall { ident, field, span, decl_scope_id, struct_id, .. } => Self::StructFieldCall {
+
+            Expr::StructFieldCall {
+                ident,
+                field,
+                span,
+                decl_scope_id,
+                struct_id,
+                ..
+            } => Self::StructFieldCall {
                 decl_scope_id,
                 struct_id,
                 ident: ident.ident.to_string(),
                 field: field.ident.to_string(),
                 span,
             },
-            
-            Expr::StructInit { ident, fields, span, decl_scope_id, struct_id, .. } => Self::StructInit {
+
+            Expr::StructInit {
+                ident,
+                fields,
+                span,
+                decl_scope_id,
+                struct_id,
+                ..
+            } => Self::StructInit {
                 decl_scope_id,
                 struct_id,
                 ident: ident.ident.to_string(),
-                fields: fields.into_iter().map(|f| (f.ident.ident.to_owned(), f.expr.into())).collect(),
+                fields: fields
+                    .into_iter()
+                    .map(|f| (f.ident.ident.to_owned(), f.expr.into()))
+                    .collect(),
                 span,
             },
-            
-            Expr::CastType { cast_to, expr, span, .. } => Self::CastType {
+
+            Expr::CastType {
+                cast_to,
+                expr,
+                span,
+                ..
+            } => Self::CastType {
                 cast_to: Box::new((*cast_to).into()),
                 expr: Box::new((*expr).into()),
                 span,
             },
-            
+
             Expr::Dereference { inner, span, .. } => Self::Dereference {
                 inner: Box::new((*inner).into()),
                 span,
             },
-            
+
             Expr::Reference { inner, span, .. } => Self::Reference {
                 inner: Box::new((*inner).into()),
                 span,
             },
-            
+
             Expr::LogicalExpr(le) => Self::LogicalExpr(le.into()),
             Expr::MathExpr(me) => Self::MathExpr(me.into()),
             Expr::Literal(lit) => Self::Literal(lit.into()),
@@ -484,26 +495,36 @@ impl<'src> From<LogicalExpr<'src>> for MIRLogicalExpr<'src> {
                 inner: Box::new((*inner).into()),
                 span,
             },
-            
-            LogicalExpr::Or { left, right, span, .. } => Self::Or {
+
+            LogicalExpr::Or {
+                left, right, span, ..
+            } => Self::Or {
                 left: Box::new((*left).into()),
                 right: Box::new((*right).into()),
                 span,
             },
-            
-            LogicalExpr::And { left, right, span, .. } => Self::And {
+
+            LogicalExpr::And {
+                left, right, span, ..
+            } => Self::And {
                 left: Box::new((*left).into()),
                 right: Box::new((*right).into()),
                 span,
             },
-            
-            LogicalExpr::Comparison { left, right, op, span, .. } => Self::Comparison {
+
+            LogicalExpr::Comparison {
+                left,
+                right,
+                op,
+                span,
+                ..
+            } => Self::Comparison {
                 left: Box::new((*left).into()),
                 right: Box::new((*right).into()),
                 op: op.into(),
                 span,
             },
-            
+
             LogicalExpr::Primary(expr) => Self::Primary(Box::new((*expr).into())),
         }
     }
@@ -525,26 +546,40 @@ impl From<CmpOp> for MIRCmpOp {
 impl<'src> From<MathExpr<'src>> for MIRMathExpr<'src> {
     fn from(expr: MathExpr<'src>) -> Self {
         match expr {
-            MathExpr::Additive { left, right, op, span, .. } => Self::Additive {
+            MathExpr::Additive {
+                left,
+                right,
+                op,
+                span,
+                ..
+            } => Self::Additive {
                 left: Box::new((*left).into()),
                 right: Box::new((*right).into()),
                 op: op.into(),
                 span,
             },
-            
-            MathExpr::Multiplicative { left, right, op, span, .. } => Self::Multiplicative {
+
+            MathExpr::Multiplicative {
+                left,
+                right,
+                op,
+                span,
+                ..
+            } => Self::Multiplicative {
                 left: Box::new((*left).into()),
                 right: Box::new((*right).into()),
                 op: op.into(),
                 span,
             },
-            
-            MathExpr::Power { base, exp, span, .. } => Self::Power {
+
+            MathExpr::Power {
+                base, exp, span, ..
+            } => Self::Power {
                 base: Box::new((*base).into()),
                 exp: Box::new((*exp).into()),
                 span,
             },
-            
+
             MathExpr::Primary(expr) => Self::Primary(Box::new((*expr).into())),
         }
     }
@@ -574,7 +609,7 @@ impl From<s1::ScopeType> for MIRScopeType {
     fn from(ty: s1::ScopeType) -> Self {
         match ty {
             s1::ScopeType::Function => MIRScopeType::Function,
-            s1::ScopeType::Block => MIRScopeType::Block, 
+            s1::ScopeType::Block => MIRScopeType::Block,
             s1::ScopeType::Global => MIRScopeType::Global,
         }
     }
@@ -595,16 +630,21 @@ impl<'src> From<s1::Scope<'src>> for MIRScope<'src> {
         Self {
             parent_id: s.parent_id,
             node_id: s.node_id,
-            structs: s.structs.into_iter().map(
-                |(i, x)|
-                    (i.to_owned(), x.into())
-                ).collect(),
-            funs: s.funs.into_iter().map(|(i, x)| 
-                    (i.to_owned(), x.into())
-                ).collect(),
-            vars: s.vars.into_iter().map(|(i, x)|
-                    (i.to_owned(), x.into())
-                ).collect(),
+            structs: s
+                .structs
+                .into_iter()
+                .map(|(i, x)| (i.to_owned(), x.into()))
+                .collect(),
+            funs: s
+                .funs
+                .into_iter()
+                .map(|(i, x)| (i.to_owned(), x.into()))
+                .collect(),
+            vars: s
+                .vars
+                .into_iter()
+                .map(|(i, x)| (i.to_owned(), x.into()))
+                .collect(),
             instrs: s.instrs.into_iter().map(Into::into).collect(),
             scope_type: s.scope_type.into(),
         }
@@ -618,37 +658,47 @@ impl<'src> From<Stmt<'src>> for MIRInstruction<'src> {
                 expr: expr.map(Into::into),
                 span,
             },
-            
+
             Stmt::Break { span, .. } => Self::Break { span },
-            
-            Stmt::Assignment { ident, ty, expr, span, .. } => Self::Assignment {
+
+            Stmt::Assignment {
+                ident,
+                ty,
+                expr,
+                span,
+                ..
+            } => Self::Assignment {
                 ident: ident.to_string(),
                 ty: ty.into(),
                 expr: expr.into(),
                 span,
             },
-            
+
             Stmt::Assign { lhs, rhs, span, .. } => Self::Assign {
                 lhs: lhs.into(),
                 rhs: rhs.into(),
                 span,
             },
-            
+
             Stmt::FuncCall(fc) => Self::FuncCall(fc.into()),
-            
+
             Stmt::GoToBlock { node_id } => Self::GoToBlock { block_id: node_id },
-            
-            Stmt::GoToIfCond { cond, then_block_id, else_block_id } => Self::GoToIfCond {
+
+            Stmt::GoToIfCond {
+                cond,
+                then_block_id,
+                else_block_id,
+            } => Self::GoToIfCond {
                 cond: Box::new((*cond).into()),
                 then_block_id,
                 else_block_id,
             },
-            
+
             Stmt::GoToWhile { cond, loop_id } => Self::GoToWhile {
                 cond: Box::new((*cond).into()),
                 loop_id,
             },
-            
+
             _ => panic!("Unsupported statement conversion"),
         }
     }
