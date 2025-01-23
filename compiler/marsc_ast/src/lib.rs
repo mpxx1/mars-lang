@@ -31,9 +31,17 @@ pub struct FuncDecl<'src> {
 
 #[derive(Debug, Clone)]
 pub struct ArgDecl<'src> {
-    pub node_id: usize, // excess
+    pub node_id: usize, // excess ?
     pub ident: &'src str,
     pub ty: Type<'src>,
+    pub span: Span<'src>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructType<'src> {
+    pub decl_scope_id: usize,
+    pub struct_id: usize,
+    pub ident: &'src str,
     pub span: Span<'src>,
 }
 
@@ -50,7 +58,8 @@ pub enum Type<'src> {
     Vec(Box<Type<'src>>),
     Ref(Box<Type<'src>>),
 
-    // checker only
+    // mir only
+    StructType(StructType<'src>),
     Any,
     Unresolved,
 }
@@ -67,13 +76,13 @@ pub enum Stmt<'src> {
     Block(Block<'src>),
 
     Return {
-        node_id: usize, // excess
+        node_id: usize, // excess ?
         expr: Option<Expr<'src>>,
         span: Span<'src>,
     },
 
     Break {
-        node_id: usize, // excess
+        node_id: usize, // excess ?
         span: Span<'src>,
     },
 
@@ -90,7 +99,7 @@ pub enum Stmt<'src> {
     },
 
     Assign {
-        node_id: usize,  // excess
+        node_id: usize,  // excess ?
         lhs: Expr<'src>, // ident, deref, mem
         rhs: Expr<'src>,
         span: Span<'src>,
@@ -99,7 +108,6 @@ pub enum Stmt<'src> {
     FuncCall(FuncCall<'src>),
 
     IfElse {
-        // pub parent_id: usize,
         node_id: usize,
         else_id: Option<usize>,
         cond: Box<Expr<'src>>,
@@ -109,7 +117,6 @@ pub enum Stmt<'src> {
     },
 
     WhileLoop {
-        // pub parent_id: usize,
         node_id: usize,
         cond: Box<Expr<'src>>,
         body: Block<'src>,
@@ -140,47 +147,51 @@ pub enum Expr<'src> {
     FuncCall(FuncCall<'src>),
 
     ArrayDecl {
-        node_id: usize,
+        node_id: usize, // excess ?
         list: Vec<Expr<'src>>,
         span: Span<'src>,
     },
 
     MemLookup {
-        node_id: usize,
+        node_id: usize, // excess ?
         ident: Identifier<'src>,
         indices: Vec<Expr<'src>>,
         span: Span<'src>,
     },
 
     StructFieldCall {
-        node_id: usize,
+        decl_scope_id: usize,
+        struct_id: usize,
+        node_id: usize, // excess ?
         ident: Identifier<'src>,
         field: Identifier<'src>,
         span: Span<'src>,
     },
 
     StructInit {
-        node_id: usize,
+        decl_scope_id: usize,
+        struct_id: usize,
+        node_id: usize, // excess ?
         ident: Identifier<'src>,
         fields: Vec<StructFieldDecl<'src>>,
         span: Span<'src>,
     },
 
     CastType {
-        node_id: usize,
+        node_id: usize, // excess ?
         cast_to: Box<Type<'src>>,
         expr: Box<Expr<'src>>,
         span: Span<'src>,
     },
 
     Dereference {
-        node_id: usize,
+        node_id: usize, // excess ?
         inner: Box<Expr<'src>>,
         span: Span<'src>,
     },
 
     Reference {
-        node_id: usize,
+        node_id: usize, // excess ?
         inner: Box<Expr<'src>>,
         span: Span<'src>,
     },
@@ -238,8 +249,9 @@ pub enum Literal<'src> {
 
 #[derive(Debug, Clone)]
 pub struct FuncCall<'src> {
-    pub decl_scope_id: Option<usize>,
-    pub node_id: usize,
+    pub decl_scope_id: usize,
+    pub fn_id: usize,
+    pub node_id: usize, // excess ?
     pub ident: Identifier<'src>,
     pub args: Vec<Expr<'src>>,
     pub span: Span<'src>,
@@ -247,7 +259,7 @@ pub struct FuncCall<'src> {
 
 #[derive(Debug, Clone)]
 pub struct StructFieldDecl<'src> {
-    pub node_id: usize,
+    pub node_id: usize, // excess ?
     pub ident: Identifier<'src>,
     pub expr: Expr<'src>,
     pub span: Span<'src>,
@@ -256,27 +268,27 @@ pub struct StructFieldDecl<'src> {
 #[derive(Debug, Clone)]
 pub enum LogicalExpr<'src> {
     Not {
-        node_id: usize,
+        node_id: usize, // excess ?
         inner: Box<LogicalExpr<'src>>,
         span: Span<'src>,
     },
 
     Or {
-        node_id: usize,
+        node_id: usize, // excess ?
         left: Box<LogicalExpr<'src>>,
         right: Box<LogicalExpr<'src>>,
         span: Span<'src>,
     },
 
     And {
-        node_id: usize,
+        node_id: usize, // excess ?
         left: Box<LogicalExpr<'src>>,
         right: Box<LogicalExpr<'src>>,
         span: Span<'src>,
     },
 
     Comparison {
-        node_id: usize,
+        node_id: usize, // excess ?
         left: Box<MathExpr<'src>>,
         right: Box<MathExpr<'src>>,
         op: CmpOp,
@@ -289,7 +301,7 @@ pub enum LogicalExpr<'src> {
 #[derive(Debug, Clone)]
 pub enum MathExpr<'src> {
     Additive {
-        node_id: usize,
+        node_id: usize, // excess ?
         left: Box<MathExpr<'src>>,
         right: Box<MathExpr<'src>>,
         op: AddOp,
@@ -297,7 +309,7 @@ pub enum MathExpr<'src> {
     },
 
     Multiplicative {
-        node_id: usize,
+        node_id: usize, // excess ?
         left: Box<MathExpr<'src>>,
         right: Box<MathExpr<'src>>,
         op: MulOp,
@@ -305,7 +317,7 @@ pub enum MathExpr<'src> {
     },
 
     Power {
-        node_id: usize,
+        node_id: usize, // excess ?
         base: Box<MathExpr<'src>>,
         exp: Box<MathExpr<'src>>,
         span: Span<'src>,
@@ -339,6 +351,12 @@ pub enum MulOp {
 }
 
 impl PartialEq for Identifier<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ident == other.ident
+    }
+}
+
+impl PartialEq for StructType<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.ident == other.ident
     }

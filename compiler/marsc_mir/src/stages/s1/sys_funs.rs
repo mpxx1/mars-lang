@@ -1,10 +1,13 @@
-use crate::{FuncProto, Mir, GLOBAL_SCOPE_ID};
+use crate::stages::s1::{FuncProto, MirS1};
+use crate::GLOBAL_SCOPE_ID;
 use ast::*;
 use err::CompileError;
 use pest::Span;
 use regex::Regex;
 
 use super::check_types::resolve_expr_type;
+
+type Mir<'src> = MirS1<'src>;
 
 pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
     static mut SYS_FN_COUNTER: usize = GLOBAL_SCOPE_ID;
@@ -28,7 +31,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 span: Span::new("external fn arg", 0, 14).unwrap(),
             }],
             return_type: Type::Void,
-            is_used: true,
             span: Span::new("external fn", 0, 10).unwrap(),
         },
         FuncProto {
@@ -42,7 +44,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 span: Span::new("external fn arg", 0, 14).unwrap(),
             }],
             return_type: Type::Void,
-            is_used: true,
             span: Span::new("external fn", 0, 10).unwrap(),
         },
         FuncProto {
@@ -56,7 +57,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 span: Span::new("external fn arg", 0, 15).unwrap(),
             }],
             return_type: Type::I64,
-            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
         FuncProto {
@@ -70,7 +70,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 span: Span::new("external fn arg", 0, 15).unwrap(),
             }],
             return_type: Type::I64,
-            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
         FuncProto {
@@ -92,7 +91,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 },
             ],
             return_type: Type::Void,
-            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
         FuncProto {
@@ -106,7 +104,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 span: Span::new("external fn arg", 0, 15).unwrap(),
             }],
             return_type: Type::Void,
-            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
         FuncProto {
@@ -115,7 +112,6 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             ident: "now", // todo now_sec, now_milis, now_nanos
             args: vec![],
             return_type: Type::I64,
-            is_used: true,
             span: Span::new("external fn", 0, 11).unwrap(),
         },
     ])
@@ -176,32 +172,21 @@ pub(crate) fn check_sys_fn_args_types<'src>(
         }
 
         "len" => {
-            let Expr::Reference {
-                node_id: _,
-                inner,
-                span,
-            } = func.args.pop().unwrap()
-            else {
+            let mut expr = func.args.pop().unwrap();
+            let span = take_span_from_expr(&expr);
+            
+            let ty = resolve_expr_type(scope_id, mir, &mut expr, Type::Unresolved)?;
+            let Type::Ref(x) = ty else {
                 return Err(CompileError::new(
                     func.span,
                     "Can call 'len' function with refrence only".to_owned(),
                 ));
             };
-            let Expr::Identifier(x) = *inner else {
+            let inner_ty = *x;
+        
+            if !matches!(inner_ty, Type::Str | Type::Array(_, _) | Type::Vec(_)) {
                 return Err(CompileError::new(
                     span,
-                    "Use refrence to identifier".to_owned(),
-                ));
-            };
-            let Some(ty) = resolve_ident_type(scope_id, mir, x.ident.to_owned()) else {
-                return Err(CompileError::new(
-                    x.span,
-                    format!("Can not find variable with name {:?}", x.ident),
-                ));
-            };
-            if !matches!(ty, Type::Str | Type::Array(_, _) | Type::Vec(_)) {
-                return Err(CompileError::new(
-                    x.span,
                     "Function 'len' can take argument of types '&str', '&[ _ ; _ ]' and '&Vec<_>' only".to_owned(),
                 ));
             }
@@ -210,32 +195,21 @@ pub(crate) fn check_sys_fn_args_types<'src>(
         }
 
         "capacity" => {
-            let Expr::Reference {
-                node_id: _,
-                inner,
-                span,
-            } = func.args.pop().unwrap()
-            else {
+            let mut expr = func.args.pop().unwrap();
+            let span = take_span_from_expr(&expr);
+            
+            let ty = resolve_expr_type(scope_id, mir, &mut expr, Type::Unresolved)?;
+            let Type::Ref(x) = ty else {
                 return Err(CompileError::new(
                     func.span,
                     "Can call 'capacity' function with refrence only".to_owned(),
                 ));
             };
-            let Expr::Identifier(x) = *inner else {
+            let inner_ty = *x;
+            
+            if !matches!(inner_ty, Type::Vec(_)) {
                 return Err(CompileError::new(
                     span,
-                    "Use refrence to identifier".to_owned(),
-                ));
-            };
-            let Some(ty) = resolve_ident_type(scope_id, mir, x.ident.to_owned()) else {
-                return Err(CompileError::new(
-                    x.span,
-                    format!("Can not find variable with name {:?}", x.ident),
-                ));
-            };
-            if !matches!(ty, Type::Vec(_)) {
-                return Err(CompileError::new(
-                    x.span,
                     "Function len 'capacity' take argument of '&Vec<_>' type only".to_owned(),
                 ));
             }
@@ -245,44 +219,27 @@ pub(crate) fn check_sys_fn_args_types<'src>(
 
         "vec_push" => {
             func.args.reverse();
-            let Expr::Reference {
-                node_id: _,
-                inner,
-                span,
-            } = func.args.pop().unwrap()
-            else {
-                return Err(CompileError::new(
-                    func.span,
-                    "Can call 'vec_push' function with refrence to vec only".to_owned(),
-                ));
+            let mut expr_0 = func.args.pop().unwrap();
+            let span = take_span_from_expr(&expr_0);
+            let ty = resolve_expr_type(scope_id, mir, &mut expr_0, Type::Unresolved)?;
+            
+            let Type::Ref(x) = ty else {
+                return Err(CompileError::new(span, "Can push to vec by ref only".to_owned()));
             };
-            let Expr::Identifier(x) = *inner else {
+            let inner_ty = *x;
+            
+            let Type::Vec(vec_inner_ty) = inner_ty else {
                 return Err(CompileError::new(
                     span,
-                    "Use refrence to identifier".to_owned(),
+                    format!("Expected: '&Vec<_>', actual: {inner_ty:?}"),
                 ));
             };
-            let Some(ty) = resolve_ident_type(scope_id, mir, x.ident.to_owned()) else {
-                return Err(CompileError::new(
-                    x.span,
-                    format!("Can not find variable with name {:?}", x.ident),
-                ));
-            };
-            if !matches!(ty, Type::Vec(_)) {
-                return Err(CompileError::new(
-                    x.span,
-                    format!("Expected: '&Vec<_>', actual: '{ty:?}'"),
-                ));
-            }
-            let Type::Vec(vec_inner_ty) = ty else {
-                panic!("Somethin went wrong");
-            };
-            let mut inner_expr = func.args.pop().unwrap();
-            let expr_ty = resolve_expr_type(scope_id, mir, &mut inner_expr, *vec_inner_ty.clone())?;
+            let mut expr_1 = func.args.pop().unwrap();
+            let expr_ty = resolve_expr_type(scope_id, mir, &mut expr_1, *vec_inner_ty.clone())?;
 
             if *vec_inner_ty != expr_ty {
                 return Err(CompileError::new(
-                    x.span,
+                    span,
                     format!("Expected: '{vec_inner_ty:?}', actual: '{expr_ty:?}'"),
                 ));
             }
@@ -291,35 +248,21 @@ pub(crate) fn check_sys_fn_args_types<'src>(
         }
 
         "vec_pop" => {
-            let Expr::Reference {
-                node_id: _,
-                inner,
-                span,
-            } = func.args.pop().unwrap()
-            else {
-                return Err(CompileError::new(
-                    func.span,
-                    "Can call 'vec_pop' function with refrence to vec only".to_owned(),
-                ));
+            let mut expr_0 = func.args.pop().unwrap();
+            let span = take_span_from_expr(&expr_0);
+            let ty = resolve_expr_type(scope_id, mir, &mut expr_0, Type::Unresolved)?;
+            
+            let Type::Ref(x) = ty else {
+                return Err(CompileError::new(span, "Can push to vec by ref only".to_owned()));
             };
-            let Expr::Identifier(x) = *inner else {
+            let inner_ty = *x;
+            
+            let Type::Vec(_) = inner_ty else {
                 return Err(CompileError::new(
                     span,
-                    "Use refrence to identifier".to_owned(),
+                    format!("Expected: '&Vec<_>', actual: {inner_ty:?}"),
                 ));
             };
-            let Some(ty) = resolve_ident_type(scope_id, mir, x.ident.to_owned()) else {
-                return Err(CompileError::new(
-                    x.span,
-                    format!("Can not find variable with name {:?}", x.ident),
-                ));
-            };
-            if !matches!(ty, Type::Vec(_)) {
-                return Err(CompileError::new(
-                    x.span,
-                    format!("Expected: '&Vec<_>', actual: '{ty:?}'"),
-                ));
-            }
 
             Ok(())
         }
@@ -361,10 +304,45 @@ fn resolve_ident_type<'src>(
             return Some(var.ty.clone());
         }
 
-        if scope.scope_type == crate::ScopeType::Function {
+        if scope.scope_type == crate::stages::s1::ScopeType::Function {
             return None;
         }
 
         current_scope_id = scope.parent_id;
+    }
+}
+
+pub fn take_span_from_expr<'src>(expr: &Expr<'src>) -> Span<'src> {
+    match expr {
+        Expr::Identifier(id) => id.span,
+        Expr::FuncCall(fc) => fc.span,
+        Expr::ArrayDecl { span, .. } => *span,
+        Expr::MemLookup { span, .. } => *span,
+        Expr::StructFieldCall { span, .. } => *span,
+        Expr::StructInit { span, .. } => *span,
+        Expr::CastType { span, .. } => *span,
+        Expr::Dereference { span, .. } => *span,
+        Expr::Reference { span, .. } => *span,
+        Expr::Literal(lit) => match lit {
+            Literal::Int { span, .. } => *span,
+            Literal::Float { span, .. } => *span,
+            Literal::Str { span, .. } => *span,
+            Literal::Char { span, .. } => *span,
+            Literal::Bool { span, .. } => *span,
+            Literal::NullRef { span, .. } => *span,
+        },
+        Expr::LogicalExpr(le) => match le {
+            LogicalExpr::Not { span, .. } => *span,
+            LogicalExpr::Or { span, .. } => *span,
+            LogicalExpr::And { span, .. } => *span,
+            LogicalExpr::Comparison { span, .. } => *span,
+            LogicalExpr::Primary(expr) => take_span_from_expr(expr),
+        },
+        Expr::MathExpr(me) => match me {
+            MathExpr::Additive { span, .. } => *span,
+            MathExpr::Multiplicative { span, .. } => *span,
+            MathExpr::Power { span, .. } => *span,
+            MathExpr::Primary(expr) => take_span_from_expr(expr),
+        },
     }
 }

@@ -7,6 +7,10 @@ description = """
 Mars programming language compiler
 """
 
+# [lib]
+# name = "entry"
+# path = "src/lib.rs"
+
 [[bin]]
 name = "mars"
 path = "src/main.rs"
@@ -16,4 +20,3 @@ marsc_hir = { path = "../marsc_hir" }
 marsc_mir = { path = "../marsc_mir" }
 marsc_error = { path = "../marsc_error" }
 clap = { version = "4.5.26", features = ["derive"] }
-anyhow = "1.0.95"
