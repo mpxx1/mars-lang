@@ -14,6 +14,7 @@ path = "src/main.rs"
 [dependencies]
 marsc_hir = { path = "../marsc_hir" }
 marsc_mir = { path = "../marsc_mir" }
-marsc_error = { path = "../marsc_error" }
+marsc_lir = { path = "../marsc_lir" }
 marsc_codegen = { path = "../marsc_codegen" }
+marsc_error = { path = "../marsc_error" }
 clap = { version = "4.5.26", features = ["derive"] }

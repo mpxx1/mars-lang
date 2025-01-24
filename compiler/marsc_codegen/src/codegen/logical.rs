@@ -1,17 +1,17 @@
 use crate::codegen::codegen::Codegen;
 use inkwell::values::{BasicValue, BasicValueEnum};
 use inkwell::IntPredicate;
-use mir::stages::s2::{MIRCmpOp, MIRLogicalExpr, MIRScope};
+use lir::{LIRCmpOp, LIRLogicalExpr};
 
 impl<'ctx, 'src> Codegen<'ctx, 'src>
 where
     'src: 'ctx
 {
-    pub(crate) fn codegen_logical_expr(&self, logical_expr: &'ctx MIRLogicalExpr<'src>, scope: &'ctx MIRScope<'ctx>) -> BasicValueEnum<'ctx> {
+    pub(crate) fn codegen_logical_expr(&self, logical_expr: &'ctx LIRLogicalExpr) -> BasicValueEnum<'ctx> {
         match logical_expr {
-            MIRLogicalExpr::Not { inner, .. } => {
+            LIRLogicalExpr::Not { inner, .. } => {
                 let inner_value = self
-                    .codegen_logical_expr(inner, scope)
+                    .codegen_logical_expr(inner)
                     .into_int_value();
 
                 self.builder
@@ -19,12 +19,12 @@ where
                     .unwrap()
                     .as_basic_value_enum()
             },
-            MIRLogicalExpr::Or { left, right, .. } => {
+            LIRLogicalExpr::Or { left, right, .. } => {
                 let left_value = self
-                    .codegen_logical_expr(left, scope)
+                    .codegen_logical_expr(left)
                     .into_int_value();
                 let right_value = self
-                    .codegen_logical_expr(right, scope)
+                    .codegen_logical_expr(right)
                     .into_int_value();
 
                 self.builder
@@ -32,12 +32,12 @@ where
                     .unwrap()
                     .as_basic_value_enum()
             },
-            MIRLogicalExpr::And { left, right, .. } => {
+            LIRLogicalExpr::And { left, right, .. } => {
                 let left_value = self
-                    .codegen_logical_expr(left, scope)
+                    .codegen_logical_expr(left)
                     .into_int_value();
                 let right_value = self
-                    .codegen_logical_expr(right, scope)
+                    .codegen_logical_expr(right)
                     .into_int_value();
 
                 self.builder
@@ -45,37 +45,37 @@ where
                     .unwrap()
                     .as_basic_value_enum()
             },
-            MIRLogicalExpr::Comparison { left, right, op, .. } => {
+            LIRLogicalExpr::Comparison { left, right, op, .. } => {
                 let left_value = self
-                    .codegen_math_expr(left, scope)
+                    .codegen_math_expr(left)
                     .into_int_value();
                 let right_value = self
-                    .codegen_math_expr(right, scope)
+                    .codegen_math_expr(right)
                     .into_int_value();
 
                 match op {
-                    MIRCmpOp::Equal => {
+                    LIRCmpOp::Equal => {
                         self.builder.build_int_compare(IntPredicate::EQ, left_value, right_value, "eq").unwrap().into()
                     }
-                    MIRCmpOp::NotEqual => {
+                    LIRCmpOp::NotEqual => {
                         self.builder.build_int_compare(IntPredicate::NE, left_value, right_value, "noteq").unwrap().into()
                     }
-                    MIRCmpOp::More => {
+                    LIRCmpOp::More => {
                         self.builder.build_int_compare(IntPredicate::SGT, left_value, right_value, "more").unwrap().into()
                     }
-                    MIRCmpOp::MoreEqual => {
+                    LIRCmpOp::MoreEqual => {
                         self.builder.build_int_compare(IntPredicate::SGE, left_value, right_value, "moreeq").unwrap().into()
                     }
-                    MIRCmpOp::Less => {
+                    LIRCmpOp::Less => {
                         self.builder.build_int_compare(IntPredicate::SLT, left_value, right_value, "less").unwrap().into()
                     }
-                    MIRCmpOp::LessEqual => {
+                    LIRCmpOp::LessEqual => {
                         self.builder.build_int_compare(IntPredicate::SLE, left_value, right_value, "lesseq").unwrap().into()
                     }
                 }
             },
-            MIRLogicalExpr::Primary(primary) => {
-                self.codegen_expr(primary, scope)
+            LIRLogicalExpr::Primary(primary) => {
+                self.codegen_expr(primary)
             }
         }
     }

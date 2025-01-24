@@ -28,7 +28,7 @@ pub struct LIRStruct {
 #[derive(Debug)]
 pub struct LIRFunc {
     pub name: String,
-    pub args: Vec<LIRType>,
+    pub args: Vec<(String, LIRType)>,
     pub return_type: LIRType,
     pub block_id: usize,
 }
@@ -228,14 +228,11 @@ impl<'src> From<Mir<'src>> for Lir<'src> {
             }
 
             for (ident, fun) in scope.funs {
-                if !mir.sys_funs.contains(&ident) {
-                    let name = if ident != "main" {
-                        global_name(ident, fun.node_id)
-                    } else {
-                        "main".to_owned()
-                    };
-
+                if !mir.sys_funs.contains(&ident) && ident != "main" {
+                    let name = global_name(ident, fun.node_id);
                     functions.insert(name, fun.into());
+                } else {
+                    functions.insert(ident, to_lir_func(fun, false));
                 }
             }
 
@@ -537,10 +534,19 @@ impl From<MIRFunc<'_>> for LIRFunc {
     fn from(fun: MIRFunc) -> Self {
         Self {
             name: global_name(fun.ident, fun.node_id),
-            args: fun.args.into_iter().map(|x| x.ty.into()).collect(),
+            args: fun.args.into_iter().map(|x| (x.ident, x.ty.into())).collect(),
             return_type: fun.return_type.into(),
             block_id: fun.node_id,
         }
+    }
+}
+
+fn to_lir_func(fun: MIRFunc<'_>, generate_name: bool) -> LIRFunc {
+    LIRFunc {
+        name: if generate_name { global_name(fun.ident, fun.node_id) } else { fun.ident },
+        args: fun.args.into_iter().map(|x| (x.ident, x.ty.into())).collect(),
+        return_type: fun.return_type.into(),
+        block_id: fun.node_id,
     }
 }
 

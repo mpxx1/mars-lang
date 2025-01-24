@@ -1,8 +1,82 @@
+fn quick_sort(arr: &[i64; 7]) -> Vec<i64> {
+    var l = len(arr);
+    if len <= 1 {
+        return arr;
+    }
+
+    var pivot = arr[0];
+    var left: Vec<i64> = [];
+    var right: Vec<i64> = [];
+
+    var i: i64 = 1;
+    while i < l {
+        if arr[i] < pivot {
+            push(left, arr[i]);
+        } else {
+            push(right, arr[i]);
+        }
+    }
+
+    var result = quick_sort(&left);
+    push(result, pivot);
+    var rightRes = quick_sort(&right);
+
+    i = 0;
+    while i < len(rightRes) {
+        push(result, rightRes[i]);
+    }
+
+    return result;
+}
+
+fn main() -> i64 {
+    var arr = [3, 6, 8, 10, 1, 2, 1];
+    var sorted = quick_sort(&arr);
+    return 0;
+}
+
+/* array str element
+fn main() -> i64 {
+    var a = ["hello"];
+    println(a[0]);
+    return 0;
+}
+*/
+
+/* struct str field
+struct A {a: str}
+fn main() -> i64 {
+    var a = A {a: "hello"};
+    println(a.a);
+    return 0;
+}
+*/
+
+/* struct i64 field
+struct A {a: i64}
+fn main() -> i64 {
+    var a = A {a: 10};
+    println(a.a);
+    return 0;
+}
+*/
+
+/* i64 ref
 fn main() -> i64 {
     var a = 10;
     var b = &a;
     var c = *b;
     print_i64(c);
-
     return 0;
 }
+*/
+
+/* str ref
+fn main() -> i64 {
+    var a = "hello";
+    var b = &a;
+    var c = *b;
+    println(c);
+    return 0;
+}
+*/

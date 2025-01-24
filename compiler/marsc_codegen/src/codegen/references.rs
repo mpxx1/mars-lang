@@ -1,6 +1,6 @@
-use inkwell::values::{BasicValue, BasicValueEnum};
-use mir::stages::s2::{MIRExpr, MIRScope};
 use crate::codegen::codegen::Codegen;
+use inkwell::values::{BasicValue, BasicValueEnum};
+use lir::{LIRExpr, LIRType};
 
 impl<'ctx, 'src> Codegen<'ctx, 'src>
 where
@@ -8,41 +8,51 @@ where
 {
     pub(in crate::codegen) fn codegen_get_referenced(
         &self,
-        inner: &'ctx MIRExpr<'ctx>,
-        scope: &'ctx MIRScope<'ctx>,
+        inner: &'ctx LIRExpr,
     ) -> BasicValueEnum<'ctx> {
         let pointer = match inner {
-            MIRExpr::Identifier { ident, .. } => {
-                self.codegen_identifier_pointer(ident, scope)
+            LIRExpr::Identifier(ident) => {
+                self.codegen_identifier_pointer(ident)
             },
             _ => unreachable!(),
         };
-
-        let variable = self.builder.build_alloca(pointer.get_type(), "referenced").unwrap();
-
-        self.builder.build_store(variable, pointer).unwrap();
-
-        variable.as_basic_value_enum()
+        
+        pointer.as_basic_value_enum()
     }
 
     pub(in crate::codegen) fn codegen_get_dereferenced(
         &self,
-        inner: &'ctx MIRExpr<'ctx>,
-        scope: &'ctx MIRScope<'ctx>,
+        inner: &'ctx LIRExpr,
     ) -> BasicValueEnum<'ctx> {
-        let value = self.codegen_expr(inner, scope);
-        let pointer = match value {
-            BasicValueEnum::PointerValue(pointer) => {
-                pointer
+        let (value, deref_type) = match inner {
+            LIRExpr::Identifier(ident) => {
+                let (
+                    pointer,
+                    lir_type,
+                    llvm_type
+                ) = self.codegen_identifier_value_with_types(ident);
+                
+                match lir_type {
+                    LIRType::Ref(deref_type) => {
+                        println!("{:#?}", deref_type);
+                        (pointer, deref_type)
+                    }
+                    _ => unreachable!(),
+                }
             },
             _ => unreachable!(),
         };
+        
+        match value {
+            BasicValueEnum::PointerValue(pointer_value) => {
+                let dereferenced_value = self.builder.build_load(
+                    self.codegen_type(*deref_type),
+                    pointer_value,
+                    "dereferenced_value").unwrap();
 
-        let dereferenced_value = self.builder.build_load(
-            self.context.i64_type(),
-            pointer,
-            "dereferenced_value").unwrap();
-
-        dereferenced_value
+                dereferenced_value
+            }
+            _ => unreachable!()
+        }
     }
 }

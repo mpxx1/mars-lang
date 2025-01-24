@@ -3,6 +3,7 @@ use hir::ToHir;
 use mir::ToMir;
 use std::fs;
 use std::process::exit;
+use lir::ToLir;
 use marsc_codegen::codegen::codegen::codegen;
 
 #[derive(Parser, Debug)]
@@ -108,13 +109,37 @@ pub fn main() {
         exit(0);
     }
 
+    let lir = mir.compile_lir().unwrap_or_else(|e| {
+        println!("{e:?}");
+        exit(1);
+    });
+
+    if args.lir {
+        if args.output.is_none() {
+            println!("{:#?}", lir);
+            exit(0);
+        }
+
+        let _output = args.output.unwrap();
+        // todo - try to create file
+        // if !fs::metadata(output).is_ok() {
+        //     println!("File '{}' not found", args.input);
+        //     exit(1);
+        // }
+
+        // todo - save to output file
+        exit(0);
+    }
+
     let output = if let Some(x) = args.output {
         x
     } else {
         args.input[..args.input.len() - 5].to_owned()
     };
+    
+    println!("{:#?}", lir);
 
-    let ir = codegen(&mir);
-
+    let ir = codegen(&lir);
+    
     println!("{}", ir);
 }
