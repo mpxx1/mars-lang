@@ -199,16 +199,196 @@ fn global_name(ident: String, id: usize) -> String {
     format!("{ident}_{id}")
 }
 
-fn unify_names<'src>(mir: Mir<'src>) -> Mir<'src> { 
+fn make_uniq_names(mir: Mir) -> Mir { 
     
-    // todo
-    mir
+    let scopes = mir
+        .scopes
+        .into_iter()
+        .map(|(i, x)| {
+            let instrs = x
+                .instrs
+                .into_iter()
+                .map(|mut instr| {
+                    instr_idents_uniq(&mut instr, &mir.sys_funs, &x.node_id, &x.parent_id);
+                    instr
+                })
+                .collect();
+            
+            (i, 
+            MIRScope { 
+                parent_id: i, 
+                node_id: x.node_id, 
+                structs: x.structs, 
+                funs: x.funs, 
+                vars: x.vars,
+                instrs,
+                scope_type: x.scope_type,
+            })
+        })
+        .collect();
+    
+    MirS2 { code: mir.code, scopes, sys_funs: mir.sys_funs }
+}
+
+fn instr_idents_uniq(instr: &mut MIRInstruction, sys_funs: &Vec<String>, id: &usize, parent_id: &usize) {
+    match instr {
+        MIRInstruction::Assign { lhs, rhs, .. } => {
+            expr_idents_uniq(lhs, id, sys_funs);
+            expr_idents_uniq(rhs, id, sys_funs);
+        }
+        
+        MIRInstruction::Assignment { ident, expr, .. } => {
+            let left = ident;
+            let right = expr;
+            
+            if let MIRExpr::Identifier { ident, .. } = right {
+                if left == ident {
+                    *left = global_name(left.clone(), *id);
+                    expr_idents_uniq(right, parent_id, sys_funs);
+                    return;
+                }
+            }
+            
+            *left = global_name(left.clone(), *id);
+            expr_idents_uniq(right, id, sys_funs);
+        }
+        
+        MIRInstruction::Return { expr, .. } => {
+            if let Some(expr) = expr {
+                expr_idents_uniq(expr, id, sys_funs);
+            }
+        }
+        
+        MIRInstruction::Break { .. } => {}
+        
+        MIRInstruction::FuncCall(x) => {
+            if x.ident != "main" && !sys_funs.contains(&x.ident) {
+                x.ident.push_str(format!("_{id}").as_str());
+            }
+            x.args.iter_mut().for_each(|x| expr_idents_uniq(x, id, sys_funs));
+        }
+        
+        MIRInstruction::GoToBlock { .. } => {}
+        
+        MIRInstruction::GoToIfCond { cond, .. } => {
+            expr_idents_uniq(cond, id, sys_funs)
+        }
+        
+        MIRInstruction::GoToWhile { cond, .. } => {
+            expr_idents_uniq(cond, id, sys_funs)
+        }
+    }
+}
+
+fn expr_idents_uniq(expr: &mut MIRExpr, id: &usize, sys_funs: &Vec<String>) {
+    match expr {
+        MIRExpr::LogicalExpr(x) => {
+            make_uniq_logical_expr(x, id, sys_funs);
+        }
+        
+        MIRExpr::MathExpr(x) => {
+            make_uniq_math_expr(x, id, sys_funs);
+        }
+        
+        MIRExpr::Identifier { ident, .. } => {
+            ident.push_str(format!("_{id}").as_str());
+        }
+        
+        MIRExpr::Reference { inner, .. } => {
+            expr_idents_uniq(inner.as_mut(), id, sys_funs);
+        }
+        
+        MIRExpr::FuncCall(x) => {
+            if x.ident != "main" && !sys_funs.contains(&x.ident) {
+                x.ident.push_str(format!("_{id}").as_str());
+            }
+            x.args.iter_mut().for_each(|x| expr_idents_uniq(x, id, sys_funs));
+        }
+        
+        MIRExpr::StructInit { ident, .. } => {
+            ident.push_str(format!("_{id}").as_str());
+        }
+        
+        MIRExpr::CastType { expr, .. } => {
+            expr_idents_uniq(expr, id, sys_funs)
+        }
+        
+        MIRExpr::ArrayDecl { list, .. } => {
+            list
+                .iter_mut()
+                .for_each(|x| expr_idents_uniq(x, id, sys_funs));
+        }
+        
+        MIRExpr::Dereference { inner, .. } => {
+            expr_idents_uniq(inner, id, sys_funs);
+        }
+        
+        MIRExpr::StructFieldCall { ident, .. } => {
+            ident.push_str(format!("_{id}").as_str());
+        }
+        
+        MIRExpr::MemLookup { ident, indices, .. } => {
+            // todo reimpl
+            ident.push_str(format!("_{id}").as_str());
+            indices
+                .iter_mut()
+                .for_each(|x| expr_idents_uniq(x, id, sys_funs));
+        }
+        
+        MIRExpr::Literal(_) => {}
+    }
+}
+
+fn make_uniq_logical_expr(expr: &mut MIRLogicalExpr, id: &usize, sys_funs: &Vec<String>) {
+    match expr {
+        MIRLogicalExpr::Comparison { left, right, .. } => {
+            make_uniq_math_expr(left.as_mut(), id, sys_funs);
+            make_uniq_math_expr(right.as_mut(), id, sys_funs);
+        }
+        
+        MIRLogicalExpr::Or { left, right, .. } => {
+            make_uniq_logical_expr(left.as_mut(), id, sys_funs);
+            make_uniq_logical_expr(right.as_mut(), id, sys_funs);
+        }
+        
+        MIRLogicalExpr::And { left, right, .. } => {
+            make_uniq_logical_expr(left.as_mut(), id, sys_funs);
+            make_uniq_logical_expr(right.as_mut(), id, sys_funs);
+        }
+        
+        MIRLogicalExpr::Not { inner, .. } => {
+            make_uniq_logical_expr(inner.as_mut(), id, sys_funs);
+        }
+        
+        MIRLogicalExpr::Primary(x) => expr_idents_uniq(x.as_mut(), id, sys_funs),
+    }
+}
+
+fn make_uniq_math_expr(math: &mut MIRMathExpr, id: &usize, sys_funs: &Vec<String>) {
+    match math {
+        MIRMathExpr::Additive { left, right, .. } => {
+            make_uniq_math_expr(left.as_mut(), id, sys_funs);
+            make_uniq_math_expr(right.as_mut(), id, sys_funs);
+        }
+        
+        MIRMathExpr::Multiplicative { left, right, .. } => {
+            make_uniq_math_expr(left.as_mut(), id, sys_funs);
+            make_uniq_math_expr(right.as_mut(), id, sys_funs);
+        }
+        
+        MIRMathExpr::Power { base, exp, .. } => {
+            make_uniq_math_expr(base.as_mut(), id, sys_funs);
+            make_uniq_math_expr(exp.as_mut(), id, sys_funs);
+        }
+        
+        MIRMathExpr::Primary(x) => expr_idents_uniq(x, id, sys_funs),
+    }
 }
 
 impl<'src> From<Mir<'src>> for Lir<'src> {
     fn from(mir: Mir<'src>) -> Self {
         
-        // let mir = unify_names(mir);
+        let mir = make_uniq_names(mir);
         
         let mut structs = HashMap::new();
         let mut functions = HashMap::new();
@@ -356,8 +536,6 @@ fn proceed_expr(
             field,
             ..
         } => {
-            // let glob = global_name(ident, struct_id);
-
             LIRExpr::StructFieldCall {
                 struct_name: ident.clone(),
                 field_index: {
@@ -366,8 +544,6 @@ fn proceed_expr(
                         .find(|&(_, x)| x.name.ends_with(&format!("_{struct_id}")))
                         .unwrap_or_else(|| panic!("Struct {} not found in LIR structs", ident))
                         .1;
-                    // let struct_entry = structs.get(&ident)
-                    //     .unwrap_or_else(|| panic!("Struct {} not found in LIR structs", ident));
 
                     struct_entry
                         .fields
@@ -638,14 +814,37 @@ fn resolving_parent_ids<'src>() -> Result<(), err::CompileError<'src>> {
 }
 
 #[test]
+fn inner_block_test<'src>() -> Result<(), err::CompileError<'src>> {
+    let inp = r#"
+            fn main() -> i64 { 
+            
+            var a = 10;
+            {
+                a += 10;
+            }
+            
+            return 0;
+        }
+    "#;
+
+    let hir = hir::compile_hir(&inp)?;
+    let mir = hir.compile_mir()?;
+    let lir = mir.compile_lir()?;
+
+    println!("{lir:#?}");
+
+    Ok(())
+}
+
+#[test]
 fn sys_funs_test<'src>() -> Result<(), err::CompileError<'src>> { 
     let inp = r#"
-        fn main() -> void {
+        fn main() -> i64 {
             var vec: Vec<i64> = [];
             var ref = &vec;
             var cap = capacity(&vec);
             var x = capacity(ref);
-            return;
+            return 0;
         }
     "#;
     
