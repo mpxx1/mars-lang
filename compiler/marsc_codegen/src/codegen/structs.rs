@@ -1,8 +1,6 @@
-use crate::codegen::codegen::Codegen;
+use crate::codegen::codegen::{Codegen, VariableData};
 use inkwell::types::BasicTypeEnum;
 use inkwell::values::{BasicValue, BasicValueEnum};
-use pest::Span;
-use err::CompileError;
 use mir::stages::s2::{MIRExpr, MIRScope, MIRStruct};
 
 impl<'ctx, 'src> Codegen<'ctx, 'src>
@@ -32,8 +30,6 @@ where
         let struct_type = self.get_struct_type(ident);
         let pointer = self.builder.build_alloca(struct_type, ident).unwrap();
         
-        println!("{:#?}", pointer);
-        
         for (i, (field_name, expr)) in fields.iter().enumerate()
         {
             let field_value = self.codegen_expr(expr, scope);
@@ -45,8 +41,6 @@ where
                 i as u32,
                 field_name.as_str())
                 .unwrap();
-
-            println!("{:#?}", field_ptr);
             
             self.builder.build_store(field_ptr, field_value).unwrap();
         }
@@ -59,16 +53,38 @@ where
         ident: &'ctx str,
         variable_type: BasicTypeEnum<'ctx>,
         expr: &'ctx MIRExpr<'src>,
-        span: Span<'src>,
-        scope: &'ctx MIRScope<'ctx>
-    ) -> Result<(), CompileError>
-    {
+        scope: &'ctx MIRScope<'ctx>) {
         let value = self.codegen_expr(expr, scope);
         if let BasicValueEnum::PointerValue(value) = value {
             self.store_variable(ident, value, variable_type);
-            Ok(())
         } else {
-            Err(CompileError::new(span, "Invalid right value type".to_owned()))
+            unreachable!();
+        }
+    }
+    
+    pub(in crate::codegen) fn codegen_get_struct_field(
+        &self,
+        ident: &'ctx str,
+        field: &'ctx str,
+        scope: &'ctx MIRScope<'ctx>, // TODO
+    ) -> BasicValueEnum<'ctx> 
+    {
+        let struct_data = self.get_variable(ident);
+        if let VariableData::Struct { pointer, struct_type } = struct_data {
+            let field_ptr = self.builder.build_struct_gep(
+                *struct_type,
+                *pointer,
+                0,
+                "field_ptr"
+            ).unwrap();
+
+            self.builder.build_load(
+                struct_type.get_field_type_at_index(0).unwrap(),
+                field_ptr,
+                "field_value"
+            ).unwrap()
+        } else {
+            unreachable!()
         }
     }
 }

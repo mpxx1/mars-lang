@@ -1,21 +1,8 @@
-struct InnerStruct {
-    value: str,
-}
-
-struct MyStruct {
-    inner: InnerStruct,
-}
-
 fn main() -> i64 {
-    var my = MyStruct {
-        inner: InnerStruct {
-            value: "some string",
-        },
-    };
-
-    var inner = my.inner;
-
-    println(inner.value);
+    var a = 10;
+    var b = &a;
+    var c = *b;
+    print_i64(c);
 
     return 0;
 }

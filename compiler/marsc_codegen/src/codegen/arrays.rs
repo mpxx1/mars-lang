@@ -37,8 +37,7 @@ where
         span: Span<'src>,
         scope: &'ctx MIRScope<'ctx>
     ) -> Result<BasicValueEnum<'ctx>, CompileError> {
-        println!("{:#?}", self.var_table);
-        let array_data = self.var_table.get(ident).expect(ident);
+        let array_data = self.get_variable(ident);
 
         if let VariableData::Array {
             pointer,
@@ -91,7 +90,7 @@ where
         span: Span<'src>,
         scope: &'ctx MIRScope<'ctx>
     ) -> Result<(), CompileError> {
-        let array_data = self.var_table.get(ident).unwrap();
+        let array_data = self.get_variable(ident);
 
         if let VariableData::Array {
             pointer,
@@ -141,16 +140,14 @@ where
         ident: &'ctx str,
         variable_type: BasicTypeEnum<'ctx>,
         expr: &'ctx MIRExpr<'src>,
-        span: Span<'src>,
         scope: &'ctx MIRScope<'ctx>
-    ) -> Result<(), CompileError>
+    )
     {
         let value = self.codegen_expr(expr, scope);
         if let BasicValueEnum::PointerValue(value) = value {
             self.store_variable(ident, value, variable_type);
-            Ok(())
         } else {
-            Err(CompileError::new(span, "Invalid right value type".to_owned()))
+            unreachable!()
         }
     }
 

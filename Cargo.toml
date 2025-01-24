@@ -17,4 +17,5 @@ members = [
     "compiler/marsc_codegen",
     "compiler/marsc_hir",
     "compiler/marsc_mir",
+    "compiler/marsc_lir",
 ]
