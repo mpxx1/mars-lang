@@ -19,6 +19,13 @@ pub(crate) fn check_main(mir: Mir) -> Result<Mir, CompileError> {
             "fn 'main()' can not have arguments".to_owned(),
         ));
     }
+    
+    if main.return_type != ast::Type::I64 {
+        return Err(CompileError::new(
+            main.span,
+            "fn 'main()' must return i64 type".to_owned(),
+        ));
+    }
 
     Ok(mir)
 }
