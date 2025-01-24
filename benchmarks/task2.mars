@@ -29,7 +29,7 @@ fn quick_sort(arr: Vec<i64>) -> Vec<i64> {
     return result;
 }
 
-fn main() -> void {
+fn main() -> i64 {
     var arr: Vec<i64> = [3, 6, 8, 10, 1, 2, 1];
     var sorted = quick_sort(arr);
 
@@ -40,5 +40,5 @@ fn main() -> void {
         println("{cur}");
     }
 
-    return;
+    return 0;
 }

@@ -28,7 +28,7 @@ fn bottomUpTree(item: i64, depth: i64) -> &TreeNode {
     }
 }
 
-fn main() -> void {
+fn main() -> i64 {
     var ret: i64 = 0;
 
     var n: i64 = 4;
@@ -66,5 +66,8 @@ fn main() -> void {
     var expected: i64 = -4;
     if ret != expected {
         println("ERROR: bad result: expected {expected} but got {ret}");
+        return 1;
     }
+
+    return 0;
 }
