@@ -1,8 +1,7 @@
+use crate::codegen::codegen::Codegen;
 use inkwell::types::BasicTypeEnum;
 use inkwell::values::BasicValueEnum;
-use ast::{AddOp, MathExpr, MulOp};
-use mir::Scope;
-use crate::codegen::codegen::Codegen;
+use mir::stages::s2::{MIRAddOp, MIRMathExpr, MIRMulOp, MIRScope};
 
 impl<'ctx, 'src> Codegen<'ctx, 'src>
 where
@@ -10,10 +9,10 @@ where
 {
     pub(crate) fn codegen_math_add_expr(
         &self,
-        left: &'ctx Box<MathExpr<'src>>,
-        right: &'ctx Box<MathExpr<'src>>,
-        op: &'ctx AddOp,
-        scope: &'ctx Scope<'ctx>
+        left: &'ctx Box<MIRMathExpr<'src>>,
+        right: &'ctx Box<MIRMathExpr<'src>>,
+        op: &'ctx MIRAddOp,
+        scope: &'ctx MIRScope<'ctx>
     ) -> BasicValueEnum<'ctx> {
         let left_value = self.codegen_math_expr(left, scope);
         let right_value = self.codegen_math_expr(right, scope);
@@ -29,10 +28,10 @@ where
 
     pub(crate) fn codegen_math_mul_expr(
         &self,
-        left: &'ctx Box<MathExpr<'src>>,
-        right: &'ctx Box<MathExpr<'src>>,
-        op: &'ctx MulOp,
-        scope: &'ctx Scope<'ctx>
+        left: &'ctx Box<MIRMathExpr<'src>>,
+        right: &'ctx Box<MIRMathExpr<'src>>,
+        op: &'ctx MIRMulOp,
+        scope: &'ctx MIRScope<'ctx>
     ) -> BasicValueEnum<'ctx> {
         let left_value = self.codegen_math_expr(left, scope);
         let right_value = self.codegen_math_expr(right, scope);
@@ -48,9 +47,9 @@ where
 
     pub(crate) fn codegen_math_power_expr(
         &self,
-        base: &'ctx Box<MathExpr<'src>>,
-        exp: &'ctx Box<MathExpr<'src>>,
-        scope: &'ctx Scope<'ctx>
+        base: &'ctx Box<MIRMathExpr<'src>>,
+        exp: &'ctx Box<MIRMathExpr<'src>>,
+        scope: &'ctx MIRScope<'ctx>
     ) -> BasicValueEnum<'ctx> {
         let left_value = self.codegen_math_expr(base, scope);
         let right_value = self.codegen_math_expr(exp, scope);
@@ -68,14 +67,14 @@ where
         &self,
         left_value: BasicValueEnum<'ctx>,
         right_value: BasicValueEnum<'ctx>,
-        op: &'ctx AddOp,
+        op: &'ctx MIRAddOp,
     ) -> BasicValueEnum<'ctx> {
         let left_int = left_value.into_int_value();
         let right_int = right_value.into_int_value();
 
         match op {
-            AddOp::Add => self.builder.build_int_add(left_int, right_int, "addtmp").unwrap().into(),
-            AddOp::Sub => self.builder.build_int_sub(left_int, right_int, "subtmp").unwrap().into(),
+            MIRAddOp::Add => self.builder.build_int_add(left_int, right_int, "addtmp").unwrap().into(),
+            MIRAddOp::Sub => self.builder.build_int_sub(left_int, right_int, "subtmp").unwrap().into(),
         }
     }
 
@@ -83,14 +82,14 @@ where
         &self,
         left_value: BasicValueEnum<'ctx>,
         right_value: BasicValueEnum<'ctx>,
-        op: &'ctx AddOp,
+        op: &'ctx MIRAddOp,
     ) -> BasicValueEnum<'ctx> {
         let left_float = left_value.into_float_value();
         let right_float = right_value.into_float_value();
 
         match op {
-            AddOp::Add => self.builder.build_float_add(left_float, right_float, "addtmp").unwrap().into(),
-            AddOp::Sub => self.builder.build_float_sub(left_float, right_float, "subtmp").unwrap().into(),
+            MIRAddOp::Add => self.builder.build_float_add(left_float, right_float, "addtmp").unwrap().into(),
+            MIRAddOp::Sub => self.builder.build_float_sub(left_float, right_float, "subtmp").unwrap().into(),
         }
     }
 
@@ -98,16 +97,16 @@ where
         &self,
         left_value: BasicValueEnum<'ctx>,
         right_value: BasicValueEnum<'ctx>,
-        op: &'ctx MulOp,
+        op: &'ctx MIRMulOp,
     ) -> BasicValueEnum<'ctx> {
         let left_int = left_value.into_int_value();
         let right_int = right_value.into_int_value();
 
         match op {
-            MulOp::Mul => self.builder.build_int_mul(left_int, right_int, "multmp").unwrap().into(),
-            MulOp::Div => self.builder.build_int_signed_div(left_int, right_int, "divtmp").unwrap().into(),
-            MulOp::Mod => self.builder.build_int_signed_rem(left_int, right_int, "modtmp").unwrap().into(),
-            MulOp::DivFloor => {
+            MIRMulOp::Mul => self.builder.build_int_mul(left_int, right_int, "multmp").unwrap().into(),
+            MIRMulOp::Div => self.builder.build_int_signed_div(left_int, right_int, "divtmp").unwrap().into(),
+            MIRMulOp::Mod => self.builder.build_int_signed_rem(left_int, right_int, "modtmp").unwrap().into(),
+            MIRMulOp::DivFloor => {
                 unimplemented!()
             }
         }
@@ -117,16 +116,16 @@ where
         &self,
         left_value: BasicValueEnum<'ctx>,
         right_value: BasicValueEnum<'ctx>,
-        op: &'ctx MulOp,
+        op: &'ctx MIRMulOp,
     ) -> BasicValueEnum<'ctx> {
         let left_float = left_value.into_float_value();
         let right_float = right_value.into_float_value();
 
         match op {
-            MulOp::Mul => self.builder.build_float_mul(left_float, right_float, "multmp").unwrap().into(),
-            MulOp::Div => self.builder.build_float_div(left_float, right_float, "divtmp").unwrap().into(),
-            MulOp::Mod => self.builder.build_float_rem(left_float, right_float, "modtmp").unwrap().into(),
-            MulOp::DivFloor => {
+            MIRMulOp::Mul => self.builder.build_float_mul(left_float, right_float, "multmp").unwrap().into(),
+            MIRMulOp::Div => self.builder.build_float_div(left_float, right_float, "divtmp").unwrap().into(),
+            MIRMulOp::Mod => self.builder.build_float_rem(left_float, right_float, "modtmp").unwrap().into(),
+            MIRMulOp::DivFloor => {
                 unimplemented!()
             }
         }

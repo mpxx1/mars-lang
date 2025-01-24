@@ -1,10 +1,9 @@
-use inkwell::types::{ArrayType, BasicType, BasicTypeEnum};
-use inkwell::values::{BasicValue, BasicValueEnum, PointerValue};
-use pest::Span;
-use ast::{Expr, Identifier};
-use err::CompileError;
-use mir::Scope;
 use crate::codegen::codegen::{Codegen, VariableData};
+use err::CompileError;
+use inkwell::types::{ArrayType, BasicTypeEnum};
+use inkwell::values::{BasicValue, BasicValueEnum, PointerValue};
+use mir::stages::s2::{MIRExpr, MIRScope};
+use pest::Span;
 
 impl<'ctx, 'src> Codegen<'ctx, 'src>
 where
@@ -12,8 +11,8 @@ where
 {
     pub(super) fn codegen_array_declaration(
         &self,
-        list: &'ctx Vec<Expr>,
-        scope: &'ctx Scope<'ctx>
+        list: &'ctx Vec<MIRExpr>,
+        scope: &'ctx MIRScope<'ctx>
     ) -> BasicValueEnum<'ctx> {
         let element_type = self.context.i64_type();
         let array_type = element_type.array_type(list.len() as u32);
@@ -33,13 +32,13 @@ where
 
     pub(super) fn codegen_get_array_element(
         &self,
-        ident: &'ctx Identifier<'src>,
-        indices: &'ctx Vec<Expr<'src>>,
+        ident: &'ctx str,
+        indices: &'ctx Vec<MIRExpr<'src>>,
         span: Span<'src>,
-        scope: &'ctx Scope<'ctx>
+        scope: &'ctx MIRScope<'ctx>
     ) -> Result<BasicValueEnum<'ctx>, CompileError> {
         println!("{:#?}", self.var_table);
-        let array_data = self.var_table.get(ident.ident).expect(ident.ident);
+        let array_data = self.var_table.get(ident).expect(ident);
 
         if let VariableData::Array {
             pointer,
@@ -86,13 +85,13 @@ where
 
     pub(super) fn codegen_set_array_element(
         &self,
-        ident: &'ctx Identifier<'src>,
-        indices: &'ctx Vec<Expr<'src>>,
+        ident: &'ctx str,
+        indices: &'ctx Vec<MIRExpr<'src>>,
         value: BasicValueEnum<'ctx>,
         span: Span<'src>,
-        scope: &'ctx Scope<'ctx>
+        scope: &'ctx MIRScope<'ctx>
     ) -> Result<(), CompileError> {
-        let array_data = self.var_table.get(ident.ident).unwrap();
+        let array_data = self.var_table.get(ident).unwrap();
 
         if let VariableData::Array {
             pointer,
@@ -139,11 +138,11 @@ where
 
     pub(super) fn codegen_array_assignment(
         &mut self,
-        ident: &'src str,
+        ident: &'ctx str,
         variable_type: BasicTypeEnum<'ctx>,
-        expr: &'ctx Expr<'src>,
+        expr: &'ctx MIRExpr<'src>,
         span: Span<'src>,
-        scope: &'ctx Scope<'ctx>
+        scope: &'ctx MIRScope<'ctx>
     ) -> Result<(), CompileError>
     {
         let value = self.codegen_expr(expr, scope);

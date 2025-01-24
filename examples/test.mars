@@ -1,11 +1,21 @@
-fn main() -> i64 {
-    var a = [10, 11, 12];
-    var b = &a;
-    var c: [i64; 3] = *b;
-    var d = c[1];
+struct InnerStruct {
+    value: str,
+}
 
-    print_i64(d);
-    println("");
+struct MyStruct {
+    inner: InnerStruct,
+}
+
+fn main() -> i64 {
+    var my = MyStruct {
+        inner: InnerStruct {
+            value: "some string",
+        },
+    };
+
+    var inner = my.inner;
+
+    println(inner.value);
 
     return 0;
 }

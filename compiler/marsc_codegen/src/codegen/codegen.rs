@@ -1,5 +1,3 @@
-use ast::{Block, Expr, Identifier, Literal, MathExpr, Stmt, Type};
-use err::CompileError;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
@@ -7,7 +5,8 @@ use inkwell::targets::{FileType, InitializationConfig, Target, TargetMachine};
 use inkwell::types::{ArrayType, BasicType, BasicTypeEnum, StructType};
 use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::AddressSpace;
-use mir::{FuncProto, Mir, Scope};
+use mir::stages::s2::{MIRExpr, MIRFunc, MIRInstruction, MIRLiteral, MIRMathExpr, MIRScope, MIRType};
+use mir::Mir;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
@@ -28,18 +27,19 @@ pub(super) enum VariableData<'ctx> {
 }
 
 pub struct Codegen<'ctx, 'src> {
-    pub(crate) context: &'ctx Context,
-    pub(crate) module: Module<'ctx>,
-    pub(crate) builder: Builder<'ctx>,
-    pub(crate) mir: &'ctx Mir<'src>,
-    pub(crate) var_table: HashMap<&'src str, VariableData<'ctx>>,
+    pub(in crate::codegen) context: &'ctx Context,
+    pub(in crate::codegen) module: Module<'ctx>,
+    pub(in crate::codegen) builder: Builder<'ctx>,
+    pub(in crate::codegen) mir: &'ctx Mir<'src>,
+    pub(in crate::codegen) var_table: HashMap<&'ctx str, VariableData<'ctx>>,
+    pub(in crate::codegen) types_table: HashMap<&'ctx str, StructType<'ctx>>,
 }
 
 impl<'ctx, 'src> Codegen<'ctx, 'src>
 where
     'src: 'ctx
 {
-    pub(crate) fn store_variable(&mut self, ident: &'src str, pointer_value: PointerValue<'ctx>, ty: BasicTypeEnum<'ctx>) {
+    pub(crate) fn store_variable(&mut self, ident: &'ctx str, pointer_value: PointerValue<'ctx>, ty: BasicTypeEnum<'ctx>) {
         match ty {
             BasicTypeEnum::ArrayType(array_type) => {
                 self.var_table.insert(ident, VariableData::Array {
@@ -52,8 +52,32 @@ where
             | BasicTypeEnum::PointerType(_) => {
                 self.var_table.insert(ident, VariableData::Plain { pointer: pointer_value });
             }
-            BasicTypeEnum::StructType(_) => {}
+            BasicTypeEnum::StructType(struct_type) => {
+                self.var_table.insert(ident, VariableData::Struct {
+                    pointer: pointer_value,
+                    struct_type,
+                });
+            }
             BasicTypeEnum::VectorType(_) => {}
+        }
+    }
+
+    pub(crate) fn get_variable(&self, ident: &'ctx str) -> &VariableData<'ctx> {
+        match self.var_table.get(ident) {
+            Some(data) => data,
+            None => unreachable!("struct_type: {}", ident),
+        }
+    }
+    
+    pub(crate) fn store_struct_type(&mut self, ident: &'ctx str, struct_type: StructType<'ctx>) {
+        self.types_table.insert(ident, struct_type);
+    }
+
+    pub(crate) fn get_struct_type(&self, ident: &'ctx str) -> StructType<'ctx> {
+        println!("{:#?}", self.types_table);
+        match self.types_table.get(ident) {
+            Some(ty) => *ty,
+            None => unreachable!("struct_type: {}", ident),
         }
     }
 }
@@ -63,7 +87,7 @@ where
     'src: 'ctx
 {
     pub(crate) fn codegen(&mut self) -> String {
-        let global_scope: &'ctx Scope = self.mir.scopes.get(&0_usize).unwrap();
+        let global_scope: &'ctx MIRScope = self.mir.scopes.get(&0_usize).unwrap();
         self.codegen_scope(global_scope, None);
 
         self.module.print_to_string().to_string()
@@ -80,20 +104,20 @@ where
 
     pub(crate) fn codegen_scope(
         &mut self,
-        scope: &'ctx Scope<'src>,
+        scope: &'ctx MIRScope<'src>,
         parent_function_value: Option<FunctionValue>
     ) {
 
-        for scope_struct in &scope.structs {
-            self.codegen_struct(scope_struct.1);
+        for (_, scope_struct) in &scope.structs {
+            self.codegen_struct(scope_struct);
         }
 
-        let funs: Vec<&FuncProto> = scope.funs.values().collect();
+        let funs: Vec<&MIRFunc> = scope.funs.values().collect();
 
         let functions: Vec<Option<FunctionValue>> = funs
             .iter()
             .map(|proto| match proto.return_type {
-                Type::Void => self.codegen_void_function_definition(proto),
+                MIRType::Void => self.codegen_void_function_definition(proto),
                 _ => self.codegen_function_definition(proto),
             })
             .collect();
@@ -108,39 +132,31 @@ where
             match parent_function_value {
                 None => unreachable!(),
                 Some(parent_function_value) => {
-                    for stmt in &scope.instrs {
-                        self.codegen_stmt(stmt, scope, parent_function_value.clone());
+                    for instruction in &scope.instrs {
+                        self.codegen_instruction(instruction, scope, parent_function_value.clone());
                     }
                 }
             }
         }
     }
 
-    pub(crate) fn _codegen_block(&mut self, block: &'ctx Block<'src>, scope: &'ctx Scope<'ctx>) {
-        unimplemented!()
-    }
-
-    pub(crate) fn codegen_stmt(
+    pub(crate) fn codegen_instruction(
         &mut self,
-        stmt: &'ctx Stmt<'src>,
-        scope: &'ctx Scope<'ctx>,
+        instruction: &'ctx MIRInstruction<'src>,
+        scope: &'ctx MIRScope<'ctx>,
         function_value: FunctionValue,
-    ) -> Result<(), CompileError> {
-        match stmt {
-            Stmt::Block(_) => todo!(),
-            Stmt::Return { expr, .. } => {
+    ) {
+        match instruction {
+            MIRInstruction::Return { expr, .. } => {
                 if let Some(expr) = expr {
                     let value = self.codegen_expr(expr, scope);
                     self.builder.build_return(Some(&value)).unwrap();
-                    Ok(())
                 } else {
                     self.builder.build_return(None).unwrap();
-                    Ok(())
                 }
             }
-            Stmt::Break { .. } => todo!(),
-            Stmt::Assignment {
-                node_id: _,
+            MIRInstruction::Break { .. } => todo!(),
+            MIRInstruction::Assignment {
                 ident,
                 ty,
                 expr,
@@ -149,7 +165,7 @@ where
                 let variable_type = self.codegen_type(&ty);
                 match variable_type {
                     BasicTypeEnum::ArrayType(_) => {
-                        self.codegen_array_assignment(ident, variable_type, expr, span.clone(), scope)
+                        self.codegen_array_assignment(ident, variable_type, expr, *span, scope).unwrap();
                     }
                     BasicTypeEnum::IntType(_) | BasicTypeEnum::FloatType(_) => {
                         let variable = self.builder.build_alloca(variable_type, ident).unwrap();
@@ -159,8 +175,6 @@ where
                         self.builder.build_store(variable, value).unwrap();
 
                         self.store_variable(ident, variable, variable_type);
-
-                        Ok(())
                     }
                     BasicTypeEnum::PointerType(_) => {
                         let variable = self.builder.build_alloca(variable_type, ident).unwrap();
@@ -178,44 +192,43 @@ where
 
                             println!();
                             self.store_variable(ident, variable, variable_type);
-
-                            Ok(())
                         } else {
-                            unreachable!()
+                            unreachable!("{:#?}", value)
                         }
                     }
-                    BasicTypeEnum::StructType(_) => todo!(),
+                    BasicTypeEnum::StructType(_) => {
+                        self.codegen_struct_assignment(ident, variable_type, expr, *span, scope).unwrap();
+                    },
                     BasicTypeEnum::VectorType(_) => todo!(),
                 }
             }
-            Stmt::Assign { lhs, rhs, .. } => {
+            MIRInstruction::Assign { lhs, rhs, .. } => {
                 match lhs { // TODO array redeclaration
-                    Expr::MemLookup { ident, indices, span, .. } => {
+                    MIRExpr::MemLookup { ident, indices, span, .. } => {
                         let rhs_value = self.codegen_expr(rhs, scope);
-                        self.codegen_set_array_element(ident, indices, rhs_value, span.clone(), scope)
+                        self.codegen_set_array_element(
+                            ident.as_str(),
+                            indices,
+                            rhs_value,
+                            *span,
+                            scope)
+                            .unwrap();
                     }
-                    Expr::Identifier(identifier) => {
-                        let variable = self.codegen_identifier_pointer(identifier.clone(), scope);
+                    MIRExpr::StructInit { ident, struct_id, fields, .. } => {
+                        let variable = self.codegen_identifier_pointer(ident.clone(), scope);
 
                         let value = self.codegen_expr(rhs, scope);
 
                         self.builder.build_store(variable, value).unwrap();
-
-                        Ok(())
                     }
                     _ => unreachable!()
                 }
             }
-            Stmt::FuncCall(func_call) => {
+            MIRInstruction::FuncCall(func_call) => {
                 self.codegen_func_call(func_call, scope);
-                Ok(())
             },
-            Stmt::IfElse { .. } => unreachable!(),
-            Stmt::WhileLoop { .. } => unreachable!(),
-            Stmt::StructDecl(_) => unimplemented!(),
-            Stmt::FuncDecl(_) => unimplemented!(),
-            Stmt::GoToBlock { .. } => unimplemented!(),
-            Stmt::GoToIfCond { cond, then_block_id, else_block_id } => {
+            MIRInstruction::GoToBlock { block_id } => self.codegen_scope_by_id(block_id, Some(function_value)),
+            MIRInstruction::GoToIfCond { cond, then_block_id, else_block_id } => {
                 let cond_value = self.codegen_expr(cond, scope).into_int_value();
 
                 let then_bb = self.context.append_basic_block(function_value, "then");
@@ -245,10 +258,8 @@ where
                 }
 
                 self.builder.position_at_end(merge_bb);
-
-                Ok(())
             },
-            Stmt::GoToWhile { .. } => unimplemented!(),
+            MIRInstruction::GoToWhile { .. } => unimplemented!(),
         }
     }
 
@@ -258,26 +269,42 @@ where
         self.builder.build_store(alloca, const_value).unwrap().set_volatile(true).unwrap()
     }
 
-    pub(crate) fn codegen_expr(&self, expr: &'ctx Expr<'src>, scope: &'ctx Scope<'ctx>) -> BasicValueEnum<'ctx>  {
+    pub(crate) fn codegen_expr(&self, expr: &'ctx MIRExpr<'src>, scope: &'ctx MIRScope<'ctx>) -> BasicValueEnum<'ctx>  {
         match expr {
-            Expr::Identifier(identifier) => self.codegen_identifier(identifier, scope),
-            Expr::FuncCall(func_call) => {
+            MIRExpr::Identifier { ident, .. } => self.codegen_identifier(ident.as_str(), scope),
+            MIRExpr::FuncCall(func_call) => {
                 if let Some(value) = self.codegen_func_call(func_call, scope) {
                     value
                 } else {
                     panic!("Function has no return value")
                 }
             },
-            Expr::ArrayDecl { list, .. } => {
+            MIRExpr::ArrayDecl { list, .. } => {
                 self.codegen_array_declaration(list, scope)
             },
-            Expr::MemLookup { ident, indices, span, .. } => {
-                self.codegen_get_array_element(ident, indices, span.clone(), scope).unwrap()
+            MIRExpr::MemLookup { ident, indices, span, .. } => {
+                self.codegen_get_array_element(ident, indices, *span, scope).unwrap()
             },
-            Expr::StructFieldCall { .. } => todo!(),
-            Expr::StructInit { .. } => todo!(),
-            Expr::CastType { .. } => todo!(),
-            Expr::Dereference { inner, .. } => {
+            MIRExpr::StructFieldCall { ident, field, .. } => {
+                let struct_data = self.get_variable(ident);
+                if let VariableData::Struct { pointer, struct_type } = struct_data {
+                    let field_ptr = self.builder.build_struct_gep(
+                        *struct_type,
+                        *pointer,
+                        0,
+                        "field_ptr"
+                    ).unwrap();
+                    
+                    field_ptr.as_basic_value_enum()
+                } else {
+                    unreachable!()
+                }
+            },
+            MIRExpr::StructInit { ident, fields, .. } => {
+                self.codegen_struct_init(ident, fields, scope)
+            },
+            MIRExpr::CastType { .. } => todo!(),
+            MIRExpr::Dereference { inner, .. } => {
                 let value = self.codegen_expr(inner, scope);
                 let pointer = match value {
                     BasicValueEnum::ArrayValue(_) => unreachable!(),
@@ -298,11 +325,11 @@ where
 
                 dereferenced_value
             },
-            Expr::Reference { inner, .. } => {
+            MIRExpr::Reference { inner, .. } => {
                 let inner = inner.clone();
                 let pointer = match *inner {
-                    Expr::Identifier(identifier) => {
-                        self.codegen_identifier_pointer(identifier, scope)
+                    MIRExpr::Identifier { ident, .. } => {
+                        self.codegen_identifier_pointer(ident, scope)
                     },
                     _ => unreachable!(),
                 };
@@ -313,37 +340,37 @@ where
 
                 variable.as_basic_value_enum()
             },
-            Expr::LogicalExpr(logical_expr) => self.codegen_logical_expr(logical_expr, scope),
-            Expr::MathExpr(math_expr) => self.codegen_math_expr(math_expr, scope),
-            Expr::Literal(literal) => self.codegen_literal(literal),
+            MIRExpr::LogicalExpr(logical_expr) => self.codegen_logical_expr(logical_expr, scope),
+            MIRExpr::MathExpr(math_expr) => self.codegen_math_expr(math_expr, scope),
+            MIRExpr::Literal(literal) => self.codegen_literal(literal),
         }
     }
 
-    pub(crate) fn codegen_identifier(&self, identifier: &'ctx Identifier<'src>, scope: &'ctx Scope<'ctx>) -> BasicValueEnum<'ctx> {
-        let variable = scope.vars.get(identifier.ident).unwrap(); // TODO remove vars using
+    pub(crate) fn codegen_identifier(&self, ident: &'ctx str, scope: &'ctx MIRScope<'ctx>) -> BasicValueEnum<'ctx> {
+        let variable = scope.vars.get(ident).unwrap(); // TODO remove vars using
 
-        if let Some(variable_data) = self.var_table.get(identifier.ident) {
+        if let Some(variable_data) = self.var_table.get(ident) {
             let ty = self.codegen_type(&variable.ty);
             match variable_data {
                 VariableData::Plain { pointer } => {
-                    self.builder.build_load(ty, *pointer, identifier.ident).unwrap()
+                    self.builder.build_load(ty, *pointer, ident).unwrap()
                 }
                 VariableData::Array { pointer, .. } => {
-                    self.builder.build_load(ty, *pointer, identifier.ident).unwrap()
+                    self.builder.build_load(ty, *pointer, ident).unwrap()
                 }
                 VariableData::Struct { .. } => {
                     todo!()
                 }
             }
         } else {
-            panic!("Cannot find variable: {}", identifier.span.as_str());
+            panic!("Cannot find variable: {}", ident);
         }
     }
 
-    pub(crate) fn codegen_identifier_pointer(&self, identifier: Identifier<'src>, scope: &'ctx Scope<'ctx>) -> PointerValue<'ctx> {
-        let variable = scope.vars.get(identifier.ident).unwrap(); // TODO remove vars using
+    pub(crate) fn codegen_identifier_pointer(&self, ident: String, scope: &'ctx MIRScope<'ctx>) -> PointerValue<'ctx> {
+        let variable = scope.vars.get(ident.as_str()).unwrap(); // TODO remove vars using
 
-        if let Some(variable_data) = self.var_table.get(identifier.ident) {
+        if let Some(variable_data) = self.var_table.get(ident.as_str()) {
             let ty = self.codegen_type(&variable.ty);
             match variable_data {
                 VariableData::Plain { pointer } => {
@@ -357,55 +384,62 @@ where
                 }
             }
         } else {
-            panic!("Cannot find variable: {}", identifier.span.as_str());
+            panic!("Cannot find variable: {}", ident);
         }
     }
 
-    pub(crate) fn codegen_literal(&self, literal: &'ctx Literal<'src>) -> BasicValueEnum<'ctx> {
+    pub(crate) fn codegen_literal(
+        &self,
+        literal: &'ctx MIRLiteral<'src>
+    ) -> BasicValueEnum<'ctx> {
         match literal {
-            Literal::Int { lit, .. } => self.context.i64_type().const_int(*lit as u64, false).into(),
-            Literal::Float { lit, .. } => self.context.f64_type().const_float(*lit as f64).into(),
-            Literal::Str { lit, .. } => {
+            MIRLiteral::Int { lit, .. } => self.context.i64_type().const_int(*lit as u64, false).into(),
+            MIRLiteral::Float { lit, .. } => self.context.f64_type().const_float(*lit as f64).into(),
+            MIRLiteral::Str { lit, .. } => {
                 let lit2 = lit.replace("\\n", "\n");
                 let global_string = self.context.const_string(lit2.as_bytes(), true);
                 let value = self.module.add_global(global_string.get_type(), None, "global_str");
                 value.set_initializer(&global_string);
                 value.as_basic_value_enum()
             },
-            Literal::Char { lit, .. } => self.context.i8_type().const_int(*lit as u64, false).into(),
-            Literal::Bool { lit, ..} => self.context.bool_type().const_int(*lit as u64, false).into(),
-            Literal::NullRef { .. } => todo!(),
+            MIRLiteral::Char { lit, .. } => self.context.i8_type().const_int(*lit as u64, false).into(),
+            MIRLiteral::Bool { lit, ..} => self.context.bool_type().const_int(*lit as u64, false).into(),
+            MIRLiteral::NullRef { .. } => todo!(),
         }
     }
 
-    pub(crate) fn codegen_math_expr(&self, math_expr: &'ctx MathExpr<'src>, scope: &'ctx Scope<'ctx>) -> BasicValueEnum<'ctx> {
+    pub(crate) fn codegen_math_expr(&self, math_expr: &'ctx MIRMathExpr<'src>, scope: &'ctx MIRScope<'ctx>) -> BasicValueEnum<'ctx> {
         match math_expr {
-            MathExpr::Additive { left, right, op, .. } => {
+            MIRMathExpr::Additive { left, right, op, .. } => {
                 self.codegen_math_add_expr(left, right, op, scope)
             },
-            MathExpr::Multiplicative { left, right, op, .. } => {
+            MIRMathExpr::Multiplicative { left, right, op, .. } => {
                 self.codegen_math_mul_expr(left, right, op, scope)
             },
-            MathExpr::Power { base, exp, .. } => {
+            MIRMathExpr::Power { base, exp, .. } => {
                 self.codegen_math_power_expr(base, exp, scope)
             },
-            MathExpr::Primary(primary) => {
+            MIRMathExpr::Primary(primary) => {
                 self.codegen_expr(primary, scope)
             }
         }
     }
 
-    pub(crate) fn codegen_type(&self, type_ast: &'ctx Type<'src>) -> BasicTypeEnum<'ctx> {
+    pub(crate) fn codegen_type(&self, type_ast: &'ctx MIRType) -> BasicTypeEnum<'ctx> {
         match type_ast {
-            Type::I64 => self.context.i64_type().into(),
-            Type::F64 => self.context.f64_type().into(),
-            Type::Str => self.context.ptr_type(AddressSpace::default()).into(),
-            Type::Char => self.context.i8_type().into(),
-            Type::Bool => self.context.bool_type().into(),
-            Type::Void => unreachable!(),
-            Type::Custom(identifier) => self.module.get_struct_type(identifier.ident).unwrap().into(),
-            Type::Array(ty, size) => self.codegen_type(ty).array_type(*size as u32).into(),
-            Type::Vec(ty) => {
+            MIRType::I64 => self.context.i64_type().into(),
+            MIRType::F64 => self.context.f64_type().into(),
+            MIRType::Str => self.context.ptr_type(AddressSpace::default()).into(),
+            MIRType::Char => self.context.i8_type().into(),
+            MIRType::Bool => self.context.bool_type().into(),
+            MIRType::Void => unreachable!(),
+            MIRType::StructType(identifier) => {
+                self.get_struct_type(identifier.ident.as_str()).into()
+            },
+            MIRType::Array(ty, size) => {
+                self.codegen_type(ty).array_type(*size as u32).into()
+            },
+            MIRType::Vec(ty) => {
                 match self.codegen_type(ty) {
                     BasicTypeEnum::ArrayType(_) => unreachable!(),
                     BasicTypeEnum::FloatType(ty) => todo!(),
@@ -415,9 +449,8 @@ where
                     BasicTypeEnum::VectorType(_) => unreachable!(),
                 }
             },
-            Type::Ref(ty) => self.context.ptr_type(AddressSpace::default()).into(),
-            Type::Any => unreachable!(),
-            Type::Unresolved => unreachable!(),
+            MIRType::Ref(ty) => self.context.ptr_type(AddressSpace::default()).into(),
+            MIRType::Any => unreachable!(),
         }
     }
 
@@ -461,6 +494,7 @@ pub fn codegen<'src>(mir: &'src Mir) -> String {
         builder: context.create_builder(),
         mir,
         var_table: HashMap::new(),
+        types_table: HashMap::new(),
     };
 
     let result = codegen.codegen();

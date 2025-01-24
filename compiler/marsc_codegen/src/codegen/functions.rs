@@ -1,8 +1,7 @@
+use crate::codegen::codegen::Codegen;
 use inkwell::types::{BasicMetadataTypeEnum, BasicType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue};
-use ast::FuncCall;
-use mir::{FuncProto, Scope};
-use crate::codegen::codegen::Codegen;
+use mir::stages::s2::{MIRFunc, MIRFuncCall, MIRScope};
 
 impl<'ctx, 'src> Codegen<'ctx, 'src>
 where
@@ -10,7 +9,7 @@ where
 {
     pub(crate) fn codegen_function_definition(
         &mut self,
-        func_decl: &'ctx FuncProto<'src>
+        func_decl: &'ctx MIRFunc<'src>
     ) -> Option<FunctionValue<'ctx>> {
         let arg_types: Vec<BasicMetadataTypeEnum> = func_decl
             .args
@@ -32,7 +31,7 @@ where
 
     pub(crate) fn codegen_void_function_definition(
         &mut self,
-        func_decl: &'ctx FuncProto<'src>
+        func_decl: &'ctx MIRFunc<'src>
     ) -> Option<FunctionValue<'ctx>> {
         let arg_types: Vec<BasicMetadataTypeEnum> = func_decl
             .args
@@ -54,20 +53,20 @@ where
 
     pub(crate) fn codegen_function_args(
         &mut self,
-        func_decl: &'ctx FuncProto<'src>,
+        func_decl: &'ctx MIRFunc<'src>,
         function_value: FunctionValue<'ctx>,
     ) {
         for (arg, value) in func_decl.args.iter().zip(function_value.get_param_iter()) {
-            let arg_as_variable = self.builder.build_alloca(value.get_type(), arg.ident).unwrap();
+            let arg_as_variable = self.builder.build_alloca(value.get_type(), arg.ident.as_str()).unwrap();
             self.builder.build_store(arg_as_variable, value).unwrap();
 
-            self.store_variable(arg.ident, arg_as_variable, value.get_type());
+            self.store_variable(arg.ident.as_str(), arg_as_variable, value.get_type());
         }
     }
 
     pub(crate) fn codegen_function_entry(
         &mut self,
-        func_decl: &'ctx FuncProto<'src>,
+        func_decl: &'ctx MIRFunc<'src>,
         function_value: FunctionValue<'ctx>
     ) {
         let entry = self.context.append_basic_block(function_value, "entry");
@@ -78,11 +77,15 @@ where
         self.codegen_scope_by_id(&func_decl.node_id, Some(function_value));
     }
 
-    pub(crate) fn codegen_func_call(&self, func_call: &'ctx FuncCall<'src>, scope: &'ctx Scope<'ctx>) -> Option<BasicValueEnum<'ctx>> {
-        let error_msg = format!("Cannot find function '{}'", func_call.ident.ident);
+    pub(crate) fn codegen_func_call(
+        &self,
+        func_call: &'ctx MIRFuncCall<'src>,
+        scope: &'ctx MIRScope<'ctx>
+    ) -> Option<BasicValueEnum<'ctx>> {
+        let error_msg = format!("Cannot find function '{}'", func_call.ident.as_str());
 
         let function = self.module
-            .get_function(func_call.ident.ident)
+            .get_function(func_call.ident.as_str())
             .expect(error_msg.as_str());
 
         let args: Vec<BasicMetadataValueEnum> = func_call
