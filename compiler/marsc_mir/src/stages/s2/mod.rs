@@ -1,15 +1,18 @@
-pub mod new_block_var_decl;
+pub(crate) mod new_block_var_decl;
+pub(crate) mod check_const_types;
 
 use std::collections::HashMap;
 
 use super::s1;
 use ast::*;
 use new_block_var_decl::block_var_decl;
+use check_const_types::check_const_types;
 
 use pest::Span;
 
 pub fn compile_mir_s2(mir: MirS2) -> Result<MirS2, err::CompileError> {
     let mir = block_var_decl(mir)?;
+    check_const_types(&mir)?;
     // todo - check usages
     // todo - check references
 
