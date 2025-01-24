@@ -28,7 +28,7 @@ pub struct LIRStruct {
 #[derive(Debug)]
 pub struct LIRFunc {
     pub name: String,
-    pub args: Vec<LIRType>,
+    pub args: Vec<(String, LIRType)>,
     pub return_type: LIRType,
     pub block_id: usize,
 }
@@ -153,21 +153,6 @@ pub enum LIRLiteral {
     NullRef,
 }
 
-// #[derive(Debug, Clone)]
-// pub struct LIRStructType {
-//     // pub decl_scope_id: usize,
-//     // pub struct_id: usize,
-//     pub ident: String,
-// }
-
-// impl PartialEq for LIRStructType {
-//     fn eq(&self, other: &Self) -> bool {
-//         // self.decl_scope_id == other.decl_scope_id &&
-//         // self.struct_id == self.struct_id
-//         self.ident == other.ident
-//     }
-// }
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum LIRType {
     I64,
@@ -214,8 +199,17 @@ fn global_name(ident: String, id: usize) -> String {
     format!("{ident}_{id}")
 }
 
+fn unify_names<'src>(mir: Mir<'src>) -> Mir<'src> { 
+    
+    // todo
+    mir
+}
+
 impl<'src> From<Mir<'src>> for Lir<'src> {
     fn from(mir: Mir<'src>) -> Self {
+        
+        // let mir = unify_names(mir);
+        
         let mut structs = HashMap::new();
         let mut functions = HashMap::new();
         let mut tmp = HashMap::new();
@@ -227,16 +221,16 @@ impl<'src> From<Mir<'src>> for Lir<'src> {
                 structs.insert(global_name(ident, id), struct_proto.into());
             }
 
+            let mut fn_name = "".to_owned();
             for (ident, fun) in scope.funs {
-                if !mir.sys_funs.contains(&ident) {
-                    let name = if ident != "main" {
-                        global_name(ident, fun.node_id)
-                    } else {
-                        "main".to_owned()
-                    };
-
-                    functions.insert(name, fun.into());
-                }
+                
+                fn_name = if mir.sys_funs.contains(&ident) || ident == "main" {
+                    ident                    
+                } else { 
+                    global_name(ident, fun.node_id)
+                };
+                
+                functions.insert(fn_name, proceed_fn(fun, &mir.sys_funs));
             }
 
             tmp.insert(id, scope.instrs);
@@ -533,14 +527,43 @@ impl From<MIRMulOp> for LIRMulOp {
     }
 }
 
-impl From<MIRFunc<'_>> for LIRFunc {
-    fn from(fun: MIRFunc) -> Self {
-        Self {
-            name: global_name(fun.ident, fun.node_id),
-            args: fun.args.into_iter().map(|x| x.ty.into()).collect(),
-            return_type: fun.return_type.into(),
-            block_id: fun.node_id,
+fn proceed_fn(fun: MIRFunc, sys_funs: &Vec<String>) -> LIRFunc {
+    
+    fn get_fn_name(s: String, id: usize, sys_funs: &Vec<String>) -> String {
+        if sys_funs.contains(&s) || s == "main" {
+            s
+        } else {
+            global_name(s, id)
         }
+    }
+    
+    fn get_ident_name(s: String, id: usize, fun_name: &String, sys_funs: &Vec<String>) -> String {
+        if sys_funs.contains(fun_name) {
+            s
+        } else {
+            global_name(s, id)
+        }
+    }
+    
+    // todo !
+    let args = fun
+        .args
+        .into_iter()
+        .map(|x| (x.ident, x.ty.into()))
+        // .map(|x| (get_ident_name(
+        //     x.ident,
+        //     fun.node_id,
+        //     &fun.ident, 
+        //     sys_funs),
+        //     x.ty.into())
+        // )
+        .collect();
+    
+    LIRFunc {
+        name: get_fn_name(fun.ident.clone(), fun.node_id, sys_funs),
+        args,
+        return_type: fun.return_type.into(),
+        block_id: fun.node_id,
     }
 }
 
@@ -593,7 +616,7 @@ fn resolving_parent_ids<'src>() -> Result<(), err::CompileError<'src>> {
             return a;
         }
         
-        fn main() -> void { 
+        fn main() -> i64 { 
             struct B { a: f64, b: i64 }
             
             var bgg = B { b: 60, a: 0.0 };
@@ -601,7 +624,7 @@ fn resolving_parent_ids<'src>() -> Result<(), err::CompileError<'src>> {
             hello(bgg.b);
             var lala = bgg.a;
             
-            return;
+            return 0;
         }
     "#;
 
