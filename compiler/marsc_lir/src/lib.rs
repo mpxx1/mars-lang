@@ -262,9 +262,9 @@ fn instr_idents_uniq(instr: &mut MIRInstruction, sys_funs: &Vec<String>, id: &us
         MIRInstruction::Break { .. } => {}
         
         MIRInstruction::FuncCall(x) => {
-            if x.ident != "main" && !sys_funs.contains(&x.ident) {
-                x.ident.push_str(format!("_{id}").as_str());
-            }
+            // if x.ident != "main" && !sys_funs.contains(&x.ident) {
+            //     x.ident.push_str(format!("_{id}").as_str());
+            // }
             x.args.iter_mut().for_each(|x| expr_idents_uniq(x, id, sys_funs));
         }
         
@@ -306,7 +306,7 @@ fn expr_idents_uniq(expr: &mut MIRExpr, id: &usize, sys_funs: &Vec<String>) {
         }
         
         MIRExpr::StructInit { ident, .. } => {
-            ident.push_str(format!("_{id}").as_str());
+            // ident.push_str(format!("_{id}").as_str());
         }
         
         MIRExpr::CastType { expr, .. } => {
