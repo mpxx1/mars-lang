@@ -87,3 +87,23 @@ fn change_arr_test<'src>() -> Result<(), err::CompileError<'src>> {
     
     Ok(())
 }
+
+#[test]
+fn zero_len_arr<'src>() -> Result<(), err::CompileError<'src>> {
+    use crate::*;
+    
+    let inp = r#"
+        fn main() -> i64 {
+           var st = [];
+            
+            return 0;
+        }
+    "#;
+    
+    let hir = hir::compile_hir(&inp)?;
+    let mir = hir.compile_mir()?;
+
+    println!("{:#?}", mir);
+    
+    Ok(())
+}
