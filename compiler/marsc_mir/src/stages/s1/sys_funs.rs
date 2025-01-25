@@ -59,9 +59,9 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             return_type: Type::Void,
             span: Span::new("external fn", 0, 10).unwrap(),
         },
-        
+
         // Vec<i64>
-        
+
         FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
@@ -595,6 +595,116 @@ pub(crate) fn check_sys_fn_args_types<'src>(
     // }
 
     Ok(())
+}
+
+        "len" => {
+            let mut expr = func.args.pop().unwrap();
+            let span = take_span_from_expr(&expr);
+
+            let ty = resolve_expr_type(scope_id, mir, &mut expr, Type::Unresolved)?;
+            let Type::Ref(x) = ty else {
+                return Err(CompileError::new(
+                    func.span,
+                    "Can call 'len' function with refrence only".to_owned(),
+                ));
+            };
+            let inner_ty = *x;
+
+            if !matches!(inner_ty, Type::Str | Type::Array(_, _) | Type::Vec(_)) {
+                return Err(CompileError::new(
+                    span,
+                    "Function 'len' can take argument of types '&str', '&[ _ ; _ ]' and '&Vec<_>' only".to_owned(),
+                ));
+            }
+
+            Ok(())
+        }
+
+        "capacity" => {
+            let mut expr = func.args.pop().unwrap();
+            let span = take_span_from_expr(&expr);
+
+            let ty = resolve_expr_type(scope_id, mir, &mut expr, Type::Unresolved)?;
+            let Type::Ref(x) = ty else {
+                return Err(CompileError::new(
+                    func.span,
+                    "Can call 'capacity' function with refrence only".to_owned(),
+                ));
+            };
+            let inner_ty = *x;
+
+            if !matches!(inner_ty, Type::Vec(_)) {
+                return Err(CompileError::new(
+                    span,
+                    "Function len 'capacity' take argument of '&Vec<_>' type only".to_owned(),
+                ));
+            }
+
+            Ok(())
+        }
+
+        "vec_push" => {
+            func.args.reverse();
+            let mut expr_0 = func.args.pop().unwrap();
+            let span = take_span_from_expr(&expr_0);
+            let ty = resolve_expr_type(scope_id, mir, &mut expr_0, Type::Unresolved)?;
+
+            let Type::Ref(x) = ty else {
+                return Err(CompileError::new(
+                    span,
+                    "Can push to vec by ref only".to_owned(),
+                ));
+            };
+            let inner_ty = *x;
+
+            let Type::Vec(vec_inner_ty) = inner_ty else {
+                return Err(CompileError::new(
+                    span,
+                    format!("Expected: '&Vec<_>', actual: {inner_ty:?}"),
+                ));
+            };
+            let mut expr_1 = func.args.pop().unwrap();
+            let expr_ty = resolve_expr_type(scope_id, mir, &mut expr_1, *vec_inner_ty.clone())?;
+
+            if *vec_inner_ty != expr_ty {
+                return Err(CompileError::new(
+                    span,
+                    format!("Expected: '{vec_inner_ty:?}', actual: '{expr_ty:?}'"),
+                ));
+            }
+
+            Ok(())
+        }
+
+        "vec_pop" => {
+            let mut expr_0 = func.args.pop().unwrap();
+            let span = take_span_from_expr(&expr_0);
+            let ty = resolve_expr_type(scope_id, mir, &mut expr_0, Type::Unresolved)?;
+
+            let Type::Ref(x) = ty else {
+                return Err(CompileError::new(
+                    span,
+                    "Can push to vec by ref only".to_owned(),
+                ));
+            };
+            let inner_ty = *x;
+
+            let Type::Vec(_) = inner_ty else {
+                return Err(CompileError::new(
+                    span,
+                    format!("Expected: '&Vec<_>', actual: {inner_ty:?}"),
+                ));
+            };
+
+            Ok(())
+        }
+
+        "now" => Ok(()),
+
+        x => {
+            panic!("System fn '{x:?}' args check not implemented")
+        }
+    }
 }
 
 pub fn extract_variable_names(input: String) -> Vec<String> {

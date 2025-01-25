@@ -1,12 +1,12 @@
-pub(crate) mod new_block_var_decl;
 pub(crate) mod check_const_types;
+pub(crate) mod new_block_var_decl;
 
 use std::collections::HashMap;
 
 use super::s1;
 use ast::*;
-use new_block_var_decl::block_var_decl;
 use check_const_types::check_const_types;
+use new_block_var_decl::block_var_decl;
 
 use pest::Span;
 
