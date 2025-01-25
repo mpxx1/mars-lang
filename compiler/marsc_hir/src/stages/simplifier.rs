@@ -476,16 +476,16 @@ pub(crate) fn simplify(ast: Ast) -> Result<Ast, CompileError> {
 #[test]
 fn test1() -> () {
     let inp = r#"
-    fn hello() -> void {
-        fn hello2() -> void {
+        fn main() -> i64 {
             var a = 10;
+            if a == 0 {
+                a += 10;
+            } else {
+                a += 20;
+            }
+            
+            println("{a}");
         }
-        
-        /*struct A {
-            a: Str,
-            b: &A,
-        }*/
-    }
     "#;
 
     let hir = crate::stages::parser::parse(inp);

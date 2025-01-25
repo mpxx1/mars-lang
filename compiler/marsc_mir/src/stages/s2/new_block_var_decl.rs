@@ -10,6 +10,9 @@ pub(crate) fn block_var_decl(mut mir: Mir) -> Result<Mir, CompileError> {
     for scope_id in scope_ids {
         let (parent_id, vars_to_check) = {
             let scope = mir.scopes.get_mut(&scope_id).unwrap();
+            if !matches!(scope.scope_type, MIRScopeType::Block) {
+                continue;
+            }
 
             if !matches!(scope.scope_type, MIRScopeType::Block) {
                 continue;
