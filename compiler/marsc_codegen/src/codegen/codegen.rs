@@ -247,7 +247,6 @@ where
                     LIRExpr::MemLookup { base, indices, .. } => {
                         let variable_data = self.get_variable(base);
                         match variable_data {
-                            VariableData::Primitive { .. } => unreachable!(),
                             VariableData::Array { .. } => {
                                 let rhs_value = self.codegen_expr(rhs);
                                 self.codegen_set_array_element(base, indices, rhs_value).unwrap();
@@ -256,7 +255,7 @@ where
                                 let rhs_value = self.codegen_expr(rhs);
                                 self.codegen_set_vec_element(base, indices, rhs_value);
                             }
-                            VariableData::Struct { .. } => {}
+                            _ => unreachable!(),
                         }
                         
                     }
@@ -267,6 +266,13 @@ where
 
                         self.builder.build_store(variable, value).unwrap();
                     }
+                    LIRExpr::Identifier(ident) => {
+                        let variable = self.codegen_identifier_pointer(ident);
+
+                        let value = self.codegen_expr(rhs);
+
+                        self.builder.build_store(variable, value).unwrap();
+                    },
                     _ => unreachable!()
                 }
             }
@@ -529,8 +535,6 @@ pub fn codegen<'src>(lir: &'src Lir, output: &str) -> String {
     };
 
     let result = codegen.codegen();
-
-    println!("{}", result);
 
     let output_filename = PathBuf::from(output);
     let object_filename = to_object_file_path(output);

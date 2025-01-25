@@ -98,4 +98,35 @@ where
             unreachable!()
         }
     }
+
+    pub(in crate::codegen) fn codegen_set_struct_field(
+        &self,
+        ident: &'ctx str,
+        field_index: usize,
+        value: BasicValueEnum<'ctx>
+    )
+    {
+        let struct_data = self.get_variable(ident);
+        if let VariableData::Struct {
+            pointer,
+            lir_type,
+            llvm_type
+        } = struct_data {
+            let struct_type = llvm_type.into_struct_type();
+
+            let field_ptr = self.builder.build_struct_gep(
+                struct_type,
+                *pointer,
+                field_index as u32,
+                "field_ptr"
+            ).unwrap();
+
+            self.builder.build_store(
+                field_ptr,
+                value,
+            ).unwrap();
+        } else {
+            unreachable!()
+        }
+    }
 }

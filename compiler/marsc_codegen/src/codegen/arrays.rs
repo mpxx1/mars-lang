@@ -152,7 +152,13 @@ where
             LIRExpr::Array(list) => {
                 self.codegen_array_declaration(list)
             }
-            _ => unreachable!(),
+            LIRExpr::Dereference { .. } => {
+                self.codegen_expr(expr)
+            }
+            LIRExpr::Identifier(ident) => {
+                self.codegen_identifier_value(ident)
+            }
+            _ => unreachable!("{:#?}", expr),
         };
         
         match value {

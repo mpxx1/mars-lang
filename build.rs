@@ -6,7 +6,6 @@ fn main() {
     // Получаем путь к выходной директории (OUT_DIR)
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR is not set");
     let out_dir_path = Path::new(&out_dir);
-    println!("OURDIR: {:?}", out_dir_path);
 
     // Путь к корневой директории проекта
     let home_dir = env::var("HOME").expect("Cannot find HOME dir");
