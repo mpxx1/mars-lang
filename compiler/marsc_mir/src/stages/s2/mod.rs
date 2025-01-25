@@ -1,12 +1,12 @@
-pub(crate) mod new_block_var_decl;
 pub(crate) mod check_const_types;
+pub(crate) mod new_block_var_decl;
 
 use std::collections::HashMap;
 
 use super::s1;
 use ast::*;
-use new_block_var_decl::block_var_decl;
 use check_const_types::check_const_types;
+use new_block_var_decl::block_var_decl;
 
 use pest::Span;
 
@@ -19,14 +19,14 @@ pub fn compile_mir_s2(mir: MirS2) -> Result<MirS2, err::CompileError> {
     Ok(mir)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MirS2<'src> {
     pub code: &'src str,
     pub scopes: HashMap<usize, MIRScope<'src>>,
     pub sys_funs: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MIRScope<'src> {
     pub parent_id: usize,
     pub node_id: usize,
@@ -43,6 +43,8 @@ pub enum MIRScopeType {
     Global,
     Block,
     Function,
+    While,
+    IfElse,
 }
 
 #[derive(Debug, Clone)]
@@ -614,6 +616,8 @@ impl From<s1::ScopeType> for MIRScopeType {
             s1::ScopeType::Function => MIRScopeType::Function,
             s1::ScopeType::Block => MIRScopeType::Block,
             s1::ScopeType::Global => MIRScopeType::Global,
+            s1::ScopeType::While => MIRScopeType::While,
+            s1::ScopeType::IfElse => MIRScopeType::IfElse,
         }
     }
 }
