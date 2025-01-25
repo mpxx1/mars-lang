@@ -30,8 +30,8 @@ where
 
         self.builder.build_unconditional_branch(condition_bb).unwrap();
 
-        self.codegen_antioptimize_mark();
         self.builder.position_at_end(exit_bb);
+        self.codegen_antioptimize_mark();
     }
     
     pub(in crate::codegen) fn codegen_conditional(

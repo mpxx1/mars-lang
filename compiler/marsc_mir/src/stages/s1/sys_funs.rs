@@ -161,6 +161,21 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             return_type: Type::Void,
             span: Span::new("external fn", 0, 10).unwrap(),
         },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_len_i64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::I64)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::I64,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
 
         // Vec<f64>
 
@@ -263,6 +278,21 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             return_type: Type::Void,
             span: Span::new("external fn", 0, 10).unwrap(),
         },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_len_f64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::I64)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::I64,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
 
         // Vec<str>
 
@@ -363,6 +393,21 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
                 },
             ],
             return_type: Type::Void,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_len_str",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::I64)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::I64,
             span: Span::new("external fn", 0, 10).unwrap(),
         },
 

@@ -11,6 +11,7 @@ where
 {
     pub(in crate::codegen) fn codegen_vec_declaration(
         &self,
+        item_type: LIRType,
         list: &'ctx Vec<LIRExpr>,
     ) -> BasicValueEnum<'ctx> {
         let elements_values: Vec<BasicValueEnum<'ctx>> = list.iter()
@@ -19,7 +20,7 @@ where
             })
             .collect();
 
-        let element_type = elements_values.first().unwrap().get_type();
+        let element_type = self.codegen_type(item_type);
         let capacity_value = self.context.i64_type().const_int(list.len() as u64, true);
         let call_site = self.builder.build_call(
             self.get_vector_new_function(element_type),
@@ -73,13 +74,21 @@ where
     ) {
         let value = match expr { 
             LIRExpr::Array(list) => {
-                self.codegen_vec_declaration(list)
+                match &lir_type { 
+                    LIRType::Vec(inner) => {
+                        self.codegen_vec_declaration(*inner.clone(), list)
+                    }
+                    _ => unreachable!(),
+                }
             }
             LIRExpr::Dereference { .. } => {
                 self.codegen_expr(expr)
             }
             LIRExpr::Identifier(ident) => {
                 self.codegen_identifier_value(ident)
+            }
+            LIRExpr::FuncCall(func_call) => {
+                self.codegen_func_call(func_call).unwrap()
             }
             _ => unreachable!("{:#?}", expr),
         };

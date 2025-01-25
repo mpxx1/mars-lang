@@ -70,5 +70,5 @@ pub extern "C" fn now() -> i64 {
     let since_epoch = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap();
-    since_epoch.as_millis() as i64
+    since_epoch.as_micros() as i64
 }

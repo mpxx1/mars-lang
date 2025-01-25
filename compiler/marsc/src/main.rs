@@ -150,13 +150,13 @@ pub fn main() {
         args.input[..args.input.len() - 5].to_owned()
     };
     
-    // println!("{:#?}", lir);
+    println!("{:#?}", lir);
 
     let ir = log_progress("Codegen", || {
         codegen(&lir, output.as_str())
     });
     
-    // println!("{}", ir);
+    println!("{}", ir);
     
     let build_message = format!("Built in {:?}", start.elapsed());
     log_success(build_message.as_str());
