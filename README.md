@@ -8,8 +8,8 @@
 
 - [x] parser
 - [x] ast
-- [ ] print
-- [ ] codegen (inkwell/llvm)
+- [x] print
+- [x] codegen (inkwell/llvm)
 - [x] hir
-- [ ] lir
-- [ ] mir
+- [x] lir
+- [x] mir
