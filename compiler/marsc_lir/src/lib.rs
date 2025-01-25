@@ -331,9 +331,9 @@ fn expr_idents_uniq(
         }
 
         MIRExpr::FuncCall(x) => {
-            if x.ident != "main" && !sys_funs.contains(&x.ident) {
-                x.ident.push_str(format!("_{id}").as_str());
-            }
+            // if x.ident != "main" && !sys_funs.contains(&x.ident) {
+            //     x.ident.push_str(format!("_{id}").as_str());
+            // }
             x.args
                 .iter_mut()
                 .for_each(|x| expr_idents_uniq(scopes, x, id, sys_funs));
@@ -755,7 +755,7 @@ fn proceed_fn(fun: MIRFunc, sys_funs: &Vec<String>) -> LIRFunc {
     let args = fun
         .args
         .into_iter()
-        .map(|x| (x.ident, x.ty.into()))
+        .map(|x| (format!("{}_{}", x.ident, fun.node_id), x.ty.into()))
         .collect();
 
     LIRFunc {
@@ -807,22 +807,20 @@ impl From<MIRType> for LIRType {
 #[test]
 fn resolving_parent_ids<'src>() -> Result<(), err::CompileError<'src>> {
     let inp = r#"
-        struct A { a: i64 }
+        fn factorial(n: i64) -> i64 {
+            if n <= 1 {
+                return 1;
+            }
         
-        fn hello(a: i64) -> i64 {
-            println("10");
-            println("{a}");
-            return a;
+            var prev: i64 = factorial(n - 1);
+            return n * prev;
         }
         
-        fn main() -> i64 { 
-            struct B { a: f64, b: i64 }
-            
-            var bgg = B { b: 60, a: 0.0 };
-            
-            hello(bgg.b);
-            var lala = bgg.a;
-            
+        
+        fn main() -> i64 {
+            var x: i64 = factorial(10);
+            println("");
+        
             return 0;
         }
     "#;
@@ -864,10 +862,8 @@ fn sys_funs_test<'src>() -> Result<(), err::CompileError<'src>> {
     let inp = r#"
         fn main() -> i64 {
             var a = 10;
-            if a == 0 {
-                a += 10;
-            } else {
-                a += 20;
+            while a < 30 {
+                a += 5;
             }
             
             println("{a}");
