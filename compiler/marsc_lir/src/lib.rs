@@ -199,7 +199,24 @@ fn global_name(ident: String, id: usize) -> String {
     format!("{ident}_{id}")
 }
 
+fn get_var_decl_id(scopes: &HashMap<usize, MIRScope>, scope_id: &usize, ident: &String) -> usize {
+    let mut scope = scopes.get(scope_id).unwrap();
+
+    loop {
+        if let Some(x) = scope.vars.get(ident) {
+            break;
+        }
+
+        scope = scopes.get(&scope.parent_id).unwrap();
+    }
+
+    scope.node_id
+}
+
 fn make_uniq_names(mir: Mir) -> Mir {
+    
+    let scopes_copy = mir.scopes.clone();  // terrible
+    
     let scopes = mir
         .scopes
         .into_iter()
@@ -208,7 +225,7 @@ fn make_uniq_names(mir: Mir) -> Mir {
                 .instrs
                 .into_iter()
                 .map(|mut instr| {
-                    instr_idents_uniq(&mut instr, &mir.sys_funs, &x.node_id, &x.parent_id);
+                    instr_idents_uniq(&scopes_copy, &mut instr, &mir.sys_funs, &x.node_id, &x.parent_id);
                     instr
                 })
                 .collect();
@@ -236,6 +253,7 @@ fn make_uniq_names(mir: Mir) -> Mir {
 }
 
 fn instr_idents_uniq(
+    scopes: &HashMap<usize, MIRScope>,
     instr: &mut MIRInstruction,
     sys_funs: &Vec<String>,
     id: &usize,
@@ -243,8 +261,8 @@ fn instr_idents_uniq(
 ) {
     match instr {
         MIRInstruction::Assign { lhs, rhs, .. } => {
-            expr_idents_uniq(lhs, id, sys_funs);
-            expr_idents_uniq(rhs, id, sys_funs);
+            expr_idents_uniq(scopes, lhs, id, sys_funs);
+            expr_idents_uniq(scopes, rhs, id, sys_funs);
         }
 
         MIRInstruction::Assignment { ident, expr, .. } => {
@@ -254,18 +272,18 @@ fn instr_idents_uniq(
             if let MIRExpr::Identifier { ident, .. } = right {
                 if left == ident {
                     *left = global_name(left.clone(), *id);
-                    expr_idents_uniq(right, parent_id, sys_funs);
+                    expr_idents_uniq(scopes, right, parent_id, sys_funs);
                     return;
                 }
             }
 
             *left = global_name(left.clone(), *id);
-            expr_idents_uniq(right, id, sys_funs);
+            expr_idents_uniq(scopes, right, id, sys_funs);
         }
 
         MIRInstruction::Return { expr, .. } => {
             if let Some(expr) = expr {
-                expr_idents_uniq(expr, id, sys_funs);
+                expr_idents_uniq(scopes, expr, id, sys_funs);
             }
         }
 
@@ -277,33 +295,39 @@ fn instr_idents_uniq(
             // }
             x.args
                 .iter_mut()
-                .for_each(|x| expr_idents_uniq(x, id, sys_funs));
+                .for_each(|x| expr_idents_uniq(scopes, x, id, sys_funs));
         }
 
         MIRInstruction::GoToBlock { .. } => {}
 
-        MIRInstruction::GoToIfCond { cond, .. } => expr_idents_uniq(cond, id, sys_funs),
+        MIRInstruction::GoToIfCond { cond, .. } => expr_idents_uniq(scopes, cond, id, sys_funs),
 
-        MIRInstruction::GoToWhile { cond, .. } => expr_idents_uniq(cond, id, sys_funs),
+        MIRInstruction::GoToWhile { cond, .. } => expr_idents_uniq(scopes, cond, id, sys_funs),
     }
 }
 
-fn expr_idents_uniq(expr: &mut MIRExpr, id: &usize, sys_funs: &Vec<String>) {
+fn expr_idents_uniq(
+    scopes: &HashMap<usize, MIRScope>,
+    expr: &mut MIRExpr,
+    id: &usize,
+    sys_funs: &Vec<String>
+) {
     match expr {
         MIRExpr::LogicalExpr(x) => {
-            make_uniq_logical_expr(x, id, sys_funs);
+            make_uniq_logical_expr(scopes, x, id, sys_funs);
         }
 
         MIRExpr::MathExpr(x) => {
-            make_uniq_math_expr(x, id, sys_funs);
+            make_uniq_math_expr(scopes, x, id, sys_funs);
         }
 
         MIRExpr::Identifier { ident, .. } => {
+            let id = get_var_decl_id(scopes, id, ident);
             ident.push_str(format!("_{id}").as_str());
         }
 
         MIRExpr::Reference { inner, .. } => {
-            expr_idents_uniq(inner.as_mut(), id, sys_funs);
+            expr_idents_uniq(scopes, inner.as_mut(), id, sys_funs);
         }
 
         MIRExpr::FuncCall(x) => {
@@ -312,83 +336,96 @@ fn expr_idents_uniq(expr: &mut MIRExpr, id: &usize, sys_funs: &Vec<String>) {
             }
             x.args
                 .iter_mut()
-                .for_each(|x| expr_idents_uniq(x, id, sys_funs));
+                .for_each(|x| expr_idents_uniq(scopes, x, id, sys_funs));
         }
 
         MIRExpr::StructInit { .. } => {
             // ident.push_str(format!("_{id}").as_str());
         }
 
-        MIRExpr::CastType { expr, .. } => expr_idents_uniq(expr, id, sys_funs),
+        MIRExpr::CastType { expr, .. } => expr_idents_uniq(scopes, expr, id, sys_funs),
 
         MIRExpr::ArrayDecl { list, .. } => {
             list.iter_mut()
-                .for_each(|x| expr_idents_uniq(x, id, sys_funs));
+                .for_each(|x| expr_idents_uniq(scopes, x, id, sys_funs));
         }
 
         MIRExpr::Dereference { inner, .. } => {
-            expr_idents_uniq(inner, id, sys_funs);
+            expr_idents_uniq(scopes, inner, id, sys_funs);
         }
 
         MIRExpr::StructFieldCall { ident, .. } => {
+            let id = get_var_decl_id(scopes, id, ident);
             ident.push_str(format!("_{id}").as_str());
         }
 
         MIRExpr::MemLookup { ident, indices, .. } => {
             // todo reimpl
+            
+            let id = get_var_decl_id(scopes, id, ident);    // would it broke arrays?
             ident.push_str(format!("_{id}").as_str());
             indices
                 .iter_mut()
-                .for_each(|x| expr_idents_uniq(x, id, sys_funs));
+                .for_each(|x| expr_idents_uniq(scopes, x, &id, sys_funs));
         }
 
         MIRExpr::Literal(_) => {}
     }
 }
 
-fn make_uniq_logical_expr(expr: &mut MIRLogicalExpr, id: &usize, sys_funs: &Vec<String>) {
+fn make_uniq_logical_expr(
+    scopes: &HashMap<usize, MIRScope>,
+    expr: &mut MIRLogicalExpr, 
+    id: &usize, 
+    sys_funs: &Vec<String>
+) {
     match expr {
         MIRLogicalExpr::Comparison { left, right, .. } => {
-            make_uniq_math_expr(left.as_mut(), id, sys_funs);
-            make_uniq_math_expr(right.as_mut(), id, sys_funs);
+            make_uniq_math_expr(scopes, left.as_mut(), id, sys_funs);
+            make_uniq_math_expr(scopes, right.as_mut(), id, sys_funs);
         }
 
         MIRLogicalExpr::Or { left, right, .. } => {
-            make_uniq_logical_expr(left.as_mut(), id, sys_funs);
-            make_uniq_logical_expr(right.as_mut(), id, sys_funs);
+            make_uniq_logical_expr(scopes, left.as_mut(), id, sys_funs);
+            make_uniq_logical_expr(scopes, right.as_mut(), id, sys_funs);
         }
 
         MIRLogicalExpr::And { left, right, .. } => {
-            make_uniq_logical_expr(left.as_mut(), id, sys_funs);
-            make_uniq_logical_expr(right.as_mut(), id, sys_funs);
+            make_uniq_logical_expr(scopes, left.as_mut(), id, sys_funs);
+            make_uniq_logical_expr(scopes, right.as_mut(), id, sys_funs);
         }
 
         MIRLogicalExpr::Not { inner, .. } => {
-            make_uniq_logical_expr(inner.as_mut(), id, sys_funs);
+            make_uniq_logical_expr(scopes, inner.as_mut(), id, sys_funs);
         }
 
-        MIRLogicalExpr::Primary(x) => expr_idents_uniq(x.as_mut(), id, sys_funs),
+        MIRLogicalExpr::Primary(x) => expr_idents_uniq(scopes, x.as_mut(), id, sys_funs),
     }
 }
 
-fn make_uniq_math_expr(math: &mut MIRMathExpr, id: &usize, sys_funs: &Vec<String>) {
+fn make_uniq_math_expr(
+    scopes: &HashMap<usize, MIRScope>,
+    math: &mut MIRMathExpr,
+    id: &usize,
+    sys_funs: &Vec<String>
+) {
     match math {
         MIRMathExpr::Additive { left, right, .. } => {
-            make_uniq_math_expr(left.as_mut(), id, sys_funs);
-            make_uniq_math_expr(right.as_mut(), id, sys_funs);
+            make_uniq_math_expr(scopes, left.as_mut(), id, sys_funs);
+            make_uniq_math_expr(scopes, right.as_mut(), id, sys_funs);
         }
 
         MIRMathExpr::Multiplicative { left, right, .. } => {
-            make_uniq_math_expr(left.as_mut(), id, sys_funs);
-            make_uniq_math_expr(right.as_mut(), id, sys_funs);
+            make_uniq_math_expr(scopes, left.as_mut(), id, sys_funs);
+            make_uniq_math_expr(scopes, right.as_mut(), id, sys_funs);
         }
 
         MIRMathExpr::Power { base, exp, .. } => {
-            make_uniq_math_expr(base.as_mut(), id, sys_funs);
-            make_uniq_math_expr(exp.as_mut(), id, sys_funs);
+            make_uniq_math_expr(scopes, base.as_mut(), id, sys_funs);
+            make_uniq_math_expr(scopes, exp.as_mut(), id, sys_funs);
         }
 
-        MIRMathExpr::Primary(x) => expr_idents_uniq(x, id, sys_funs),
+        MIRMathExpr::Primary(x) => expr_idents_uniq(scopes, x, id, sys_funs),
     }
 }
 
@@ -826,11 +863,14 @@ fn inner_block_test<'src>() -> Result<(), err::CompileError<'src>> {
 fn sys_funs_test<'src>() -> Result<(), err::CompileError<'src>> {
     let inp = r#"
         fn main() -> i64 {
-            var a = 0;
-            while a < 10 {
-                a += 1;
+            var a = 10;
+            if a == 0 {
+                a += 10;
+            } else {
+                a += 20;
             }
             
+            println("{a}");
             return 0;
         }
     "#;

@@ -480,7 +480,7 @@ fn scope_push_while_loop<'src>(
             funs: HashMap::new(),
             vars: HashMap::new(),
             instrs: vec![],
-            scope_type: ScopeType::Block,
+            scope_type: ScopeType::While,
         },
     );
     base_block_proceed(node_id, mir, body, ret_ty, true)?;
@@ -532,7 +532,7 @@ fn scope_push_if_else<'src>(
             funs: HashMap::new(),
             vars: HashMap::new(),
             instrs: vec![],
-            scope_type: ScopeType::Block,
+            scope_type: ScopeType::IfElse,
         },
     );
     base_block_proceed(node_id, mir, then_block, ret_ty.clone(), in_loop)?;
@@ -547,7 +547,7 @@ fn scope_push_if_else<'src>(
                 funs: HashMap::new(),
                 vars: HashMap::new(),
                 instrs: vec![],
-                scope_type: ScopeType::Block,
+                scope_type: ScopeType::IfElse,
             },
         );
         base_block_proceed(else_id.unwrap(), mir, bl, ret_ty, in_loop)?;

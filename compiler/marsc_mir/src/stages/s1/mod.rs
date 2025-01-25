@@ -62,6 +62,8 @@ pub struct Variable<'src> {
 pub enum ScopeType {
     Function,
     Block,
+    While, 
+    IfElse,
     Global,
 }
 
