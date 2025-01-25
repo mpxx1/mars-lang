@@ -369,11 +369,12 @@ fn expr_idents_uniq(
         MIRExpr::MemLookup { ident, indices, .. } => {
             // todo reimpl
             
-            // let id = get_var_decl_id(scopes, id, ident);    // would it broke arrays?
+            let first_id = &id;
+            let id = get_var_decl_id(scopes, id, ident);    // would it broke arrays?
             ident.push_str(format!("_{id}").as_str());
             indices
                 .iter_mut()
-                .for_each(|x| expr_idents_uniq(scopes, x, &id, sys_funs));
+                .for_each(|x| expr_idents_uniq(scopes, x, &first_id, sys_funs));
         }
 
         MIRExpr::Literal(_) => {}
@@ -899,36 +900,36 @@ fn if_test<'src>() -> Result<(), err::CompileError<'src>> {
 #[test]
 fn bench_3<'src>() -> Result<(), err::CompileError<'src>> {
     let inp = r#"
-        fn sieve_of_eratosthenes(n: i64) -> Vec<i64> {
-            var primes: Vec<bool> = [];
-            
-            vec_push(&primes, false);
-            vec_push(&primes, false);
-            
-            var i = 2;
-            while i ** 2 <= n {
-            
-                if primes[i] == true {
-                
+        fn sieveOfEratosthenes(n: i64) -> Vec<i64> {
+            var primes: Vec<i64> = [];
+            var i = 0;
+            while i <= n {
+                vec_push(&primes, 1);
+                i += 1;
+            }
+        
+            primes[0] = 0;
+            primes[1] = 0;
+        
+            i = 2;
+            while i * i <= n {
+                if primes[i] == 1 {
                     var j = i * i;
                     while j <= n {
-                    
-                        primes[j] = false;
+                        var k = j + 1;
+                        primes[j] = 0;
                         j += i;
                     }
                 }
-                
                 i += 1;
             }
         
             var result: Vec<i64> = [];
             var k: i64 = 0;
             while k <= n {
-            
-                if primes[k] == true {
+                if primes[k] == 1 {
                     vec_push(&result, k);
                 }
-                
                 k += 1;
             }
         
@@ -936,14 +937,16 @@ fn bench_3<'src>() -> Result<(), err::CompileError<'src>> {
         }
         
         fn main() -> i64 {
-            var primes: Vec<i64> = sieve_of_eratosthenes(50);
-            
+            var primes: Vec<i64> = sieveOfEratosthenes(50);
+        
             var i = 0;
             while i < len(&primes) {
-                var out = primes[i];
-                println("{out}");
+                var x = primes[i];
+                
+                println("{x}");
+                i += 1;
             }
-            
+        
             return 0;
         }
     "#;
