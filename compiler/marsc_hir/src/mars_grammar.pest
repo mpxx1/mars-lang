@@ -101,10 +101,6 @@ assign_div_floor = { "//=" }
 assign_pow       = { "**=" }
 
 expr = _{
-//    cast_type   // can be in math
-//  | func_call   // can be in math
-//  | mem_lookup  // can be in math
-
     reference
   | array_decl
   | struct_init
@@ -169,5 +165,4 @@ primary_math_expr    = { dereference | func_call | mem_lookup | cast_type | stru
 loop       = _{ while_loop }
 while_loop =  { "while" ~ condition ~ "{" ~ block ~ "}" }
 
-capacity   =  { (ASCII_DIGIT)+ }
 vec_type   =  { "Vec" ~ "<" ~ type ~ ">" }

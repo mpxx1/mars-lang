@@ -401,16 +401,16 @@ impl<'src> From<Mir<'src>> for Lir<'src> {
                 structs.insert(global_name(ident, id), struct_proto.into());
             }
 
-            let mut fn_name = "".to_owned();
+            let mut _fn_name = "".to_owned();
             for (ident, fun) in scope.funs {
                 
-                fn_name = if mir.sys_funs.contains(&ident) || ident == "main" {
+                _fn_name = if mir.sys_funs.contains(&ident) || ident == "main" {
                     ident                    
                 } else { 
                     global_name(ident, fun.node_id)
                 };
                 
-                functions.insert(fn_name, proceed_fn(fun, &mir.sys_funs));
+                functions.insert(_fn_name, proceed_fn(fun, &mir.sys_funs));
             }
 
             tmp.insert(id, scope.instrs);
@@ -713,26 +713,10 @@ fn proceed_fn(fun: MIRFunc, sys_funs: &Vec<String>) -> LIRFunc {
         }
     }
     
-    fn get_ident_name(s: String, id: usize, fun_name: &String, sys_funs: &Vec<String>) -> String {
-        if sys_funs.contains(fun_name) {
-            s
-        } else {
-            global_name(s, id)
-        }
-    }
-    
-    // todo !
     let args = fun
         .args
         .into_iter()
         .map(|x| (x.ident, x.ty.into()))
-        // .map(|x| (get_ident_name(
-        //     x.ident,
-        //     fun.node_id,
-        //     &fun.ident, 
-        //     sys_funs),
-        //     x.ty.into())
-        // )
         .collect();
     
     LIRFunc {
