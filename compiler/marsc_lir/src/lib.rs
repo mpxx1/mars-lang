@@ -824,10 +824,11 @@ fn inner_block_test<'src>() -> Result<(), err::CompileError<'src>> {
 fn sys_funs_test<'src>() -> Result<(), err::CompileError<'src>> { 
     let inp = r#"
         fn main() -> i64 {
-            var vec: Vec<i64> = [];
-            var ref = &vec;
-            var cap = capacity(&vec);
-            var x = capacity(ref);
+            var a = 0;
+            while a < 10 {
+                a += 1;
+            }
+            
             return 0;
         }
     "#;
