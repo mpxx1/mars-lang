@@ -200,11 +200,18 @@ fn global_name(ident: String, id: usize) -> String {
 }
 
 fn get_var_decl_id(scopes: &HashMap<usize, MIRScope>, scope_id: &usize, ident: &String) -> usize {
+    
+    // dbg!(&scopes);
+    
     let mut scope = scopes.get(scope_id).unwrap();
 
     loop {
         if let Some(x) = scope.vars.get(ident) {
             break;
+        }
+        
+        if scope.node_id == scope.parent_id {
+            panic!("Something went wrong");
         }
 
         scope = scopes.get(&scope.parent_id).unwrap();
@@ -362,7 +369,7 @@ fn expr_idents_uniq(
         MIRExpr::MemLookup { ident, indices, .. } => {
             // todo reimpl
             
-            let id = get_var_decl_id(scopes, id, ident);    // would it broke arrays?
+            // let id = get_var_decl_id(scopes, id, ident);    // would it broke arrays?
             ident.push_str(format!("_{id}").as_str());
             indices
                 .iter_mut()
@@ -881,53 +888,72 @@ fn sys_funs_test<'src>() -> Result<(), err::CompileError<'src>> {
 }
 
 #[test]
-fn q_sort<'src>() -> Result<(), err::CompileError<'src>> {
-    // var pivot = *( arr[0] );        /*  todo  ->  (*arr)[0]  */
-    let inp = r#"
-    fn quick_sort(arr: &Vec<i64>) -> Vec<i64> {
-        var len = len(arr);
-        if len <= 1 {
-            return *arr;
-        }
+fn if_test<'src>() -> Result<(), err::CompileError<'src>> { 
     
-        var pivot = *arr[0];   /* here */
-        var left: Vec<i64> = [];
-        var right: Vec<i64> = [];
+    let inp = r#""#;
     
-        var i: i64 = 1;
-        while i < l {
-            if arr[i] < pivot {
-                push(left, arr[i]);
-            } else {
-                push(right, arr[i]);
-            }
-        }
-    
-        var result = quick_sort(&left);
-        push(result, pivot);
-        var rightRes = quick_sort(&right);
-    
-        i = 0;
-        while i < len(rightRes) {
-            push(result, rightRes[i]);
-        }
-    
-        return result;
-    }
-    
-    fn main() -> void {
-        var arr: Vec<i64> = [3, 6, 8, 10, 1, 2, 1];
-        var sorted = quick_sort(&arr);
-    }
-    "#;
+    Ok(())
+}
 
+
+#[test]
+fn bench_3<'src>() -> Result<(), err::CompileError<'src>> {
+    let inp = r#"
+        fn sieve_of_eratosthenes(n: i64) -> Vec<i64> {
+            var primes: Vec<bool> = [];
+            
+            vec_push(&primes, false);
+            vec_push(&primes, false);
+            
+            var i = 2;
+            while i ** 2 <= n {
+            
+                if primes[i] == true {
+                
+                    var j = i * i;
+                    while j <= n {
+                    
+                        primes[j] = false;
+                        j += i;
+                    }
+                }
+                
+                i += 1;
+            }
+        
+            var result: Vec<i64> = [];
+            var k: i64 = 0;
+            while k <= n {
+            
+                if primes[k] == true {
+                    vec_push(&result, k);
+                }
+                
+                k += 1;
+            }
+        
+            return result;
+        }
+        
+        fn main() -> i64 {
+            var primes: Vec<i64> = sieve_of_eratosthenes(50);
+            
+            var i = 0;
+            while i < len(&primes) {
+                var out = primes[i];
+                println("{out}");
+            }
+            
+            return 0;
+        }
+    "#;
+    
     let hir = hir::compile_hir(&inp)?;
     let mir = hir.compile_mir()?;
-    // let lir = mir.compile_lir()?;
-
-    // println!("{:#?}", lir);
-    println!("{:#?}", mir);
-    // println!("{:#?}", hir.ast.program);
-
+    let lir = mir.compile_lir()?;
+    
+    println!("{lir:#?}");
+    
+    
     Ok(())
 }

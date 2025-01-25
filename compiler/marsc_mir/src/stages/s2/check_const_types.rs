@@ -48,7 +48,8 @@ fn check_inner<'src>(
 
         MIRExpr::MemLookup { ident, indices, .. } => {
             let steps_in = indices.len();
-            let mut ty = vars.get(ident).unwrap().ty.clone();
+            let mut ty = get_ty_from_parent(mir, scope_id, ident);
+            dbg!(&ty);
 
             for _ in 0..steps_in {
                 match ty {
@@ -70,7 +71,7 @@ fn check_inner<'src>(
         MIRExpr::StructFieldCall {
             ident: _, field: _, ..
         } => {
-            // todo unreacheble
+            // unreacheble
         }
 
         _ => (),
@@ -91,6 +92,9 @@ fn get_ty_from_parent(mir: &Mir, scope_id: &usize, ident: &String) -> MIRType {
 
         scope = mir.scopes.get(&scope.parent_id).unwrap();
 
+        if scope.node_id == scope.parent_id {
+            panic!("Somethin went wrong");
+        }
     }
 
     _ty

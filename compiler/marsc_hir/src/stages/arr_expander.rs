@@ -3,11 +3,20 @@ use ast::Block;
 use ast::Expr;
 use ast::ProgStmt;
 use ast::Stmt::{self, *};
+use ast::Type;
 use ast::Type::*;
 
 pub(crate) fn arr_expand(mut ast: Ast) -> Ast {
     fn process_stmt(stmt: &mut Stmt<'_>) {
         match stmt {
+            Assignment {  
+                ty: Type::Vec(x), 
+                expr, 
+                ..
+            } => {
+                
+            }
+            
             Assignment {
                 ty: Array(_, len),
                 expr,
