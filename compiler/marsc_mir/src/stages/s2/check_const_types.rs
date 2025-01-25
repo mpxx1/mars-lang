@@ -1,5 +1,3 @@
-use core::panic;
-
 use err::CompileError;
 
 use crate::stages::s2::*;
@@ -82,19 +80,20 @@ fn check_inner<'src>(
 }
 
 fn get_ty_from_parent(mir: &Mir, scope_id: &usize, ident: &String) -> MIRType {
-    let mut ty = MIRType::Any;
+    let mut _ty = MIRType::Any;
     let mut scope = mir.scopes.get(scope_id).unwrap();
 
     loop {
         if let Some(x) = scope.vars.get(ident) {
-            ty = x.ty.clone();
+            _ty = x.ty.clone();
             break;
         }
 
         scope = mir.scopes.get(&scope.parent_id).unwrap();
+
     }
 
-    ty
+    _ty
 }
 
 #[test]

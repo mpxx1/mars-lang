@@ -315,7 +315,7 @@ fn expr_idents_uniq(expr: &mut MIRExpr, id: &usize, sys_funs: &Vec<String>) {
                 .for_each(|x| expr_idents_uniq(x, id, sys_funs));
         }
 
-        MIRExpr::StructInit { ident, .. } => {
+        MIRExpr::StructInit { .. } => {
             // ident.push_str(format!("_{id}").as_str());
         }
 
