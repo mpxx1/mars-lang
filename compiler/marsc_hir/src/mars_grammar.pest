@@ -74,6 +74,7 @@ void_type   = { "void" }
 custom_type = { identifier }
 array_type  = { "[" ~ type ~ ";" ~ array_len ~ "]" }
 ref_type    = { "&" ~ type }
+vec_type   =  { "Vec" ~ "<" ~ type ~ ">" }
 
 func_decl   = { "fn" ~ identifier ~ "(" ~ args_decl ~ ")" ~ "->" ~ return_type ~ "{" ~ block ~ "}" }
 return_type = { type }
@@ -101,10 +102,6 @@ assign_div_floor = { "//=" }
 assign_pow       = { "**=" }
 
 expr = _{
-//    cast_type   // can be in math
-//  | func_call   // can be in math
-//  | mem_lookup  // can be in math
-
     reference
   | array_decl
   | struct_init
@@ -114,7 +111,7 @@ expr = _{
 return = { "return" ~ return_body ~ ";" }
 return_body = { ( expr )? }
 
-ref_inner   = _{ reference | dereference | mem_lookup | struct_field_call | struct_init | identifier | "(" ~ ref_inner ~ ")" }
+ref_inner   = _{ reference | dereference | mem_lookup | struct_field_call | identifier | "(" ~ ref_inner ~ ")" }
 reference   =  { "&" ~ ref_inner }
 dereference =  { "*" ~ ref_inner }
 
@@ -133,6 +130,9 @@ if_else   = {
     "if" ~ condition ~ "{" ~ block ~ "}" ~
     ("else" ~ "{" ~ block ~ "}")?
 }
+
+loop       = _{ while_loop }
+while_loop =  { "while" ~ condition ~ "{" ~ block ~ "}" }
 
 or_op        = { "||" }
 and_op       = { "&&" }
@@ -164,10 +164,3 @@ additive_expr        = { multiplicative_expr ~ ((add_op | sub_op) ~ multiplicati
 multiplicative_expr  = { power_expr ~ ((div_floor_op | mul_op | div_op | mod_op) ~ power_expr)* }
 power_expr           = { primary_math_expr ~ (pow_op ~ primary_math_expr)* }
 primary_math_expr    = { dereference | func_call | mem_lookup | cast_type | struct_field_call | identifier | literal | "(" ~ math_expr ~ ")" }
-
-
-loop       = _{ while_loop }
-while_loop =  { "while" ~ condition ~ "{" ~ block ~ "}" }
-
-capacity   =  { (ASCII_DIGIT)+ }
-vec_type   =  { "Vec" ~ "<" ~ type ~ ">" }
