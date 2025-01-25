@@ -139,7 +139,7 @@ pub fn main() {
     
     println!("{:#?}", lir);
 
-    let ir = codegen(&lir);
+    let ir = codegen(&lir, output.as_str());
     
     println!("{}", ir);
 }

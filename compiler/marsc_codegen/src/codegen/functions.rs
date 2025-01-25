@@ -2,7 +2,6 @@ use crate::codegen::codegen::Codegen;
 use inkwell::types::{BasicMetadataTypeEnum, BasicType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue};
 use lir::{LIRFunc, LIRFuncCall};
-use std::fmt::Debug;
 
 impl<'ctx, 'src> Codegen<'ctx, 'src>
 where
@@ -96,7 +95,7 @@ where
 
         let call_site = self.builder.build_call(function, &args, "call");
 
-        if let Some(_) = function.get_type().get_return_type() {
+        if function.get_type().get_return_type().is_some() {
             let value = call_site
                 .unwrap().try_as_basic_value()
                 .left()

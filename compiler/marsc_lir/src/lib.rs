@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::process::exit;
 
 pub trait ToLir<'src> {
     fn compile_lir(self) -> Result<Lir<'src>, err::CompileError<'src>>;
@@ -388,7 +389,9 @@ fn make_uniq_math_expr(math: &mut MIRMathExpr, id: &usize, sys_funs: &Vec<String
 impl<'src> From<Mir<'src>> for Lir<'src> {
     fn from(mir: Mir<'src>) -> Self {
         
-        let mir = make_uniq_names(mir);
+        // let mir = make_uniq_names(mir);
+        // 
+        // println!("{:#?}", mir);
         
         let mut structs = HashMap::new();
         let mut functions = HashMap::new();
@@ -401,16 +404,16 @@ impl<'src> From<Mir<'src>> for Lir<'src> {
                 structs.insert(global_name(ident, id), struct_proto.into());
             }
 
-            let mut _fn_name = "".to_owned();
+            let mut fn_name = "".to_owned();
             for (ident, fun) in scope.funs {
                 
-                _fn_name = if mir.sys_funs.contains(&ident) || ident == "main" {
+                fn_name = if mir.sys_funs.contains(&ident) || ident == "main" {
                     ident                    
                 } else { 
                     global_name(ident, fun.node_id)
                 };
                 
-                functions.insert(_fn_name, proceed_fn(fun, &mir.sys_funs));
+                functions.insert(fn_name, proceed_fn(fun, &mir.sys_funs));
             }
 
             tmp.insert(id, scope.instrs);

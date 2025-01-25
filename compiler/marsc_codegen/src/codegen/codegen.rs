@@ -7,7 +7,9 @@ use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::AddressSpace;
 use lir::{LIRExpr, LIRFunc, LIRInstruction, LIRLiteral, LIRMathExpr, LIRType, Lir};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::fmt::format;
+use std::{env, fs};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Debug)]
@@ -18,6 +20,11 @@ pub(super) enum VariableData<'ctx> {
         pointer: PointerValue<'ctx>,
     },
     Array {
+        lir_type: LIRType,
+        llvm_type: BasicTypeEnum<'ctx>,
+        pointer: PointerValue<'ctx>,
+    },
+    Vector {
         lir_type: LIRType,
         llvm_type: BasicTypeEnum<'ctx>,
         pointer: PointerValue<'ctx>,
@@ -106,7 +113,13 @@ where
                     llvm_type,
                 });
             },
-            LIRType::Vec(_) => todo!(),
+            LIRType::Vec(_) => {
+                self.var_table.insert(ident, VariableData::Vector {
+                    pointer: pointer_value,
+                    lir_type,
+                    llvm_type,
+                });
+            },
             LIRType::Void => unreachable!(),
             LIRType::Any => unreachable!(),
         }
@@ -200,36 +213,54 @@ where
                 ty,
                 expr,
             } => {
-                let variable_type = self.codegen_type(ty.clone());
-                match variable_type {
-                    BasicTypeEnum::ArrayType(_) => {
-                        self.codegen_array_assignment(ident, ty.clone(), variable_type, expr);
-                    }
-                    BasicTypeEnum::IntType(_)
-                    | BasicTypeEnum::FloatType(_)
-                    | BasicTypeEnum::PointerType(_) => {
-                        let variable = self.builder.build_alloca(variable_type, ident).unwrap();
+                let llvm_type = self.codegen_type(ty.clone());
+                match ty {
+                    LIRType::I64
+                    | LIRType::F64
+                    | LIRType::Str
+                    | LIRType::Char
+                    | LIRType::Bool
+                    | LIRType::Ref(_) => {
+                        let variable = self.builder.build_alloca(llvm_type, ident).unwrap();
 
                         let value = self.codegen_expr(expr);
 
                         self.builder.build_store(variable, value).unwrap();
 
-                        self.store_variable(ident, variable, ty.clone(), variable_type);
-                    },
-                    BasicTypeEnum::StructType(_) => {
-                        self.codegen_struct_assignment(ident, ty.clone(), variable_type, expr);
-                    },
-                    BasicTypeEnum::VectorType(_) => todo!(),
+                        self.store_variable(ident, variable, ty.clone(), llvm_type);
+                    }
+                    LIRType::StructType(_) => {
+                        self.codegen_struct_assignment(ident, ty.clone(), llvm_type, expr);
+                    }
+                    LIRType::Array(_, _) => {
+                        self.codegen_array_assignment(ident, ty.clone(), llvm_type, expr);
+                    }
+                    LIRType::Vec(_) => {
+                        self.codegen_vec_assignment(ident, ty.clone(), llvm_type, expr);
+                    }
+                    LIRType::Any => unreachable!(),
+                    LIRType::Void => unreachable!(),
                 }
             }
             LIRInstruction::Assign { lhs, rhs, .. } => {
                 match lhs { // TODO array redeclaration
                     LIRExpr::MemLookup { base, indices, .. } => {
-                        let rhs_value = self.codegen_expr(rhs);
-                        self.codegen_set_array_element(base, indices, rhs_value)
-                            .unwrap();
+                        let variable_data = self.get_variable(base);
+                        match variable_data {
+                            VariableData::Primitive { .. } => unreachable!(),
+                            VariableData::Array { .. } => {
+                                let rhs_value = self.codegen_expr(rhs);
+                                self.codegen_set_array_element(base, indices, rhs_value).unwrap();
+                            }
+                            VariableData::Vector { lir_type, .. } => {
+                                let rhs_value = self.codegen_expr(rhs);
+                                self.codegen_set_vec_element(base, indices, rhs_value);
+                            }
+                            VariableData::Struct { .. } => {}
+                        }
+                        
                     }
-                    LIRExpr::StructInit { struct_name, fields } => {
+                    LIRExpr::StructInit { struct_name, fields } => { // TODO
                         let variable = self.codegen_identifier_pointer(struct_name);
 
                         let value = self.codegen_expr(rhs);
@@ -242,46 +273,16 @@ where
             LIRInstruction::FuncCall(func_call) => {
                 self.codegen_func_call(func_call);
             },
-            LIRInstruction::GoToBlock { block_id } => self.codegen_block_by_id(block_id, function_value),
-            LIRInstruction::GoToIfCond { cond, then_block, else_block } => {
-                let cond_value = self.codegen_expr(cond).into_int_value();
-
-                let then_bb = self.context.append_basic_block(function_value, "then");
-                let else_bb = if else_block.is_some() {
-                    Some(self.context.append_basic_block(function_value, "else"))
-                } else {
-                    None
-                };
-                let merge_bb = self.context.append_basic_block(function_value, "merge");
-
-                if let Some(else_bb) = else_bb {
-                    self.builder.build_conditional_branch(cond_value, then_bb, else_bb).unwrap();
-                } else {
-                    self.builder.build_conditional_branch(cond_value, then_bb, merge_bb).unwrap();
-                }
-
-                self.builder.position_at_end(then_bb);
-                self.codegen_volatile_mark();
-                self.codegen_block_by_id(then_block, function_value);
-                self.builder.build_unconditional_branch(merge_bb).unwrap();
-
-                if let Some(else_bb) = else_bb {
-                    self.builder.position_at_end(else_bb);
-                    self.codegen_volatile_mark();
-                    self.codegen_block_by_id(&else_block.unwrap(), function_value);
-                    self.builder.build_unconditional_branch(merge_bb).unwrap();
-                }
-
-                self.builder.position_at_end(merge_bb);
+            LIRInstruction::GoToBlock { block_id } => {
+                self.codegen_block_by_id(block_id, function_value);
             },
-            LIRInstruction::GoToWhile { .. } => unimplemented!(),
+            LIRInstruction::GoToIfCond { cond, then_block, else_block } => {
+                self.codegen_conditional(cond, *then_block, *else_block, function_value);
+            },
+            LIRInstruction::GoToWhile { cond, loop_block } => {
+                self.codegen_while(cond, *loop_block, function_value);
+            },
         }
-    }
-
-    fn codegen_volatile_mark(&self) {
-        let alloca = self.builder.build_alloca(self.context.i64_type(), "block_mark").unwrap();
-        let const_value = self.context.i64_type().const_int(0, false);
-        self.builder.build_store(alloca, const_value).unwrap().set_volatile(true).unwrap()
     }
 
     pub(crate) fn codegen_expr(&self, expr: &'ctx LIRExpr) -> BasicValueEnum<'ctx>  {
@@ -296,7 +297,17 @@ where
                 self.codegen_array_declaration(list)
             },
             LIRExpr::MemLookup { base, indices, .. } => {
-                self.codegen_get_array_element(base, indices).unwrap()
+                let variable_data = self.get_variable(base);
+                match variable_data {
+                    VariableData::Primitive { .. } => unreachable!(),
+                    VariableData::Struct { .. } => unreachable!(),
+                    VariableData::Array { .. } => {
+                        self.codegen_get_array_element(base, indices).unwrap()
+                    }
+                    VariableData::Vector { .. } => {
+                        self.codegen_get_vec_element(base, variable_data, indices)
+                    }
+                }
             },
             LIRExpr::StructFieldCall { struct_name, field_index, .. } => {
                 self.codegen_get_struct_field(struct_name, *field_index)
@@ -351,6 +362,13 @@ where
                     *llvm_type,
                 )
             }
+            VariableData::Vector { pointer, lir_type, llvm_type } => {
+                (
+                    self.builder.build_load(*llvm_type, *pointer, ident).unwrap(),
+                    lir_type.clone(),
+                    *llvm_type,
+                )
+            }
         }
     }
 
@@ -363,8 +381,11 @@ where
             VariableData::Array { pointer, lir_type, llvm_type } => {
                 self.builder.build_load(*llvm_type, *pointer, ident).unwrap()
             }
-            VariableData::Struct { .. } => {
-                todo!()
+            VariableData::Struct { pointer, lir_type, llvm_type } => {
+                self.builder.build_load(*llvm_type, *pointer, ident).unwrap()
+            },
+            VariableData::Vector { pointer, lir_type, llvm_type } => {
+                self.builder.build_load(*llvm_type, *pointer, ident).unwrap()
             }
         }
     }
@@ -380,6 +401,9 @@ where
             }
             VariableData::Struct { pointer, .. } => {
                 *pointer
+            },
+            VariableData::Vector { pointer, .. } => {
+                *pointer
             }
         }
     }
@@ -387,7 +411,7 @@ where
     pub(crate) fn codegen_literal(&self, literal: &'ctx LIRLiteral) -> BasicValueEnum<'ctx> {
         match literal {
             LIRLiteral::Int(value) => {
-                self.context.i64_type().const_int(*value as u64, false).into()
+                self.context.i64_type().const_int(*value as u64, true).into()
             },
             LIRLiteral::Float(value) => {
                 self.context.f64_type().const_float(*value).into()
@@ -400,10 +424,10 @@ where
                 value.as_basic_value_enum()
             },
             LIRLiteral::Char(value) => {
-                self.context.i8_type().const_int(*value as u64, false).into()
+                self.context.i8_type().const_int(*value as u64, true).into()
             },
             LIRLiteral::Bool(value) => {
-                self.context.bool_type().const_int(*value as u64, false).into()
+                self.context.bool_type().const_int(*value as u64, true).into()
             },
             LIRLiteral::NullRef => {
                 self.context.ptr_type(AddressSpace::default()).const_null().into()
@@ -445,9 +469,15 @@ where
             LIRType::Vec(ty) => {
                 match self.codegen_type(*ty) {
                     BasicTypeEnum::ArrayType(_) => unreachable!(),
-                    BasicTypeEnum::FloatType(ty) => todo!(),
-                    BasicTypeEnum::IntType(ty) => todo!(),
-                    BasicTypeEnum::PointerType(ty) => todo!(),
+                    BasicTypeEnum::FloatType(ty) => {
+                        self.context.ptr_type(AddressSpace::default()).as_basic_type_enum()
+                    },
+                    BasicTypeEnum::IntType(ty) => {
+                        self.context.ptr_type(AddressSpace::default()).as_basic_type_enum()
+                    },
+                    BasicTypeEnum::PointerType(ty) => {
+                        self.context.ptr_type(AddressSpace::default()).as_basic_type_enum()
+                    },
                     BasicTypeEnum::StructType(_) => unreachable!(),
                     BasicTypeEnum::VectorType(_) => unreachable!(),
                 }
@@ -485,7 +515,7 @@ where
 
 }
 
-pub fn codegen<'src>(lir: &'src Lir) -> String {
+pub fn codegen<'src>(lir: &'src Lir, output: &str) -> String {
 
     let context = Context::create();
     let module = context.create_module("test_module");
@@ -502,20 +532,34 @@ pub fn codegen<'src>(lir: &'src Lir) -> String {
 
     println!("{}", result);
 
-    let object_file = "/users/nzaguta/RustroverProjects/mars-lang/examples/test.o";
-    let std_libio = "/users/nzaguta/mars/std/libio.so";
+    let output_filename = PathBuf::from(output);
+    let object_filename = to_object_file_path(output);
 
-    codegen.codegen_bytecode(&PathBuf::from(object_file)).unwrap();
+    codegen.codegen_bytecode(&object_filename).unwrap();
+    
+    let home_path = PathBuf::from(env::var("HOME").unwrap());
 
     let status = Command::new("clang")
-        .args([std_libio, object_file])
-        .args(["-o", "/users/nzaguta/RustroverProjects/mars-lang/examples/test"])
+        .arg(home_path.join("mars/std/libmarsio.dylib"))
+        .arg(home_path.join("mars/std/libmarsvector.dylib"))
+        .arg(object_filename.to_str().unwrap())
+        .args(["-o", output_filename.to_str().unwrap()])
         .status()
         .expect("Failed to invoke C compiler and build executable file");
+    
+    fs::remove_file(object_filename).expect("Cannot delete object file");
 
     if !status.success() {
         panic!("Status is not success");
     }
 
     result
+}
+
+fn to_object_file_path(file_path: &str) -> PathBuf {
+    let path = Path::new(file_path);
+    let mut new_path = path.to_path_buf();
+    new_path.set_extension("o");
+    
+    new_path
 }

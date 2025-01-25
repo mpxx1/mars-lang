@@ -15,12 +15,12 @@ where
             .collect();
 
         let struct_type = self.context.struct_type(&field_types, false);
-        
+
         self.store_struct_type(struct_decl.name.as_str(), struct_type);
 
         struct_type.set_body(&field_types, false);
     }
-    
+
     pub(crate) fn codegen_struct_init(
         &self,
         ident: &'ctx str,
@@ -28,21 +28,21 @@ where
     ) -> BasicValueEnum<'ctx> {
         let struct_type = self.get_struct_type(ident.to_owned());
         let pointer = self.builder.build_alloca(struct_type, ident).unwrap();
-        
+
         for (i, expr) in fields.iter().enumerate()
         {
             let field_value = self.codegen_expr(expr);
-            
+
             let field_ptr = self.builder.build_struct_gep(
                 struct_type,
                 pointer,
                 i as u32,
                 "field_ptr")
                 .unwrap();
-            
+
             self.builder.build_store(field_ptr, field_value).unwrap();
         }
-        
+
         pointer.as_basic_value_enum()
     }
 
@@ -67,12 +67,12 @@ where
             _ => unreachable!("{:#?}", value),
         }
     }
-    
+
     pub(in crate::codegen) fn codegen_get_struct_field(
         &self,
         ident: &'ctx str,
         field_index: usize,
-    ) -> BasicValueEnum<'ctx> 
+    ) -> BasicValueEnum<'ctx>
     {
         let struct_data = self.get_variable(ident);
         if let VariableData::Struct {
@@ -81,7 +81,7 @@ where
             llvm_type
         } = struct_data {
             let struct_type = llvm_type.into_struct_type();
-            
+
             let field_ptr = self.builder.build_struct_gep(
                 struct_type,
                 *pointer,

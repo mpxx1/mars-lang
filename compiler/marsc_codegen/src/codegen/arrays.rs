@@ -1,6 +1,6 @@
 use crate::codegen::codegen::{Codegen, VariableData};
 use err::CompileError;
-use inkwell::types::{BasicTypeEnum};
+use inkwell::types::{BasicType, BasicTypeEnum};
 use inkwell::values::{BasicValue, BasicValueEnum};
 use lir::{LIRExpr, LIRType};
 
@@ -12,17 +12,22 @@ where
         &self,
         list: &'ctx Vec<LIRExpr>,
     ) -> BasicValueEnum<'ctx> {
-        let element_type = self.context.i64_type();
+        let elements_values: Vec<BasicValueEnum<'ctx>> = list.iter()
+            .map(|element_expr| {
+                self.codegen_expr(element_expr)
+            })
+            .collect();
+        
+        let element_type = elements_values.first().unwrap().get_type();
         let array_type = element_type.array_type(list.len() as u32);
         let array_alloca = self.builder.build_alloca(array_type, "array").unwrap();
 
-        for (i, item) in list.iter().enumerate() {
-            let value = self.codegen_expr(item);
-            let index = self.context.i32_type().const_int(i as u64, false);
+        for (i, element_value) in elements_values.iter().enumerate() {
+            let index = self.context.i32_type().const_int(i as u64, true);
             let element_ptr = unsafe {
                 self.builder.build_gep(array_type, array_alloca, &[index], "element_ptr").unwrap()
             };
-            self.builder.build_store(element_ptr, value).unwrap();
+            self.builder.build_store(element_ptr, *element_value).unwrap();
         };
 
         array_alloca.as_basic_value_enum()
@@ -54,7 +59,7 @@ where
                     Self::convert_negative_array_index(
                         index_value.get_sign_extended_constant().unwrap(),
                         array_type.len()),
-                    false,
+                    true,
                 );
             }
 
@@ -108,7 +113,7 @@ where
                     Self::convert_negative_array_index(
                         index_value.get_sign_extended_constant().unwrap(),
                         array_type.len()),
-                    false,
+                    true,
                 );
             }
 
@@ -143,7 +148,12 @@ where
         expr: &'ctx LIRExpr,
     )
     {
-        let value = self.codegen_expr(expr);
+        let value = match expr {
+            LIRExpr::Array(list) => {
+                self.codegen_array_declaration(list)
+            }
+            _ => unreachable!(),
+        };
         
         match value {
             BasicValueEnum::PointerValue(pointer) => {

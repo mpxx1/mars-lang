@@ -4,7 +4,7 @@ use ast::*;
 use err::CompileError;
 use pest::Span;
 use regex::Regex;
-
+use ast::Expr::Identifier;
 use super::check_types::resolve_expr_type;
 
 type Mir<'src> = MirS1<'src>;
@@ -59,6 +59,313 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
             return_type: Type::Void,
             span: Span::new("external fn", 0, 10).unwrap(),
         },
+        
+        // Vec<i64>
+        
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_new_i64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "capacity",
+                    ty: Type::I64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::Vec(Box::new(Type::I64)),
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_push_i64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::I64)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "value",
+                    ty: Type::I64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::Void,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_pop_i64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::I64)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::I64,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_get_i64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::I64)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "index",
+                    ty: Type::I64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::I64,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_set_i64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::I64)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "index",
+                    ty: Type::I64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "value",
+                    ty: Type::I64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::Void,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+
+        // Vec<f64>
+
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_new_f64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "capacity",
+                    ty: Type::I64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::Vec(Box::new(Type::F64)),
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_push_f64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::F64)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "value",
+                    ty: Type::F64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::Void,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_pop_f64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::F64)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::F64,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_get_f64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::F64)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "index",
+                    ty: Type::I64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::F64,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_set_f64",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::F64)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "index",
+                    ty: Type::I64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "value",
+                    ty: Type::F64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::Void,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+
+        // Vec<str>
+
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_new_str",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "capacity",
+                    ty: Type::I64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::Vec(Box::new(Type::Str)),
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_push_str",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::Str)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "value",
+                    ty: Type::Str,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::Void,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_pop_str",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::Str)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::Str,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_get_str",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::Str)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "index",
+                    ty: Type::I64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::Str,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "vector_set_str",
+            args: vec![
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "vec_ptr",
+                    ty: Type::Vec(Box::new(Type::Str)),
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "index",
+                    ty: Type::I64,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+                ArgDecl {
+                    node_id: gen_id(),
+                    ident: "value",
+                    ty: Type::Str,
+                    span: Span::new("external fn arg", 0, 14).unwrap(),
+                },
+            ],
+            return_type: Type::Void,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+
         // FuncProto {
         //     parent_id: GLOBAL_SCOPE_ID,
         //     node_id: gen_id(),
