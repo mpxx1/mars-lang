@@ -871,6 +871,16 @@ fn resolve_logical_expr_type<'src>(
 
         Ok(resolve_type(left_ty, scope_id, mir))
     }
+    
+    fn cmp_type(ty: &Type) -> bool {
+        match ty {
+            Type::Bool => { true }
+            Type::F64 => { true }
+            Type::I64 => { true }
+            Type::Char => { true }
+            _ => { false }
+        }
+    }
 
     match logical_expr {
         LogicalExpr::And {
@@ -902,19 +912,18 @@ fn resolve_logical_expr_type<'src>(
             }
 
             let left_ty = resolve_math_expr_type(scope_id, mir, left, opt_type.clone())?;
-
-            if left_ty != Type::I64 && left_ty != Type::F64 {
+            if !cmp_type(&left_ty) {
                 return Err(CompileError::new(
                     *span,
-                    format!("Can use comperison operations with i64, f64 types only, actual type: '{:?}'", left_ty),
+                    format!("Can use comperison operations with i64, f64, bool, char types only, actual type: '{:?}'", left_ty),
                 ));
             }
 
             let right_ty = resolve_math_expr_type(scope_id, mir, right, left_ty.clone())?;
-            if right_ty != Type::I64 && right_ty != Type::F64 {
+            if !cmp_type(&right_ty) {
                 return Err(CompileError::new(
                     *span,
-                    format!("Can use comperison operations with i64, f64 types only, actual type: '{:?}'", right_ty),
+                    format!("Can use comperison operations with i64, f64, bool, char types only, actual type: '{:?}'", right_ty),
                 ));
             }
 
