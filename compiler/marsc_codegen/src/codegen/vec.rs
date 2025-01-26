@@ -1,5 +1,12 @@
+<<<<<<< HEAD
 use inkwell::types::BasicTypeEnum;
 use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
+=======
+use inkwell::AddressSpace;
+use inkwell::types::BasicTypeEnum;
+use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
+use err::CompileError;
+>>>>>>> dev
 use lir::{LIRExpr, LIRType};
 use crate::codegen::codegen::{Codegen, VariableData};
 

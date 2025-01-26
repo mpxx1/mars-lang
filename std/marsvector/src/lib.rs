@@ -38,7 +38,11 @@ pub extern "C" fn vector_pop_i64(vec_ptr: *mut Vec<i64>) -> i64 {
 // f64
 
 #[no_mangle]
+<<<<<<< HEAD
 pub extern "C" fn vector_new_f64(capacity: i64) -> *mut Vec<f64> {
+=======
+pub extern "C" fn vector_new_f64(capacity: i64) -> *mut Vec<i64> {
+>>>>>>> dev
     vector_new(capacity)
 }
 
@@ -80,10 +84,15 @@ pub extern "C" fn vector_new_str(capacity: i64) -> *mut Vec<*mut i8> {
 }
 
 #[no_mangle]
+<<<<<<< HEAD
 pub extern "C" fn vector_push_str(vec_ptr: *mut Vec<*mut i8>, value: *const i8) {
     let c_str = unsafe { std::ffi::CStr::from_ptr(value) };
     let copied = std::ffi::CString::new(c_str.to_bytes()).unwrap();
     vector_push(vec_ptr, copied.into_raw());
+=======
+pub extern "C" fn vector_push_str(vec_ptr: *mut Vec<*mut i8>, value: *mut i8) {
+    vector_push(vec_ptr, value)
+>>>>>>> dev
 }
 
 #[no_mangle]
@@ -114,6 +123,7 @@ pub extern "C" fn vector_pop_str(vec_ptr: *mut Vec<*mut i8>) -> *mut i8 {
 // generic
 
 fn vector_new<T>(capacity: i64) -> *mut Vec<T> {
+<<<<<<< HEAD
     let capacity = if capacity < 0 {
         panic!("Negative capacity");
     } else if capacity == 0 {
@@ -146,6 +156,31 @@ fn vector_get<T: Copy>(vec_ptr: *mut Vec<T>, index: i64) -> T {
                 .copied()
                 .unwrap_or_else(|| panic!("Index {} out of bounds (len {})", index, vec.len()))
         }
+=======
+    let vec = Box::new(Vec::with_capacity(capacity as usize));
+    Box::into_raw(vec)
+}
+
+fn vector_push<T>(vec_ptr: *mut Vec<T>, value: T) {
+    assert!(!vec_ptr.is_null());
+
+    unsafe {
+        (*vec_ptr).push(value);
+    }
+}
+
+fn vector_get<T: Sized + Copy>(vec_ptr: *mut Vec<T>, index: i64) -> T {
+    assert!(!vec_ptr.is_null());
+
+    unsafe {
+        let vec = &*vec_ptr;
+        if let Some(&value) = vec.get(index as usize) {
+            value
+        } else {
+            panic!("Index out of bounds");
+        }
+    }
+>>>>>>> dev
 }
 
 fn vector_set<T: Sized + Copy>(vec_ptr: *mut Vec<T>, index: i64, value: T) {
