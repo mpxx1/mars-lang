@@ -1,0 +1,22 @@
+ fn factorial(n: i64) -> i64 {
+    if n <= 1 {
+        return 1;
+    }
+
+    return n * factorial(n - 1);
+}
+
+
+fn main() -> i64 {
+    var start = now();
+
+    var x = factorial(20);
+    print_i64(x);
+    println("");
+
+    var timeSpend = now() - start;
+    print_i64(timeSpend);
+    println("");
+
+    return 0;
+}

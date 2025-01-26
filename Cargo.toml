@@ -1,0 +1,23 @@
+[package]
+name = "mars-lang"
+version = "0.1.0"
+edition = "2021"
+license = "BSDv3"
+description = """
+Mars programming language compiler entry point
+"""
+
+[dependencies]
+# marsc = { path = "compiler/marsc" }
+
+[workspace]
+members = [
+    "compiler/marsc",
+    "compiler/marsc_ast",
+    "compiler/marsc_hir",
+    "compiler/marsc_mir",
+    "compiler/marsc_lir",
+    "compiler/marsc_error",
+    "std/marsio",
+    "std/marsvector",
+]

@@ -1,3 +1,8 @@
+<<<<<<< Updated upstream
+=======
+mod log;
+
+>>>>>>> Stashed changes
 use clap::{ArgGroup, Parser, Subcommand};
 use hir::ToHir;
 use mir::ToMir;
@@ -112,4 +117,18 @@ pub fn main() {
     } else {
         args.input[..args.input.len() - 5].to_owned()
     };
+<<<<<<< Updated upstream
+=======
+    
+    // println!("{:#?}", lir);
+
+    let ir = log_progress("Codegen", || {
+        codegen(&lir, output.as_str())
+    });
+    
+    // println!("{}", ir);
+    
+    let build_message = format!("Built in {:?}", start.elapsed());
+    log_success(build_message.as_str());
+>>>>>>> Stashed changes
 }

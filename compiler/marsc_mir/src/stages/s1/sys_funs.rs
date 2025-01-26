@@ -4,8 +4,11 @@ use ast::*;
 use err::CompileError;
 use pest::Span;
 use regex::Regex;
+<<<<<<< Updated upstream
 
 use super::check_types::resolve_expr_type;
+=======
+>>>>>>> Stashed changes
 
 type Mir<'src> = MirS1<'src>;
 
@@ -23,6 +26,35 @@ pub(crate) fn sys_funs_init<'src>() -> Vec<FuncProto<'src>> {
         FuncProto {
             parent_id: GLOBAL_SCOPE_ID,
             node_id: gen_id(),
+<<<<<<< Updated upstream
+=======
+            ident: "print_i64",
+            args: vec![ArgDecl {
+                node_id: gen_id(),
+                ident: "i",
+                ty: Type::I64, // example: println("{x}"); where x type is i64/f64/char/bool/str
+                span: Span::new("external fn arg", 0, 14).unwrap(),
+            }],
+            return_type: Type::Void,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+            ident: "print_f64",
+            args: vec![ArgDecl {
+                node_id: gen_id(),
+                ident: "i",
+                ty: Type::F64, // example: println("{x}"); where x type is i64/f64/char/bool/str
+                span: Span::new("external fn arg", 0, 14).unwrap(),
+            }],
+            return_type: Type::Void,
+            span: Span::new("external fn", 0, 10).unwrap(),
+        },
+        FuncProto {
+            parent_id: GLOBAL_SCOPE_ID,
+            node_id: gen_id(),
+>>>>>>> Stashed changes
             ident: "println",
             args: vec![ArgDecl {
                 node_id: gen_id(),

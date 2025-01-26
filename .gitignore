@@ -24,7 +24,7 @@ Cargo.lock
 
 # tmp file for making notes.txt about sth
 notes
-
+*.out
 # macOS
 .DS_Store
 
