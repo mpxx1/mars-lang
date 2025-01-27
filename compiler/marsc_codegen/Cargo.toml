@@ -1,0 +1,10 @@
+[package]
+name = "marsc_codegen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+inkwell = { version = "0.5.0", features = ["llvm18-0"] }
+marsc_lir = { path = "../marsc_lir" }
+marsc_error = { path = "../marsc_error" }
+pest = "2.7.15"
