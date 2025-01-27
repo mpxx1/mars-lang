@@ -33,11 +33,19 @@ fn quick_sort(arr: Vec<i64>) -> Vec<i64> {
 }
 
 fn main() -> i64 {
+    
+    var arr: Vec<i64> = [];
+    
+    var x = 0;
+    var y = 100;
+    while x < y {
+        vector_push_i64(arr, y - x);
+        x += 1;
+    }
+    
     var start = now();
-
-    var arr: Vec<i64> = [3, 6, 8, 10, 1, 2, 1];
     var sorted = quick_sort(arr);
-
+    var timeSpend = now() - start;
 
     var i = 0;
     while i < vector_len_i64(sorted) {
@@ -46,7 +54,7 @@ fn main() -> i64 {
         i += 1;
     }
 
-    var timeSpend = now() - start;
+    
     print("Elapsed: ");
     print_i64(timeSpend);
     println("");

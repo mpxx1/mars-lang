@@ -35,7 +35,7 @@ fn sieveOfEratosthenes(n: i64) -> Vec<i64> {
 }
 
 fn main() -> i64 {
-    var primes: Vec<i64> = sieveOfEratosthenes(50);
+    var primes: Vec<i64> = sieveOfEratosthenes(1000);
 
     var i = 0;
     while i < vector_len_i64(primes) {

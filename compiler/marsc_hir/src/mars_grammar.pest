@@ -32,8 +32,8 @@ identifier = @{
 literal    =  { flt_decl | int_decl | char_decl | str_decl | bool_decl | null_decl }
 block      =  { stmt* }
 type       = _{
-    ref_type
-  | i64_type
+//    ref_type
+    i64_type
   | f64_type
   | str_type
   | char_type
@@ -85,7 +85,7 @@ assignment = { "var" ~ identifier ~ (":" ~ type)? ~ "=" ~ expr ~ ";" }
 assign = {
     assign_lh ~ assign_op ~ assign_rh ~ ";"
 }
-assign_lh = _{ dereference | mem_lookup | identifier }
+assign_lh = _{ mem_lookup | identifier }
 assign_rh = _{ expr }
 
 assign_op        = { assign_pow | assign_div_floor | assign_mod |
@@ -102,7 +102,7 @@ assign_div_floor = { "//=" }
 assign_pow       = { "**=" }
 
 expr = _{
-    reference
+//    reference
   | array_decl
   | struct_init
   | logical_expr
@@ -111,7 +111,7 @@ expr = _{
 return = { "return" ~ return_body ~ ";" }
 return_body = { ( expr )? }
 
-ref_inner   = _{ reference | dereference | mem_lookup | struct_field_call | identifier | "(" ~ ref_inner ~ ")" }
+ref_inner   = _{ mem_lookup | struct_field_call | identifier | "(" ~ ref_inner ~ ")" }
 reference   =  { "&" ~ ref_inner }
 dereference =  { "*" ~ ref_inner }
 
@@ -163,4 +163,4 @@ math_expr            = { additive_expr }
 additive_expr        = { multiplicative_expr ~ ((add_op | sub_op) ~ multiplicative_expr)* }
 multiplicative_expr  = { power_expr ~ ((div_floor_op | mul_op | div_op | mod_op) ~ power_expr)* }
 power_expr           = { primary_math_expr ~ (pow_op ~ primary_math_expr)* }
-primary_math_expr    = { dereference | func_call | mem_lookup | cast_type | struct_field_call | identifier | literal | "(" ~ math_expr ~ ")" }
+primary_math_expr    = { func_call | mem_lookup | cast_type | struct_field_call | identifier | literal | "(" ~ math_expr ~ ")" }
