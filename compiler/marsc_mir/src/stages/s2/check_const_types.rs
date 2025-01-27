@@ -49,7 +49,7 @@ fn check_inner<'src>(
         MIRExpr::MemLookup { ident, indices, .. } => {
             let steps_in = indices.len();
             let mut ty = get_ty_from_parent(mir, scope_id, ident);
-            dbg!(&ty);
+            // dbg!(&ty);
 
             for _ in 0..steps_in {
                 match ty {
