@@ -49,23 +49,8 @@ where
 
             let mut index_value = match self.codegen_expr(&indices[0]) {
                 BasicValueEnum::IntValue(int_value) => int_value,
-                _ => unreachable!()
+                _ => unreachable!("{:#?}", &indices[0])
             };
-
-            let index = index_value.get_sign_extended_constant().unwrap();
-
-            if index < 0 {
-                index_value = self.context.i32_type().const_int(
-                    Self::convert_negative_array_index(
-                        index_value.get_sign_extended_constant().unwrap(),
-                        array_type.len()),
-                    true,
-                );
-            }
-
-            if index_value.get_sign_extended_constant().unwrap() as u32 >= array_type.len() {
-                panic!("Index out of array len: {}", array_type.len())
-            }
 
             let element_ptr = unsafe {
                 self.builder.build_gep(
@@ -105,21 +90,6 @@ where
                 BasicValueEnum::IntValue(int_value) => int_value,
                 _ => unreachable!()
             };
-
-            let index = index_value.get_sign_extended_constant().unwrap();
-
-            if index < 0 {
-                index_value = self.context.i32_type().const_int(
-                    Self::convert_negative_array_index(
-                        index_value.get_sign_extended_constant().unwrap(),
-                        array_type.len()),
-                    true,
-                );
-            }
-
-            if index_value.get_sign_extended_constant().unwrap() as u32 >= array_type.len() {
-                panic!("Index out of array len: {}", array_type.len());
-            }
 
             let element_ptr = unsafe {
                 self.builder.build_gep(
