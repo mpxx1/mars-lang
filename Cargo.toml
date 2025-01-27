@@ -18,4 +18,6 @@ members = [
     "compiler/marsc_mir",
     "compiler/marsc_lir",
     "compiler/marsc_error",
+    "std/marsio",
+    "std/marsvector",
 ]
